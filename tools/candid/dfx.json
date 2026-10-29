@@ -1,0 +1,12 @@
+{
+  "canisters": {
+    "swapic": {
+      "type": "custom",
+      "candid": "swapic.did",
+      "wasm": "",
+      "remote": { "id": { "ic": "hfisl-ayaaa-aaaar-qch3q-cai" } },
+      "declarations": { "output": "out/swapic", "bindings": ["js", "ts"], "node_compatibility": false }
+    }
+  },
+  "version": 1
+}

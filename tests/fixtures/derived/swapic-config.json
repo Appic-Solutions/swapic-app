@@ -1,0 +1,13 @@
+{
+  "poolChain": 8453,
+  "canisterEvmAddress": "0x36d34038f04990a58c068e08ed9754e2e3d9ba53",
+  "ecoPortal": "0xec000769a73b70e16f361a442292500b3bcf4a85",
+  "ecoProver": "0xec08fb4647f3f50d1162a578d481266687c60fc5",
+  "cctpDomains": { "1": 0, "137": 7, "8453": 6, "42161": 3 },
+  "chains": {
+    "1": { "swapic": "0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406", "usdc": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "runner": "0x7e345acab79102ac9588c60b9358ec4d79438eee", "cctpReceiver": "0x23718c0a081b8bf00aee86722af40e175562ad47", "tokenMessenger": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d" },
+    "137": { "swapic": "0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406", "usdc": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", "runner": "0x7e345acab79102ac9588c60b9358ec4d79438eee", "cctpReceiver": "0x23718c0a081b8bf00aee86722af40e175562ad47", "tokenMessenger": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d" },
+    "8453": { "swapic": "0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406", "usdc": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "runner": "0x7e345acab79102ac9588c60b9358ec4d79438eee", "cctpReceiver": "0x23718c0a081b8bf00aee86722af40e175562ad47", "tokenMessenger": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d" },
+    "42161": { "swapic": "0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406", "usdc": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "runner": "0x7e345acab79102ac9588c60b9358ec4d79438eee", "cctpReceiver": "0x23718c0a081b8bf00aee86722af40e175562ad47", "tokenMessenger": "0x28b5a0e9c621a5badaa536219b3a228c8168cf5d" }
+  }
+}
