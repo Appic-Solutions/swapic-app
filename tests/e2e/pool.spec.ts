@@ -65,6 +65,15 @@ test.describe('Pool', () => {
     await expect(page).toHaveURL(/\/pool\/withdraw$/);
   });
 
+  test('while the wallet asks, the button says so (its glow); then the status page', async ({ page }) => {
+    await open(page, '/pool/withdraw', 'withdraw');
+    await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { delayMs?: number } }).__SWAPIC_E2E__.delayMs = 1500; });
+    await page.getByText('25%', { exact: true }).click();
+    await button(page, 'Sign withdrawal').click();
+    await expect(page.getByText('Confirm in your wallet').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Withdrawal signed')).toBeVisible({ timeout: 15_000 });
+  });
+
   test('a "no" in the wallet brings the button back with the cancelled line', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { rejectNext?: boolean } }).__SWAPIC_E2E__.rejectNext = true; });

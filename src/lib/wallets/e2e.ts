@@ -11,7 +11,7 @@ import type { EvmSigner, SignableTypedData } from './evm-signer';
 export const E2E_MARKER = 'E2E-FAKE-MARKER';
 export interface E2eWallets {
   evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean;
-  /** the wallet takes this long to answer a send (a click-through watches each wallet step light up in turn) */
+  /** the wallet takes this long to answer a send or a signature (a click-through watches each wallet step light up) */
   delayMs?: number;
   /** every transaction the fake wallet sent, in order (a click-through reads what was really signed) */
   sent?: { chainId: number; to: string; data: string; value: string }[];
@@ -36,6 +36,8 @@ export function e2eEvmSigner(address: `0x${string}`): EvmSigner {
     address,
     ensureChain: async () => {},
     signTypedData: async (td: SignableTypedData) => {
+      const w = e2eWallets();
+      if (w.delayMs) await new Promise((r) => setTimeout(r, w.delayMs));
       maybeReject();
       const key = e2eWallets().evmKey;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

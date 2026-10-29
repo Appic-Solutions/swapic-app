@@ -54,7 +54,7 @@ test.describe('Scanner', () => {
     await expect(page).toHaveURL(/\?q=0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac$/);
     await expect(page.getByText('Orders for 1 wallet')).toBeVisible();
     await expect(rows).toHaveCount(4);
-    // a chip shrinks away when removed and the feed comes back
+    // Clear takes the chips away and the live feed comes back
     await page.getByText('Clear').click();
     await expect(page.getByText('Latest transactions')).toBeVisible();
     await expect(page).toHaveURL(/\/scanner$/);

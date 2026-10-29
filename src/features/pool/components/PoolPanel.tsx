@@ -39,7 +39,7 @@ export function PoolLoading() {
   );
 }
 
-export function PoolPanel({ onStake, onWithdraw, queuedEnter }: { onStake: () => void; onWithdraw: () => void; queuedEnter?: boolean }) {
+export function PoolPanel({ onStake, onWithdraw, freshPayout }: { onStake: () => void; onWithdraw: () => void; freshPayout?: number | null }) {
   const pool = usePool();
   const { stakes } = useMyStakes();
   const activity = usePoolActivity().data;
@@ -71,7 +71,7 @@ export function PoolPanel({ onStake, onWithdraw, queuedEnter }: { onStake: () =>
         <PoolChart stakes={stakes} nowSec={nowSec} />
       </motion.div>
       <motion.div variants={fade} className="flex w-full flex-col gap-y-6 md:max-h-[676px] md:max-w-[400px] md:overflow-y-auto md:pr-2">
-        <PositionCard mine={mine} apy={apy} nowSec={nowSec} queuedEnter={queuedEnter} />
+        <PositionCard mine={mine} apy={apy} nowSec={nowSec} freshPayout={freshPayout} />
         <Actions canStake={!paused} canWithdraw={mine.has && !paused} onStake={onStake} onWithdraw={onWithdraw} />
         {paused && (
           <Note tone="yellow" icon={<ClockIcon width={18} height={18} />}>{POOL_PAUSED}</Note>

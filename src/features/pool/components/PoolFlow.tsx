@@ -44,15 +44,18 @@ const POOL_LAYOUT: Record<Shown, { frame: string; view?: string }> = {
   status: { frame: NARROW_FRAME },
 };
 
+/** The payout id in a started withdrawal's activity id (`payout-<id>`). */
+const payoutIdOf = (id: string) => (/^payout-\d+$/.test(id) ? Number(id.slice(7)) : null);
+
 export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const link = useQueryOnce();
   const pool = usePool();
   const { stakes, loading } = useMyStakes();
   const [view, setView] = React.useState<PoolView>(start === 'withdraw' ? 'withdrawPick' : start);
   const [statusId, setStatusId] = React.useState<string | null>(null);
-  // back from a signed withdrawal: its waiting line opens calmly in Your stake
-  const [queuedEnter, setQueuedEnter] = React.useState(false);
-  const go = (v: PoolView, queued = false) => { setQueuedEnter(queued); setView(v); };
+  // back from a signed withdrawal: that withdrawal's waiting line (by its payout id) opens calmly in Your stake
+  const [freshPayout, setFreshPayout] = React.useState<number | null>(null);
+  const go = (v: PoolView, fresh: number | null = null) => { setFreshPayout(fresh); setView(v); };
 
   // Stake: From is USDC on an EVM chain or, with the ICP wallet connected, ckUSDC on ICP; the link may name one
   // (`from=<chain>|<address>`, the swap link's exact form); else the connected chain's USDC, else Arbitrum's
@@ -102,7 +105,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
       case 'loading':
         return <PoolLoading />;
       case 'pool':
-        return <PoolPanel queuedEnter={queuedEnter} onStake={() => go('stake')} onWithdraw={() => go('withdrawPick')} />;
+        return <PoolPanel freshPayout={freshPayout} onStake={() => go('stake')} onWithdraw={() => go('withdrawPick')} />;
       case 'stake':
         return <StakePanel from={from} amountText={stakeAmount} onAmountText={setStakeAmount} onPickFrom={() => from && go('stakeFrom')} onBack={() => go('pool')} onDone={() => go('pool')} />;
       case 'stakeFrom':
@@ -141,7 +144,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
           />
         );
       case 'status':
-        return statusId ? <WithdrawStatus id={statusId} onBack={() => go('pool', true)} /> : null;
+        return statusId ? <WithdrawStatus id={statusId} onBack={() => go('pool', payoutIdOf(statusId))} /> : null;
     }
   };
 

@@ -29,7 +29,7 @@ export function combine(stakes: MyStake[]) {
   const sinces = live.map((s) => s.since).filter((x): x is number => x !== null);
   return {
     valueUsdc, earned, since: sinces.length ? Math.min(...sinces) : null,
-    waiting: live.flatMap((s) => s.waiting.map((w) => ({ usdc: BigInt(w.usdc), etaAt: w.etaAt, status: w.status }))),
+    waiting: live.flatMap((s) => s.waiting.map((w) => ({ payoutId: w.payoutId, usdc: BigInt(w.usdc), etaAt: w.etaAt, status: w.status }))),
     has: live.some((s) => s.shares > 0n),
   };
 }
