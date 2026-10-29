@@ -4,10 +4,10 @@ import { cn } from '@/lib/cn';
 import { TokenAvatar } from '@/components/orders/TokenAvatar';
 import type { SideView } from '@/components/orders/types';
 
-export function SideBlock({ label, side, amount, tone }: { label: string; side: SideView; amount: string; tone?: string }) {
+export function SideBlock({ label, side, amount, tone, fly }: { label: string; side: SideView; amount: string; tone?: string; fly?: string }) {
   return (
     <div className="flex w-full items-center gap-4">
-      <TokenAvatar side={side} />
+      <TokenAvatar side={side} fly={fly} />
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[#898989]">{label}</p>
         <p className={cn('truncate', tone)}>{amount}</p>

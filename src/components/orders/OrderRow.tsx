@@ -4,6 +4,8 @@
 // and its steps when opened (given by the caller once fetched; skeletons until then).
 import * as React from 'react';
 import Skeleton from '@/components/ui/skeleton';
+import { motion } from 'motion/react';
+import { T, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
 import { ChevronDownIcon, FireIcon, ManageSearchIcon, ParkOutlineBridgeIcon, PoolIcon } from '@/components/icons';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
@@ -14,6 +16,9 @@ import { Steps } from './Steps';
 import { TokenAvatar } from './TokenAvatar';
 import type { SideView, StepView } from './types';
 import { ViaPill } from './ViaPill';
+
+/** Names of an order's pieces for the in place change to its order page (tokens and status fly there). */
+export const flyNames = (id: string) => ({ from: `from-${short(id)}`, to: `to-${short(id)}`, pill: `pill-${short(id)}` });
 
 export const where = (s: SideView) => `${s.symbol} ${s.chain === 'Swapic Pool' ? 'in' : 'on'} ${s.chain}`;
 
@@ -48,6 +53,9 @@ export interface OrderRowProps {
 
 export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps }: OrderRowProps) {
   const [copied, copy] = useCopied();
+  const reduced = useReducedMotion();
+  const mounted = useMounted();
+  const fly = flyNames(o.id);
   const ok = o.status === 'delivered';
   const live = o.status === 'pending' || o.status === 'queued';
   const refund = o.status === 'refunded';
@@ -58,7 +66,8 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
       data-testid="order-row"
       className={cn(
         'flex w-full flex-col bg-input-fields bg-cover bg-center bg-no-repeat shadow-md',
-        'rounded-2xl p-5 backdrop-blur-[30px] duration-200 hover:bg-black/75',
+        'rounded-2xl p-5 backdrop-blur-[30px] hover:bg-black/75 hover:ring-1 hover:ring-inset hover:ring-white/10',
+        tw.quick,
         'md:rounded-[36px] md:p-6',
         fresh && 'animate-slide-in-from-top',
       )}
@@ -68,13 +77,14 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
         <div className="flex min-w-0 items-center gap-x-2">
           <p className="text-white">{kindText(o)}</p>
           {o.direction === 'received' && o.payer && <p className="truncate font-normal">from {short(o.payer)}</p>}
-          <StatusPill status={o.status} />
+          {/* the status cross fades as the live order moves on (only changes after the first render animate) */}
+          <motion.span key={o.status} className="flex" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}><StatusPill status={o.status} fly={fly.pill} /></motion.span>
         </div>
         <p className="shrink-0">{o.day}, {o.time}</p>
       </div>
       {/* Tokens and the status line */}
       <div className="my-4 flex w-full items-center justify-between">
-        <TokenAvatar side={o.from} />
+        <TokenAvatar side={o.from} fly={fly.from} />
         <div className="flex w-full items-center justify-center">
           <div className="flex-1 border-t-[3px] border-green-500" />
           <div
@@ -89,7 +99,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           </div>
           <div className={cn('flex-1 border-t-[3px] transition-colors duration-500', live ? 'border-dashed border-white/30' : lineTone, refund && 'border-dashed')} />
         </div>
-        <TokenAvatar side={refund && o.refund ? o.refund : o.to} />
+        <TokenAvatar side={refund && o.refund ? o.refund : o.to} fly={fly.to} />
       </div>
       {/* Amounts */}
       <div className="mb-4 flex items-start justify-between gap-x-4 text-xs font-bold text-[#898989] *:flex *:flex-1 *:flex-col *:justify-center">
@@ -98,7 +108,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           <p className="text-xl leading-7 text-white">{o.from.amountText}</p>
           <p className="font-normal">{o.from.usdText}</p>
         </div>
-        <div className="items-center self-center text-center max-md:hidden">{centerText(o)}</div>
+        <motion.div key={centerText(o)} className="items-center self-center text-center max-md:hidden" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}>{centerText(o)}</motion.div>
         <div className="items-end text-right">
           {refund && o.refund ? (
             <>
@@ -123,27 +133,30 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
         </div>
       </div>
       {/* Steps */}
-      <div className={cn('flex flex-col gap-y-4 duration-300', open ? 'mb-6 translate-y-0 opacity-100' : 'h-0 -translate-y-2 overflow-hidden opacity-0')}>
+      {/* Steps: open and close with a smooth height change (openHeight). */}
+      <motion.div className="overflow-hidden" initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={openHeight(!!open, reduced)}>
+      <div className="mb-6 flex flex-col gap-y-4">
         <div className="flex items-center justify-between gap-x-3 text-sm font-bold text-[#898989]">
           <div className="flex items-center gap-x-1 whitespace-nowrap">
             <span className="max-sm:hidden">Order ID:</span><span className="sm:hidden">Order</span> <span className="font-mono font-normal text-white/80">{short(o.id)}</span>
             <CopyButton id={o.id} copied={copied} onCopy={copy} text={o.id} />
           </div>
-          <a data-testid="open-scanner" onClick={onOpenScanner} className="flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/20 active:scale-95">
+          <a data-testid="open-scanner" onClick={onOpenScanner} className={cn('flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20', tw.quick, tw.press)}>
             <ManageSearchIcon width={14} height={14} /><span className="whitespace-nowrap"><span className="max-sm:hidden">Open in </span>Scanner</span>
           </a>
         </div>
-        {open && (steps ? <Steps steps={steps} /> : <StepsSkeleton />)}
+        {steps ? <Steps steps={steps} animated /> : open ? <StepsSkeleton /> : null}
       </div>
+      </motion.div>
       {/* Via, details toggle, fee */}
       <div className="flex items-center justify-between gap-x-3 text-xs text-[#898989] *:flex *:items-center *:font-semibold">
         <div className="gap-x-1.5">
           <ViaPill />
           <span className="max-sm:hidden">{o.gas}</span>
         </div>
-        <div onClick={onToggle} className="cursor-pointer select-none gap-x-1 whitespace-nowrap text-sm transition-colors hover:text-white sm:gap-x-2">
+        <div onClick={onToggle} className={cn('cursor-pointer select-none gap-x-1 whitespace-nowrap text-sm hover:text-white sm:gap-x-2', tw.quick, tw.press)}>
           {open ? 'Hide Details' : 'View Details'}
-          <ChevronDownIcon width={20} height={20} className={cn('duration-300 ease-in-out', open && 'rotate-180 transform')} />
+          <ChevronDownIcon width={20} height={20} className={cn('transition-transform', tw.panel, open && 'rotate-180 transform')} />
         </div>
         <div className="gap-x-1 whitespace-nowrap text-white">
           {o.feeText ?? ''}

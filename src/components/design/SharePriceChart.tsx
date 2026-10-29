@@ -6,6 +6,19 @@
 // every label it shows comes from `format`, which callers build from bigint values with @/lib/money.
 import * as React from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { motion } from 'motion/react';
+import { T } from '@/lib/motion';
+
+// Motion (approved 2026-10-29, part 2): the hovered point is the live dot (blue with a white edge) plus a soft halo; it
+// fades and grows in, then glides from point to point (150 ms).
+function HoverDot({ cx = 0, cy = 0 }: { cx?: number; cy?: number }) {
+  return (
+    <motion.g initial={{ x: cx, y: cy, opacity: 0, scale: 0.6 }} animate={{ x: cx, y: cy, opacity: 1, scale: 1 }} transition={T.hover}>
+      <circle r={9} fill="#2160D5" opacity={0.25} />
+      <circle r={4.5} fill="#2160D5" stroke="#fff" strokeWidth={2} />
+    </motion.g>
+  );
+}
 
 export interface SharePricePoint {
   date: string;
@@ -51,7 +64,7 @@ export default function SharePriceChart({ data, onHover, height = 360, format, p
           }}
           cursor={{ stroke: '#2160D5', strokeWidth: 1 }}
         />
-        <Line type="monotone" dataKey="value" stroke="#2160D5" strokeWidth={3} dot={false} isAnimationActive={false} />
+        <Line type="monotone" dataKey="value" stroke="#2160D5" strokeWidth={3} dot={false} activeDot={(props: { cx?: number; cy?: number }) => <HoverDot cx={props.cx} cy={props.cy} />} isAnimationActive={false} />
       </LineChart>
     </ResponsiveContainer>
   );

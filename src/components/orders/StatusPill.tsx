@@ -11,11 +11,12 @@ const PILL: Record<OrderStatus, [string, string]> = {
   failed: ['Failed', 'bg-[#FF0000]/35 text-[#FF0000]'],
 };
 
-export function StatusPill({ status }: { status: OrderStatus }) {
+/** fly: a name for the in place change (the same name on the next view's pill makes it fly there). */
+export function StatusPill({ status, fly }: { status: OrderStatus; fly?: string }) {
   const [label, tone] = PILL[status];
   const live = status === 'pending' || status === 'queued';
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-x-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold', tone)}>
+    <span data-fly={fly} className={cn('inline-flex shrink-0 items-center gap-x-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold', tone)}>
       {live && (
         <span className="relative flex h-1.5 w-1.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />

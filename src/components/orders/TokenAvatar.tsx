@@ -5,9 +5,9 @@ import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import type { SideView } from './types';
 
-export function TokenAvatar({ side, size = 'h-12 w-12', badge = 'h-5 w-5' }: { side: SideView; size?: string; badge?: string }) {
+export function TokenAvatar({ side, size = 'h-12 w-12', badge = 'h-5 w-5', fly }: { side: SideView; size?: string; badge?: string; fly?: string }) {
   return (
-    <div className="relative shrink-0">
+    <div data-fly={fly} className="relative shrink-0">
       <Avatar src={side.logo} className={cn(size, side.logo === SWAPIC_LOGO && 'bg-[#0B0B0B] p-2 ring-1 ring-white/20')} />
       <Avatar src={side.chainLogo} className={cn('absolute -bottom-1 -right-1 shadow-[0_0_3px_0_rgba(255,255,255,0.5)]', side.chainLogo === SWAPIC_LOGO && 'bg-black p-0.5', badge)} />
     </div>
