@@ -18,6 +18,9 @@ import { Earn } from '@/features/home/Earn';
 import { Why } from '@/features/home/Why';
 import { Faq } from '@/features/home/Faq';
 import { Footer } from '@/features/home/Footer';
+import { AnimatePresence } from 'motion/react';
+import { Enter } from '@/components/motion/parts';
+import { fade, useFirstRender } from '@/lib/motion';
 
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
 const ARBITRUM = 'eip155:42161';
@@ -35,6 +38,7 @@ export function SwapHome() {
   const f = useSwapForm();
   const evm = useWallets((s) => s.evm);
   const q = useQueryOnce();
+  const first = useFirstRender();
 
   // the link, once
   const linkedFrom = useLinkedToken(q?.get('from') ?? null);
@@ -68,7 +72,7 @@ export function SwapHome() {
     setView('swap');
   };
 
-  if (view === 'from' || view === 'to') {
+  const tokenPage = view === 'from' || view === 'to' ? (() => {
     const current = view === 'from' ? f.from : f.to;
     const start = current?.chain ?? (view === 'from' ? (evm?.chainId ? `eip155:${evm.chainId}` : ARBITRUM) : config.icpChain);
     return (
@@ -81,22 +85,27 @@ export function SwapHome() {
         onSelect={pickToken(view)}
       />
     );
-  }
+  })() : null;
   // the review and the progress are drawn by Tasks 9 and 10 (held for Jeff's motion approval): nothing yet
   if (view === 'review' || view === 'status') return null;
-  // the design's SwapHomeScreen: the panel and the scroll hint, then the info sections
+  // Motion (approved 2026-10-29): the Swap panel fades out and the token page slides in from 16 px right; Back plays it
+  // in reverse. The design's SwapHomeScreen: the panel and the scroll hint, then the info sections.
   return (
-    <div className="flex w-full flex-col items-center">
-      <div className="flex w-full flex-col items-center justify-center md:min-h-[760px]">
-        <SwapPanel onPick={(side) => setView(side)} onReview={() => setView('review')} />
-        <ScrollHint />
-      </div>
-      <HowItWorks />
-      <Chains />
-      <Earn />
-      <Why />
-      <Faq />
-      <Footer />
-    </div>
+    <AnimatePresence mode="wait">
+      {tokenPage ?? (
+        <Enter key="panel" skip={first} variants={fade} className="flex w-full flex-col items-center">
+          <div className="flex w-full flex-col items-center justify-center md:min-h-[760px]">
+            <SwapPanel onPick={(side) => setView(side)} onReview={() => setView('review')} />
+            <ScrollHint />
+          </div>
+          <HowItWorks />
+          <Chains />
+          <Earn />
+          <Why />
+          <Faq />
+          <Footer />
+        </Enter>
+      )}
+    </AnimatePresence>
   );
 }

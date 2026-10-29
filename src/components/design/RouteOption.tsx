@@ -10,10 +10,14 @@
 //    always open, no chevron, not clickable.
 // Moved from the design's RouteOption.tsx (sha 809fa5d65615): it shows texts the caller
 // formats with @/lib/money (no number math here), and one badge pill per tag.
+// Motion (approved 2026-10-29, src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it
+// glides from the Swap list to Review swap and back; it lifts 2 px with a brighter edge on hover and sinks a little when
+// pressed.
 import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Card } from '@/components/ui/card';
 import { ChevronDownIcon, ClockIcon, FireIcon } from '@/components/icons';
+import { MotionCard } from '@/components/motion/parts';
+import { T, tw, lift, pressCard, usePhone } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
 
@@ -46,17 +50,33 @@ export interface RouteOptionProps {
   className?: string;
   /** Review page look: always open, no chevron, not clickable. */
   review?: boolean;
+  /** Shared glide id: the card with the same id in the next view takes over from this one. */
+  layoutId?: string;
+  /** The card's element (Your swap shrinks a copy of it into the status circle). */
+  cardRef?: React.Ref<HTMLDivElement>;
 }
 
-export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review }: RouteOptionProps) {
+export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef }: RouteOptionProps) {
+  const phone = usePhone();
   return (
-    <Card
+    <MotionCard
+      ref={cardRef}
       onClick={() => onSelect(option.key)}
+      // The glide only runs between views (the list and the review page have different dependencies); opening the
+      // details never glides.
+      layoutId={layoutId}
+      layoutDependency={layoutId ? (review ? 'review' : 'list') : undefined}
+      layoutCrossfade={false}
+      // Lift and press run through motion here (a glide leaves an inline transform that would block CSS hover transforms).
+      whileHover={review ? undefined : lift}
+      whileTap={review ? undefined : pressCard}
+      transition={{ default: T.hover, layout: T.big }}
+      style={layoutId ? { borderRadius: phone ? 20 : 36 } : undefined}
       className={cn(
         'w-full flex-col items-start justify-between gap-3 overflow-hidden rounded-[20px] border !py-4 px-4',
         'md:rounded-[36px] md:px-6',
-        'transition duration-300',
-        review ? 'cursor-auto hover:bg-[#000000]/0' : 'cursor-pointer hover:-translate-y-0.5 active:scale-[0.99]',
+        tw.quick,
+        review ? 'cursor-auto hover:bg-[#000000]/0' : cn('cursor-pointer', isSelected ? 'hover:border-blue-500' : 'hover:border-gray-500'),
         'bg-highlighted-card',
         isSelected ? 'border-blue-600' : 'border-gray-700',
         className,
@@ -74,7 +94,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
         {!review && (
           <button
             onClick={(e) => { e.stopPropagation(); onExpand(option.key); }}
-            className={cn('ml-auto flex items-center rounded-[10px] bg-gray-400 bg-opacity-20 p-2', isExpanded && 'rotate-180')}
+            className={cn('ml-auto flex items-center rounded-[10px] bg-gray-400 bg-opacity-20 p-2 transition hover:bg-opacity-30', tw.panel, tw.pressIcon, isExpanded && 'rotate-180')}
           >
             <ChevronDownIcon width={10} height={10} />
           </button>
@@ -113,7 +133,8 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           <ClockIcon width={15} height={15} className="text-primary" />
         </span>
       </div>
-      <div className={cn('w-full border-t border-gray-700', 'transform transition-all duration-300', isExpanded ? 'translate-y-0 pt-3 opacity-100' : 'h-0 -translate-y-2 overflow-hidden opacity-0')}>
+      {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}
+      <div className={cn('w-full border-t border-gray-700', 'transform transition-[opacity,transform,padding]', tw.panel, isExpanded ? 'translate-y-0 pt-3 opacity-100' : 'h-0 -translate-y-2 overflow-hidden opacity-0')}>
         <div className="space-y-3">
           <p className="text-sm font-medium">Option Details:</p>
           <div className="space-y-2">
@@ -123,6 +144,6 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           </div>
         </div>
       </div>
-    </Card>
+    </MotionCard>
   );
 }

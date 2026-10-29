@@ -1,13 +1,14 @@
 // Amount card: the live AmountInput (src/app/(panel)/bridge/_components/
 // select-token/AmountInput.tsx) markup driven by props instead of the app
 // stores, plus a skeleton for the max button and balance while the wallet
-// balance loads. Moved from the design's AmountCard.tsx (sha 417010756cd3): the
+// balance loads (it shimmers, motion tw.shimmer). Moved from the design's AmountCard.tsx (sha 417010756cd3): the
 // caller formats every number with @/lib/money and passes the texts in.
 import * as React from 'react';
 import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import Skeleton from '@/components/ui/skeleton';
 import { SWAPIC_LOGO } from './swapic-logo';
+import { tw } from '@/lib/motion';
 
 export interface AmountCardProps {
   /** The token sent and its chain's logo (the small badge). */
@@ -46,12 +47,12 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               className="w-full rounded-md border-[#000000] bg-transparent py-2 text-primary outline-none placeholder:text-primary/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
             {balanceLoading ? (
-              <Skeleton className="ml-3 h-7 w-14 rounded-md" />
+              <Skeleton className={'ml-3 h-7 w-14 rounded-md ' + tw.shimmer} />
             ) : (
               balanceText !== undefined && (
                 <span
                   onClick={() => onMax?.()}
-                  className="ml-3 cursor-pointer rounded-md bg-gradient-to-r from-white to-white/35 px-4 py-1 text-xs text-black transition-all duration-300 hover:bg-white/35 active:scale-95 md:text-sm"
+                  className={'ml-3 cursor-pointer rounded-md bg-gradient-to-r from-white to-white/35 px-4 py-1 text-xs text-black hover:bg-white/35 md:text-sm ' + tw.quick + ' ' + tw.press}
                 >
                   max
                 </span>
@@ -61,7 +62,7 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
           <div className="flex w-full items-center justify-between">
             <p className="text-sm">{usdText ?? ''}</p>
             {balanceLoading ? (
-              <Skeleton className="h-4 w-16" />
+              <Skeleton className={'h-4 w-16 ' + tw.shimmer} />
             ) : (
               balanceText !== undefined && <p className="text-nowrap text-center text-xs font-semibold text-muted md:text-sm">{balanceText}</p>
             )}

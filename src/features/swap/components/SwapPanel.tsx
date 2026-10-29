@@ -5,7 +5,10 @@
 // panel ends at Review swap and grows when Send To Wallet opens. Phones: stacked, routes in a sideways row.
 import * as React from 'react';
 import Link from 'next/link';
-import Box from '@/components/ui/box';
+import { motion } from 'motion/react';
+import { PanelBox } from '@/components/motion/parts';
+import { fade, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 import { TokenCard } from '@/components/ui/token-card';
 import ActionButton from '@/components/ui/action-button';
 import WalletAddressInput from '@/components/ui/wallet-address-input';
@@ -39,6 +42,12 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const both = !!from && !!to;
   const column = both && state !== 'none';
   const pickedCard = 'py-5 md:rounded-3xl md:py-5 max-h-min md:max-h-min md:px-6';
+  // Motion (approved 2026-10-29): token cards lift on hover with a brighter edge and sink when pressed; inside the in place
+  // panel (MorphFrame) the parts fade in place; Send To Wallet opens and closes at panel speed; the route column's first
+  // cards fade up when quoting starts.
+  const card = cn(tw.quick, tw.lift, tw.edge, tw.pressRow);
+  const mounted = useMounted();
+  const reduced = useReducedMotion();
 
   // the amount, as typed and as smallest units
   let amount: bigint | null = null;
@@ -104,44 +113,49 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
     if (button.enabled) onReview();
   };
 
-  const actions = (cls: string) => (
-    <div className={'flex w-full items-center gap-x-2 ' + cls}>
-      <div className="w-full transition-transform duration-150 active:scale-[0.98]">
+  const actions = (cls: string, fades: boolean) => (
+    <motion.div variants={fades ? fade : undefined} className={'flex w-full items-center gap-x-2 ' + cls}>
+      <div className={cn('w-full', tw.quick, button.enabled && tw.press)}>
         <ActionButton isDisabled={!button.enabled} onClick={button.enabled ? onButton : undefined}>
           {button.text}
         </ActionButton>
       </div>
       <div
         onClick={() => f.set({ recipient: { ...recipient, show: !recipient.show, error: recipientError(to, recipient.address) } })}
-        className={'flex min-h-12 min-w-12 cursor-pointer items-center justify-center rounded-full bg-primary-buttons px-4 transition-all duration-300 ease-in-out hover:opacity-85 active:scale-90 ' + (recipient.show ? 'ring-2 ring-white/40' : '')}
+        className={cn('flex min-h-12 min-w-12 cursor-pointer items-center justify-center rounded-full bg-primary-buttons px-4 hover:opacity-85', tw.quick, 'active:scale-[0.92] motion-reduce:active:scale-100', recipient.show && 'ring-2 ring-white/40')}
       >
         <WalletIcon className="text-white" />
       </div>
-    </div>
+    </motion.div>
   );
 
   const paused = state === 'paused' ? { emptyTitle: PAUSED, emptyText: PAUSED_TEXT } : state === 'icpPaused' ? { emptyTitle: 'Paused for now', emptyText: ICP_PAUSED } : {};
 
   return (
-    <Box className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] duration-500 ease-in-out md:h-fit md:w-full md:max-w-[537px] ' + (column ? 'lg:max-w-[1060px]' : '')}>
-      <div className="flex w-full items-center justify-between text-white">
+    <PanelBox className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] md:h-fit md:w-full md:max-w-[537px] ' + tw.big + ' ' + (column ? 'lg:max-w-[1060px]' : '')}>
+      <motion.div variants={fade} className="flex w-full items-center justify-between text-white">
         <h1 className="text-2xl font-bold md:text-3xl">Swap</h1>
         <Link href="/history" className="flex cursor-pointer items-center gap-x-2 text-sm transition-opacity hover:opacity-70">
           <HistoryIcon width={20} height={20} />
           History
         </Link>
-      </div>
+      </motion.div>
       <div className="flex w-full flex-1 flex-col justify-between gap-x-4 gap-y-6 lg:flex-row">
-        <div data-testid="swap-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
+        <motion.div variants={fade} data-testid="swap-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
           <div className={'relative flex w-full ' + (both ? 'flex-col gap-y-4 sm:flex-row sm:gap-x-4' : 'flex-col gap-y-4')}>
-            <TokenCard token={from ?? undefined} customOnClick={() => onPick('from')} label="From" className={(from ? pickedCard : '') + ' active:scale-[0.98]'} />
+            <TokenCard token={from ?? undefined} customOnClick={() => onPick('from')} label="From" className={cn(from && pickedCard, card)} />
             <div
               onClick={() => f.flip()}
-              className={'group absolute inset-0 z-20 m-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-[#0B0B0B] text-white transition-transform duration-300 active:scale-90 ' + (both ? 'hover:rotate-180 sm:rotate-90 sm:hover:-rotate-90' : 'hover:rotate-180')}
+              className={cn(
+                'group absolute inset-0 z-20 m-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-[#0B0B0B] text-white hover:border-white/60',
+                'transition-[transform,border-color] active:scale-90 motion-reduce:transition-none',
+                tw.panel,
+                both ? 'hover:rotate-180 sm:rotate-90 sm:hover:-rotate-90' : 'hover:rotate-180',
+              )}
             >
               <ArrowsUpDownIcon width={20} height={20} />
             </div>
-            <TokenCard token={to ?? undefined} customOnClick={() => onPick('to')} label="To" className={(to ? pickedCard : '') + ' active:scale-[0.98]'} />
+            <TokenCard token={to ?? undefined} customOnClick={() => onPick('to')} label="To" className={cn(to && pickedCard, card)} />
           </div>
           {both && (
             <AmountCard
@@ -156,15 +170,24 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
             />
           )}
           {both && (
-            <WalletAddressInput
-              token={to!}
-              address={recipient.address}
-              setAddress={(a) => f.set({ recipient: { ...recipient, address: a, error: recipientError(to, a) } })}
-              validationError={recipient.show ? recipient.error || '' : ''}
-              onValidationError={() => {}}
-              show={recipient.show}
-              avatar={to!.chainLogo}
-            />
+            // Send To Wallet: the live card, opened and closed here at panel speed (the card itself stays "shown" so its
+            // own slide stays out of the way).
+            <motion.div
+              initial={false}
+              animate={{ height: recipient.show ? 'auto' : 0, opacity: recipient.show ? 1 : 0 }}
+              transition={openHeight(recipient.show, reduced)}
+              className="overflow-hidden"
+            >
+              <WalletAddressInput
+                token={to!}
+                address={recipient.address}
+                setAddress={(a) => f.set({ recipient: { ...recipient, address: a, error: recipientError(to, a) } })}
+                validationError={recipient.show ? recipient.error || '' : ''}
+                onValidationError={() => {}}
+                show
+                avatar={to!.chainLogo}
+              />
+            </motion.div>
           )}
           {both && smartTyped && recipient.show && (
             // PROVISIONAL copy (plan 2 Smart wallets, awaiting Jeff)
@@ -172,13 +195,13 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
               You are using a smart wallet. Type the address that should receive on {to!.chainName}, and make sure it is yours there.
             </p>
           )}
-          {actions('mt-4 max-lg:hidden')}
-        </div>
+          {actions('mt-4 max-lg:hidden', false)}
+        </motion.div>
         {column && (
           <div data-testid="swap-routes" className="relative w-full lg:min-h-[300px] lg:flex-1">
             <div className="lg:absolute lg:inset-0">
               <RouteOptionsList
-                key={state}
+                enter={mounted}
                 state={state === 'loading' ? 'loading' : state === 'ready' ? 'ready' : 'empty'}
                 options={views}
                 toToken={{ symbol: to!.symbol, logo: to!.logo }}
@@ -193,7 +216,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
           </div>
         )}
       </div>
-      {actions('lg:hidden')}
-    </Box>
+      {actions('lg:hidden', true)}
+    </PanelBox>
   );
 }
