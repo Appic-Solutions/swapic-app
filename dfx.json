@@ -1,0 +1,7 @@
+{
+  "canisters": {
+    "swapic_test": { "type": "assets", "source": ["out"], "frontend": { "entrypoint": "out/index.html" } },
+    "swapic_prod": { "type": "assets", "source": ["out"], "frontend": { "entrypoint": "out/index.html" } }
+  },
+  "version": 1
+}
