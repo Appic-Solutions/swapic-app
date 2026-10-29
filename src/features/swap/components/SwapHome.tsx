@@ -1,5 +1,5 @@
 'use client';
-// The Swap page body: the panel or a token page (the design's SwapFlowScreen views), then the info sections (Task 6).
+// The Swap page body: the panel and the info sections (the design's SwapHomeScreen), or a token page (SwapFlowScreen).
 // It reads `pick`, `from`, `to`, `amount` and `send` from the link once on load (useQueryOnce, never useSearchParams,
 // which breaks the static build without a Suspense boundary), so a swap can be shared as a link.
 import * as React from 'react';
@@ -11,6 +11,13 @@ import { recipientError, useSwapForm } from '../form';
 import { useTokenList } from '../tokens';
 import { SwapPanel } from './SwapPanel';
 import { TokenSelect } from './TokenSelect';
+import { ScrollHint } from '@/features/home/ScrollHint';
+import { HowItWorks } from '@/features/home/HowItWorks';
+import { Chains } from '@/features/home/Chains';
+import { Earn } from '@/features/home/Earn';
+import { Why } from '@/features/home/Why';
+import { Faq } from '@/features/home/Faq';
+import { Footer } from '@/features/home/Footer';
 
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
 const ARBITRUM = 'eip155:42161';
@@ -77,9 +84,19 @@ export function SwapHome() {
   }
   // the review and the progress are drawn by Tasks 9 and 10 (held for Jeff's motion approval): nothing yet
   if (view === 'review' || view === 'status') return null;
+  // the design's SwapHomeScreen: the panel and the scroll hint, then the info sections
   return (
-    <div className="flex w-full animate-fade md:items-center md:justify-center">
-      <SwapPanel onPick={(side) => setView(side)} onReview={() => setView('review')} />
+    <div className="flex w-full flex-col items-center">
+      <div className="flex w-full flex-col items-center justify-center md:min-h-[760px]">
+        <SwapPanel onPick={(side) => setView(side)} onReview={() => setView('review')} />
+        <ScrollHint />
+      </div>
+      <HowItWorks />
+      <Chains />
+      <Earn />
+      <Why />
+      <Faq />
+      <Footer />
     </div>
   );
 }
