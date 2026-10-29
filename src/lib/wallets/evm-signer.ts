@@ -10,11 +10,9 @@
 // `@reown/appkit/react-core` (basic mode: email, socials, swaps and onramp off whatever the Reown dashboard says) with
 // `features: { email: false, socials: false, analytics: false, swaps: false, onramp: false }` and
 // `coinbasePreference: 'eoaOnly'` (both checked in node_modules/@reown/appkit* 1.8.24 type files).
-// Smart-contract wallets: `coinbasePreference` governs only the Coinbase Wallet connector, and AppKit 1.8.24's wagmi
-// adapter also adds a Base Account connector that createAppKit cannot switch off (adapter client.js:171-176;
-// appkit-base-client.js initializeOptionsController never sets enableBaseAccount). The connect-time guard closes it
-// (guard.ts, run by bridge.tsx: Base Account refused by id, contract code refused, EIP-7702 delegation allowed), with
-// `excludeWalletIds` hiding it from the list and the quoter's payerIsContract refusal as the backstop;
+// Smart wallets (Jeff, 2026-10-29, option B): they may swap; the connect-time guard (guard.ts, run by bridge.tsx: the Base
+// Account connector or contract code that is not an EIP-7702 delegation) flags them as `smartWallet` in the store, so the
+// Swap panel never sends to their own address on another chain and the Pool keeps Stake off;
 // EvmSigner.sendTransaction switches chain first and refuses when the wallet reports another chain after the switch;
 // the store's setIcp drops 2vxsx-fae (tested); the e2e signers are reached only through an inline
 // `process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e'` check.

@@ -9,7 +9,7 @@ import type { IcpCaller } from '@/lib/icp';
 import type { EvmSigner, SignableTypedData } from './evm-signer';
 
 export const E2E_MARKER = 'E2E-FAKE-MARKER';
-export interface E2eWallets { evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}` }
+export interface E2eWallets { evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean }
 declare global { interface Window { __SWAPIC_E2E__?: E2eWallets } }
 
 export const e2eWallets = (): E2eWallets => {

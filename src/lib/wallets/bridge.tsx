@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { getAccount, getBytecode } from 'wagmi/actions';
 import { useAppKitAccount, useAppKitNetwork, useAppKitState, useDisconnect as useAppKitDisconnect, useAppKit } from '@reown/appkit/react-core';
 import { useAuth, useSigner } from '@nfid/identitykit/react';
@@ -15,21 +15,18 @@ export function WalletBridge() {
   const { chainId } = useAppKitNetwork();
   const { user } = useAuth();
   const signer = useSigner();
-  const { setEvm, setIcp, setEvmRefused } = useWallets.getState();
-  const { disconnect: disconnectEvm } = useAppKitDisconnect();
-  const disconnectRef = useRef(disconnectEvm);
-  disconnectRef.current = disconnectEvm;
+  const { setEvm, setIcp } = useWallets.getState();
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const w = (require('./e2e') as typeof import('./e2e')).e2eWallets();
-      setEvm(w.evm ? { address: w.evm, chainId: 8453 } : null);
+      setEvm(w.evm ? { address: w.evm, chainId: 8453, smartWallet: !!w.evmSmart } : null);
       setIcp(w.icp ? { principal: w.icp, signer: 'OISY' } : null);
     }
   }, [setEvm, setIcp]);
 
-  // The connect-time guard (guard.ts): a wallet reaches the store only once judged; a refused one is disconnected.
+  // The connect-time guard (guard.ts): a wallet reaches the store once judged, a smart one flagged (never disconnected).
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
     if (!isConnected || !address) {
@@ -50,19 +47,12 @@ export function WalletBridge() {
         }
       }
       if (!live) return;
-      if (judgeEvmWallet(connectorId, code) === 'refuse') {
-        setEvm(null);
-        setEvmRefused(true);
-        await disconnectRef.current();
-        return;
-      }
-      setEvmRefused(false);
-      setEvm({ address: wallet, chainId: chain });
+      setEvm({ address: wallet, chainId: chain, smartWallet: judgeEvmWallet(connectorId, code) === 'smart' });
     })();
     return () => {
       live = false;
     };
-  }, [address, isConnected, chainId, setEvm, setEvmRefused]);
+  }, [address, isConnected, chainId, setEvm]);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
