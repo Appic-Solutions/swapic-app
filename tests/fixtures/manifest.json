@@ -310,5 +310,13 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 2 Task 11 SelectUnknownTokenScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#stakeQuote",
+    "kind": "derived",
+    "source": "StakeQuote shape (services/quoter/src/api/answer/mod.rs stake routes, fees.poolRebalancing) with the design's sample numbers (pool-screens.tsx StakePanel: $0.18 network fee, 0.1% rebalancing share)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 3 Task 4 StakeScreen; no guard data (order, sign, tx): the Stake button is not clicked in e2e"
   }
 ]

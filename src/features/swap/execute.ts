@@ -28,7 +28,7 @@ import { formatAmount } from '@/lib/money';
 import { gasText, type NativeCoin } from './view';
 import { sameAddress, sameToken } from './guards/abi';
 import { loadGuardContext, type GuardContext } from './guards/context';
-import { routeOffered, verifyEvmRoute } from './guards/evm';
+import { routeOffered, verifyEvmRoute, type CheckedEvmRoute } from './guards/evm';
 import { verifyIcpSwap, type CheckedIcpSwap } from './guards/icp';
 import { GuardError, GUARD_MESSAGE } from './guards/errors';
 import { findByTag, pickOptions, type OptionTag, type PickedOption } from './options';
@@ -82,8 +82,7 @@ export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcom
 async function runEvm(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOption, guard: GuardContext | undefined): Promise<ExecOutcome> {
   const evm = i.evm;
   if (!evm) return failed('Connect wallet');
-  const chainId = chainNumber(quote.fromChain);
-  let checked;
+  let checked: CheckedEvmRoute;
   try {
     checked = verifyEvmRoute({
       quote, route: option.route, mode: option.mode as 'gasless' | 'userPays', payer: evm.address, recipient: i.recipient,
@@ -92,6 +91,12 @@ async function runEvm(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOpt
   } catch (e) {
     return guardFailure(e);
   }
+  return sendCheckedEvm(checked, evm, d, i);
+}
+
+/** Signs and sends a route that passed verifyEvmRoute in this run (the swap's and the stake's, plan 3 Task 4). */
+export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep'>): Promise<ExecOutcome> {
+  const chainId = checked.chainId;
   let step = 0;
   try {
     await evm.ensureChain(chainId);
@@ -126,7 +131,7 @@ async function runEvm(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOpt
   }
 }
 
-async function submit(i: ExecInput, d: ExecDeps, body: GaslessSubmit, step: number): Promise<ExecOutcome> {
+async function submit(i: Pick<ExecInput, 'onStep'>, d: ExecDeps, body: GaslessSubmit, step: number): Promise<ExecOutcome> {
   try {
     await d.submitGasless(body);
     i.onStep(step, 'done');

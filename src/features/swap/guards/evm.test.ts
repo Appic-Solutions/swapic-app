@@ -168,3 +168,24 @@ describe('the gasless doors, the transaction, the screen', () => {
     expect(routeOffered(q, bad, 'icpPull', who)).toBe(true);
   });
 });
+
+describe('verifyEvmRoute, stake (a real Base order made into a stake, its ref recomputed)', () => {
+  const q = load('base-usdc-to-base-eth');
+  const base = executable(q, 'userPays')[0]!;
+  const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
+  const terms = { ref: '', salt: `0x${'55'.repeat(32)}`, kind: 'stake' as const, account: PAYER.toLowerCase(), premium: '0', icpFees: '0', rebalanceShare: '35827', candid: '0x' };
+  const stakeQuote: Quote = { ...q, toChain: 'icp:737ba355e855bd4b61279056603e0550', toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } };
+  const route = (t: typeof terms = terms, to: Hex = CANISTER): Route => {
+    const ref = poolRefOf(t);
+    return { ...forge(q, base, (o) => ({ ...o, ref, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })), pool: { ...t, ref }, envelope: undefined };
+  };
+  const check = (r: Route, over: Partial<EvmCheckInput> = {}) => rule(() => verifyEvmRoute(input(stakeQuote, r, 'userPays', { recipient: PAYER, toToken: CKUSDC, stakeOwner: PAYER, ...over })));
+  it('passes when the shares go to the payer and the USDC to the canister', () => expect(check(route())).toBe('passed'));
+  it('refuses shares minted to someone else, even when the ref commits them', () => expect(check(route({ ...terms, account: ATTACKER.toLowerCase() }))).toBe('stakeOwner'));
+  it('refuses terms the order does not commit (plan check C2)', () => {
+    const r = route();
+    expect(check({ ...r, pool: { ...r.pool!, rebalanceShare: '1' } })).toBe('poolRef');
+  });
+  it('refuses the USDC sent anywhere but the canister', () => expect(check(route(terms, ATTACKER))).toBe('poolDelivery'));
+  it('refuses a stake checked without its owner', () => expect(check(route(), { stakeOwner: undefined })).toBe('stakeOwner'));
+});

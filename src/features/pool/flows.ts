@@ -26,13 +26,34 @@
 // finishes the payout, shown as started. The ICP side being short is refused, never queued (the canister answers Closed
 // with its "pocket is short" reason, or a Ledger failure): "Not enough ckUSDC on ICP right now. Try a smaller amount or
 // later." (Jeff, 2026-10-28). Tests: flows.test.ts.
-import { userMessage, type PoolAnswer } from '@/lib/api';
+// Design note (stake from EVM, plan 3 Task 4).
+// Must never happen: the stake's shares minted to anyone but the paying wallet (Jeff's owner rule, contract section 2); an
+// order whose ref commits other terms than the ones checked (another owner, another rebalancing share: plan check C2);
+// anything signed or sent without plan 2's checks, or with a step the canister would not read (plan check C1); a stake
+// above the room under the cap started at all.
+// How the design proves it: the stake quote is asked with owner = payer = the connected EVM address; verifyEvmRoute's stake
+// branch (plan 2 Task 1) holds it: with stakeOwner set, route.pool.kind must be stake and route.pool.account the payer,
+// poolRefOf(route.pool) must equal the order's ref, every step is read as the canister's read_plan reads it, and the plan
+// must deliver the pool chain's USDC to the canister's own EVM address there (poolDelivery); the anchors are read fresh with
+// loadGuardContext in the same run; the room tvlCap - totalAssets is checked before the quote (StakePanel), and an amount
+// over it never reaches a wallet; the signing and sending is plan 2's sendCheckedEvm, unchanged. Tests: the stake tests in
+// src/features/swap/guards/evm.test.ts, on a real Base order made into a stake with its ref recomputed (plan 2's forge).
+import { userMessage, type PoolAnswer, type Quote, type StakeQuote, postStakeQuote } from '@/lib/api';
 import { PoolErrorFailure, poolErrorMessage, stakeRoom as roomAfterCap, type IcpCaller, type IcpClient } from '@/lib/icp';
 import { Principal } from '@icp-sdk/core/principal';
-import { formatUsdWhole, planIcpWithdraw } from '@/lib/money';
+import { ICP_CHAIN } from '@/config';
+import type { UiToken } from '@/components/ui/token-types';
+import { formatUsd, formatUsdWhole, planIcpWithdraw } from '@/lib/money';
+import { captureFailure } from '@/lib/sentry';
+import type { EvmSigner } from '@/lib/wallets';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
 import { isUserRejection } from '@/lib/wallets/rejection';
-import type { ExecOutcome } from '@/features/swap/execute';
+import { sendCheckedEvm, type ExecDeps, type ExecOutcome } from '@/features/swap/execute';
+import { verifyEvmRoute } from '@/features/swap/guards/evm';
+import { loadGuardContext } from '@/features/swap/guards/context';
+import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
+import type { PickedOption } from '@/features/swap/options';
+import { etaText, sumFees } from '@/features/swap/view';
 import { realClock, settleLost, type Clock } from '@/features/swap/lost';
 
 /** The paused pool (lead's call, 2026-10-28, as the canister: stakes and withdrawals are both refused while closed). */
@@ -44,6 +65,53 @@ export function stakeRoom(p: PoolAnswer): bigint {
 }
 
 const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
+
+/** Gasless when allowed, else the fastest you pay gas route; executable routes only. */
+export function pickStakeOption(q: StakeQuote): PickedOption | undefined {
+  const g = q.gasless.allowed ? q.gasless.routes.filter((r) => r.executable).sort((a, b) => a.rank - b.rank)[0] : undefined;
+  if (g) return { key: `gasless:${g.routeId}`, tags: ['Gasless'], mode: 'gasless', route: g };
+  const u = q.userPays.routes.filter((r) => r.executable).sort((a, b) => a.etaSeconds - b.etaSeconds)[0];
+  return u ? { key: `userPays:${u.routeId}`, tags: ['Fastest'], mode: 'userPays', route: u } : undefined;
+}
+
+/** Added to your stake: the least USDC the order delivers less the rebalancing share, the base the shares are minted on
+ *  (answer/mod.rs:197-198). */
+export function stakeView(o: PickedOption): { added: bigint; addedText: string; feeText: string; readyText: string } {
+  const raw = BigInt(o.route.amountOutMin) - BigInt(o.route.pool?.rebalanceShare ?? '0');
+  const added = raw > 0n ? raw : 0n;
+  return { added, addedText: formatUsd(added).slice(1), feeText: formatUsd(sumFees(o.route.fees)), readyText: etaText(o.route.etaSeconds) };
+}
+
+/** The stake answer has no toChain/toToken (always into the pool, ckUSDC on ICP: api/mod.rs:563-564); the check reads them. */
+const asQuote = (q: StakeQuote): Quote => ({ ...q, toChain: ICP_CHAIN, toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } });
+
+export async function executeStakeEvm(
+  i: { from: UiToken; amount: bigint; evm: EvmSigner; shownAdded: bigint; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  d: ExecDeps & { postStakeQuote: typeof postStakeQuote },
+): Promise<ExecOutcome> {
+  let q: StakeQuote;
+  try {
+    q = await d.postStakeQuote({ fromChain: i.from.chain, fromToken: i.from.address, amount: i.amount.toString(), owner: i.evm.address, payer: i.evm.address });
+  } catch (e) {
+    return { kind: 'failed', message: userMessage(e) };
+  }
+  const option = pickStakeOption(q);
+  if (!option) return { kind: 'failed', message: 'No route found for this amount' };
+  if (stakeView(option).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
+  try {
+    // the canister's anchors, fresh (get_config, Eco's prover, its EVM address); every step read as the canister reads it
+    const guard = await loadGuardContext(d.icp);
+    const checked = verifyEvmRoute({
+      quote: asQuote(q), route: option.route, mode: option.mode as 'gasless' | 'userPays', payer: i.evm.address, recipient: i.evm.address,
+      fromToken: i.from.address, toToken: CKUSDC, amountIn: i.amount,
+      guard, nowSec: Math.floor(d.nowMs() / 1000), stakeOwner: i.evm.address,
+    });
+    return await sendCheckedEvm(checked, i.evm, d, i);
+  } catch (e) {
+    if (e instanceof GuardError) { captureFailure(e, `guard:${e.rule}`); return { kind: 'failed', message: GUARD_MESSAGE }; }
+    return { kind: 'failed', message: userMessage(e) };
+  }
+}
 
 export async function executeStakeIcp(
   i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
