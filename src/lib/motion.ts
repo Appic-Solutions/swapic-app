@@ -1,6 +1,6 @@
 'use client';
-// Moved as is from the approved design's motion.ts (design-sync .design-sync/entry/screens/motion.ts, approved by Jeff
-// 2026-10-29): every value unchanged.
+// Moved as is from the approved design's motion.ts (parts 1 and 2, approved by Jeff 2026-10-29; the lead's frozen
+// snapshot .superpowers/sdd/2026-10-29-lead/motion-part2-approved): every value unchanged.
 // Swapic motion: every duration, easing, shared variant and motion class in
 // one module, so the live app can copy it as is.
 //
@@ -42,6 +42,9 @@ export const GLOW = {
   off: '0 0 0px 0px rgba(59,130,246,0)',
   on: '0 0 26px 2px rgba(59,130,246,0.45)',
 };
+
+/** A card flying into a bigger card grows at most this much (more reads as a zoom). */
+export const FLY_GROW = 1.1;
 
 /** Times in milliseconds, for timers. */
 export const MS = {
@@ -111,6 +114,16 @@ export const pressCard = { scale: 0.99 };
 export const listItem = (i: number) => ({
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0, transition: { ...T.enter, delay: i * DUR.stagger } },
+});
+
+/**
+ * Something new at the top of a list (a History row, a feed card): it opens
+ * from nothing, the list below glides down (350 ms), and it fades in. gap: the
+ * list's gap in px, which it also opens.
+ */
+export const arriveTop = (gap: number) => ({
+  initial: { height: 0, opacity: 0, marginBottom: -gap, overflow: 'hidden' },
+  animate: { height: 'auto', opacity: 1, marginBottom: 0, transitionEnd: { overflow: 'visible' }, transition: T.big },
 });
 
 // ---------------------------------------------------------------- classes

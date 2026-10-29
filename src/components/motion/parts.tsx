@@ -1,9 +1,9 @@
 'use client';
-// Moved from the approved design's motion-parts.tsx (Jeff, 2026-10-29), values in @/lib/motion: MotionCard (the live Card
-// as a motion element, so a card can glide), Enter (a presence child), PanelBox and MorphFrame (one panel that changes in
-// place: Swap, Review swap, Your swap), flyInto and shrinkInto (the route card flying into the status circle), DrawCheck
-// (a check that draws itself in) and ConfirmButton (the wallet step's button with its waiting glow). The prototype's demo
-// controls (DemoBar) are not part of the app.
+// Moved from the approved design's motion-parts.tsx (parts 1 and 2, Jeff 2026-10-29; the lead's frozen snapshot), values
+// in @/lib/motion: MotionCard (the live Card as a motion element, so a card can glide), Enter (a presence child), PanelBox
+// and MorphFrame (one panel that changes in place: Swap, Pool, History, Scanner; pieces marked data-fly fly from the leaving
+// view to their match), flyInto, shrinkInto and flyMatching, DrawCheck (a check that draws itself in) and ConfirmButton
+// (the wallet step's button with its waiting glow). The prototype's demo controls (DemoBar) are not part of the app.
 import * as React from 'react';
 import { motion, AnimatePresence, animate, useMotionValue } from 'motion/react';
 import type { HTMLMotionProps } from 'motion/react';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn';
 import Box from '@/components/ui/box';
 import ActionButton from '@/components/ui/action-button';
 import Spinner from '@/components/ui/spinner';
-import { DUR, EASE, GLOW, T, view as viewVariants, tw, openHeight, useFirstRender, useReducedMotion } from '@/lib/motion';
+import { DUR, EASE, FLY_GROW, GLOW, T, view as viewVariants, tw, openHeight, useFirstRender, useReducedMotion } from '@/lib/motion';
 
 /** layoutId of a route card: the same id on the Swap list and on Review swap makes it glide between them. */
 export const routeLayoutId = (id: string) => `route-${id}`;
@@ -135,6 +135,19 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children }: Morp
     const t = setTimeout(() => { pending.current = false; }, DUR.big * 1000);
     return () => clearTimeout(t);
   }, [view]);
+  // Pieces marked data-fly in the leaving view fly to their match in the new one;
+  // a page scrolled down (phones) glides back to the top.
+  const before = React.useRef(view);
+  React.useLayoutEffect(() => {
+    const was = before.current;
+    before.current = view;
+    if (was === view) return;
+    if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+    if (reduced || !frame.current || !inner.current) return;
+    const pick = (v: string) => [...inner.current!.children].find((el) => (el as HTMLElement).dataset.view === v);
+    const from = pick(was), to = pick(view);
+    if (from && to) return flyMatching(from, to, frame.current);
+  }, [view]);
   return (
     <FrameContext.Provider value={frame}>
       <motion.div
@@ -144,7 +157,7 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children }: Morp
       >
         <div ref={inner} className="w-full">
           <AnimatePresence mode="popLayout">
-            <Enter key={view} skip={first} className={cn(VIEW, viewClass)} variants={viewVariants}>
+            <Enter key={view} data-view={view} skip={first} className={cn(VIEW, viewClass)} variants={viewVariants}>
               {children(view)}
             </Enter>
           </AnimatePresence>
@@ -184,7 +197,8 @@ export function flyInto(from: HTMLElement, target: HTMLElement, frame: HTMLEleme
   from.style.filter = 'opacity(0)';
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
   const dy = b.top + b.height / 2 - (a.top + a.height / 2);
-  const scale = fit === 'width' ? b.width / a.width : Math.min(b.width / a.width, b.height / a.height);
+  // A card flying into a bigger card grows at most a little (FLY_GROW), so it never reads as a zoom.
+  const scale = fit === 'width' ? Math.min(b.width / a.width, FLY_GROW) : Math.min(b.width / a.width, b.height / a.height);
   const run = animate(copy, { x: [0, dx], y: [0, dy], scale: [1, scale], opacity: [1, 1, 0] }, {
     duration: DUR.big,
     ease: EASE.enter,
@@ -201,6 +215,7 @@ const visible = (el: Element) => { const r = el.getBoundingClientRect(); return 
  * Pieces marked data-fly="name" fly from the leaving view (inside `fromScope`)
  * to the piece with the same name in the new view (inside `toScope`): e.g. an
  * order row's tokens and status pill land where the order page shows them.
+ * data-fly-fit="width" on the target matches its width (card into card).
  * Hidden duplicates (phone and desktop markup) are skipped.
  */
 export function flyMatching(fromScope: Element, toScope: Element, frame: HTMLElement) {
@@ -208,7 +223,7 @@ export function flyMatching(fromScope: Element, toScope: Element, frame: HTMLEle
   toScope.querySelectorAll<HTMLElement>('[data-fly]').forEach((to) => {
     if (!visible(to)) return;
     const from = [...fromScope.querySelectorAll<HTMLElement>(`[data-fly="${to.dataset.fly}"]`)].find(visible);
-    if (from) stops.push(flyInto(from, to, frame, 'contain'));
+    if (from) stops.push(flyInto(from, to, frame, to.dataset.flyFit === 'width' ? 'width' : 'contain'));
   });
   return () => stops.forEach((s) => s());
 }
