@@ -5,6 +5,7 @@ import '@/style/globals.css';
 import { Providers } from '@/lib/wallets';
 import { HostRedirect } from '@/components/layout/HostRedirect';
 import { SentryInit } from '@/components/layout/SentryInit';
+import { MotionRoot } from '@/lib/motion';
 
 export const metadata: Metadata = {
   title: 'Swapic',
@@ -19,7 +20,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SentryInit />
         <Providers>
           <HostRedirect />
-          {children}
+          {/* reduce motion follows the OS; the default transition is the entry one (src/lib/motion.ts) */}
+          <MotionRoot>{children}</MotionRoot>
         </Providers>
       </body>
     </html>

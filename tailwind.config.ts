@@ -47,6 +47,8 @@ const config: Config = {
 
       /* Keyframes */
       keyframes: {
+        // Skeleton shimmer (src/lib/motion.ts tw.shimmer): moves the light band of the background gradient across
+        shimmer: { '0%': { backgroundPosition: '150% 0' }, '100%': { backgroundPosition: '-50% 0' } },
         // Panel
         'slideInFromRight': {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
@@ -139,6 +141,7 @@ const config: Config = {
 
       /* Animation */
       animation: {
+        shimmer: 'shimmer 1.6s cubic-bezier(0.37,0,0.63,1) infinite',
         // Panel
         'slide-in-from-right': 'slideInFromRight 0.5s ease-in-out',
         'slide-in-from-left': 'slideInFromLeft 0.5s ease-in-out',
