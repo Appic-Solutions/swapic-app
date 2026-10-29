@@ -26,11 +26,13 @@ export interface AmountCardProps {
   message?: string;
   /** Card title (the live card says Send). */
   label?: string;
+  /** Name for an in place change: a card with the same data-fly name in the leaving view flies into this one. */
+  fly?: string;
 }
 
-export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send' }: AmountCardProps) {
+export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', fly }: AmountCardProps) {
   return (
-    <Card className="mt-4 max-h-[133px] cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0 md:max-h-[155px]">
+    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className="mt-4 max-h-[133px] cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0 md:max-h-[155px]">
       <p className="text-sm font-semibold">{label}</p>
       <div className="flex w-full items-center gap-4">
         <div className="relative">

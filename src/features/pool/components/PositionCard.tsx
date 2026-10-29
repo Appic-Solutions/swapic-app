@@ -1,21 +1,29 @@
+'use client';
 // Moved from the design's pool-screens.tsx PositionCard: Your stake, both wallets' stakes added into one (contract 5.5),
 // each waiting withdrawal on its own line; the empty card invites a first stake.
+// Motion (approved 2026-10-29, part 2): the card lifts with a brighter edge on hover (it is not clickable: no press); it
+// flies into Stake's and Withdraw's card when one opens (data-fly); back from a signed withdrawal, its waiting line opens
+// calmly once the page has settled (queuedEnter).
 import * as React from 'react';
+import { motion } from 'motion/react';
 import Spinner from '@/components/ui/spinner';
+import { cn } from '@/lib/cn';
+import { DUR, openHeight, tw, useReducedMotion } from '@/lib/motion';
 import { statCard } from '@/components/design/stat-card';
 import { dayText } from '@/lib/copy/format';
 import { formatUsd } from '@/lib/money';
 import { combine, waitingLine } from '../data';
-import { StakeAvatar } from './parts';
+import { STAKE_CARD, StakeAvatar } from './parts';
 
 const statLabel = 'text-sm font-medium text-[#898989]';
 
-export function PositionCard({ mine, apy, nowSec }: { mine: ReturnType<typeof combine>; apy: string | null; nowSec: number }) {
+export function PositionCard({ mine, apy, nowSec, queuedEnter }: { mine: ReturnType<typeof combine>; apy: string | null; nowSec: number; queuedEnter?: boolean }) {
   const shown = mine.has || mine.waiting.length > 0;
+  const reduced = useReducedMotion();
   return (
     <div className="flex flex-col gap-y-2">
       <p className="text-xl font-bold text-white md:text-2xl">Your stake</p>
-      <div className={statCard}>
+      <div data-fly={STAKE_CARD} data-fly-fit="width" className={cn(statCard, tw.quick, tw.lift, tw.edge)}>
         {shown ? (
           <>
             <div className="flex items-center gap-x-3">
@@ -31,12 +39,25 @@ export function PositionCard({ mine, apy, nowSec }: { mine: ReturnType<typeof co
                 <p className="font-bold text-[#12b76a]">{mine.earned >= 0n ? `+${formatUsd(mine.earned)}` : formatUsd(mine.earned)}</p>
               </div>
             )}
-            {mine.waiting.map((w, k) => (
+            {mine.waiting.map((w, k) => (queuedEnter ? (
+              // just signed: the line opens calmly once the page has settled
+              <motion.div
+                key={k}
+                className="-mt-3 overflow-hidden"
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1, transition: { ...openHeight(true, reduced), delay: DUR.big + DUR.lead } }}
+              >
+                <div className="mt-3 flex items-center gap-x-3 rounded-xl bg-blue-600/35 p-3 text-sm text-white">
+                  <div className="w-6 shrink-0"><Spinner /></div>
+                  <p>{waitingLine(w, nowSec)}</p>
+                </div>
+              </motion.div>
+            ) : (
               <div key={k} className="flex animate-slide-in-from-top items-center gap-x-3 rounded-xl bg-blue-600/35 p-3 text-sm text-white">
                 <div className="w-6 shrink-0"><Spinner /></div>
                 <p>{waitingLine(w, nowSec)}</p>
               </div>
-            ))}
+            )))}
           </>
         ) : (
           <div className="flex flex-col items-center gap-y-2 py-2 text-center">

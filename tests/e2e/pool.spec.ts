@@ -50,12 +50,61 @@ test.describe('Pool', () => {
     }
   });
 
-  test('withdraw 25% to an EVM chain: one signature, then the status page', async ({ page }) => {
+  test('withdraw 25% to an EVM chain: one signature, then the status page, then the pool page in place', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.getByText('25%', { exact: true }).click();
     await expect(button(page, 'Sign withdrawal')).toBeEnabled();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('Withdrawal signed')).toBeVisible({ timeout: 15_000 });
-    await expect(button(page, 'Back to pool')).toBeVisible();
+    // a step shows a check only when the payout record says it is done
+    await expect(page.locator('svg path[d="m4.5 12.75 6 6 9-13.5"]')).toHaveCount(1);
+    await button(page, 'Back to pool').click();
+    // the same panel turns into the pool page (motion part 2); the link stays as it was loaded
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await expect(page.getByText('Withdrawal signed')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pool\/withdraw$/);
+  });
+
+  test('a "no" in the wallet brings the button back with the cancelled line', async ({ page }) => {
+    await open(page, '/pool/withdraw', 'withdraw');
+    await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { rejectNext?: boolean } }).__SWAPIC_E2E__.rejectNext = true; });
+    await page.getByText('25%', { exact: true }).click();
+    await button(page, 'Sign withdrawal').click();
+    await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
+    await expect(button(page, 'Sign withdrawal')).toBeEnabled();
+    await expect(page.getByText('Withdrawal signed')).toHaveCount(0);
+  });
+
+  test('Stake and Stake From open in the same panel; Back returns', async ({ page }) => {
+    await open(page, '/pool', 'pool');
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await page.getByRole('link', { name: 'Stake', exact: true, includeHidden: true }).click();
+    await expect(page.getByText('Added to your stake')).toBeVisible();
+    await expect(page.getByText('Swapic Pool')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pool$/);
+    await page.locator('input[type=number]').fill('100');
+    await page.getByText('From', { exact: true }).click();
+    await expect(page.getByText('Stake From')).toBeVisible();
+    // the leaving view fades out (one Back once it has gone)
+    await expect(page.getByText('Added to your stake')).toHaveCount(0);
+    await button(page, 'Back').click();
+    // the amount typed outlives the picker
+    await expect(page.locator('input[type=number]')).toHaveValue('100');
+    await expect(page.getByText('Stake From')).toHaveCount(0);
+    await button(page, 'Back').click();
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await expect(page.getByText('Added to your stake')).toHaveCount(0);
+  });
+
+  test('reduce motion: one view after each change', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, '/pool', 'pool');
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await page.getByRole('link', { name: 'Withdraw', exact: true, includeHidden: true }).click();
+    await expect(page.getByText('You receive')).toHaveCount(1);
+    await expect(page.getByText('Swapic Pool')).toHaveCount(0);
+    await button(page, 'Back').click();
+    await expect(page.getByText('Swapic Pool')).toHaveCount(1);
+    await expect(page.getByText('You receive')).toHaveCount(0);
   });
 });

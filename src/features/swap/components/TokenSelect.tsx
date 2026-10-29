@@ -15,6 +15,7 @@ import { useChains, useTokenList } from '../tokens';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { listItem, page, tw, useInPresence, useMounted } from '@/lib/motion';
+import { useFrame } from '@/components/motion/parts';
 
 export interface TokenSelectProps {
   title: string;
@@ -60,6 +61,9 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const mounted = useMounted();
   // Opened inside the Swap page's AnimatePresence: slides in and out.
   const opened = useInPresence();
+  // Inside a MorphFrame (the Pool's one panel: Stake From, Receive on) the frame is the Box and changes the panel in
+  // place, so only the content shows, at the Box's inner height (motion part 2).
+  const inFrame = useFrame() !== null;
 
   // more tokens as the list scrolls to its end
   const sentinel = React.useRef<HTMLDivElement>(null);
@@ -74,11 +78,8 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
     return () => seen.disconnect();
   }, [fixed, hasMore, loadMore, tokens.length]);
 
-  return (
-    // Motion (approved 2026-10-29): opened from the Swap panel (inside an AnimatePresence) it slides in from 16 px right
-    // and fades in; Back fades it out drifting right. On its own it shows at rest at once.
-    <motion.div className="flex w-full md:items-center md:justify-center" variants={page} initial={opened ? 'hidden' : false} animate="shown" exit="gone">
-    <Box className="justify-normal gap-y-6 md:h-[607px] md:max-w-[537px]">
+  const content = (
+    <>
       <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100"><BoxHeader title={title} onBack={onBack} /></div>
       <div className="grid w-full select-none grid-cols-5 place-items-center gap-5">
         {chains
@@ -135,7 +136,14 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
           <div className="flex h-full w-full items-center justify-center text-primary">No coins were found.</div>
         )}
       </div>
-    </Box>
+    </>
+  );
+  if (inFrame) return <div className="flex w-full flex-col items-center justify-normal gap-y-6 md:h-[543px]">{content}</div>;
+  return (
+    // Motion (approved 2026-10-29): opened from the Swap panel (inside an AnimatePresence) it slides in from 16 px right
+    // and fades in; Back fades it out drifting right. On its own it shows at rest at once.
+    <motion.div className="flex w-full md:items-center md:justify-center" variants={page} initial={opened ? 'hidden' : false} animate="shown" exit="gone">
+      <Box className="justify-normal gap-y-6 md:h-[607px] md:max-w-[537px]">{content}</Box>
     </motion.div>
   );
 }

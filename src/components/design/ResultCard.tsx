@@ -11,9 +11,10 @@ export const ShareAvatar = ({ className = 'h-12 w-12' }: { className?: string })
   <Avatar src={SWAPIC_LOGO} className={cn('bg-[#0B0B0B] p-2 ring-1 ring-white/20', className)} />
 );
 
-export function ResultCard({ label, big, small, rows, loading, avatar }: { label: string; big: string; small: string; rows: [string, string, string?][]; loading?: boolean; avatar?: React.ReactNode }) {
+/** `fly`: a card with the same data-fly name in the leaving view flies into this one (an in place change, motion part 2). */
+export function ResultCard({ label, big, small, rows, loading, avatar, fly }: { label: string; big: string; small: string; rows: [string, string, string?][]; loading?: boolean; avatar?: React.ReactNode; fly?: string }) {
   return (
-    <Card className="cursor-auto flex-col items-start justify-between gap-3 hover:bg-[#000000]/0 lg:flex-1">
+    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className="cursor-auto flex-col items-start justify-between gap-3 hover:bg-[#000000]/0 lg:flex-1">
       <div className="flex w-full flex-col gap-3">
       <p className="text-sm font-semibold">{label}</p>
       <div className="flex w-full items-center gap-4">

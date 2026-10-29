@@ -1,10 +1,10 @@
 import { Shell } from '@/components/layout/Shell';
-import { WithdrawFlow } from '@/features/pool/components/WithdrawPanel';
+import { PoolFlow } from '@/features/pool/components/PoolFlow';
 
 export default function Page() {
   return (
     <Shell tab="Pool">
-      <WithdrawFlow />
+      <PoolFlow start="withdraw" />
     </Shell>
   );
 }

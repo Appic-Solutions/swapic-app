@@ -1,10 +1,10 @@
 import { Shell } from '@/components/layout/Shell';
-import { StakeFlow } from '@/features/pool/components/StakePanel';
+import { PoolFlow } from '@/features/pool/components/PoolFlow';
 
 export default function Page() {
   return (
     <Shell tab="Pool">
-      <StakeFlow />
+      <PoolFlow start="stake" />
     </Shell>
   );
 }

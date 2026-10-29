@@ -5,17 +5,20 @@
 // an EVM chain (the canister's address, plan check C4), You receive from the withdraw quote asked 600 ms after the amount
 // settles and checked as it will be signed (checkWithdrawQuote), then one signature (executeWithdrawEvm) and the status
 // page. The ICP stake: ckUSDC on ICP less one ledger fee, then withdraw_icp (executeWithdrawIcp) and back to the pool.
-// It reads `amount` from the link once.
+// It reads `amount` from the link once (PoolFlow).
+// Motion (approved 2026-10-29, part 2): a view of the Pool's in place panel (PoolFlow). The stake card flies into the
+// amount card; the percent chips' light pill slides to the one picked; while the wallet asks, the button reads "Confirm in
+// your wallet" with a soft glow, and a "no" in the wallet brings it back with "You cancelled in your wallet.".
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { motion } from 'motion/react';
 import { TokenCard } from '@/components/ui/token-card';
-import ActionButton from '@/components/ui/action-button';
 import { Avatar } from '@/components/ui/avatar';
 import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
+import { ConfirmButton } from '@/components/motion/parts';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { CheckIcon, ClockIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
@@ -25,24 +28,21 @@ import { chainNumber } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
-import { useQueryOnce } from '@/lib/use-query-once';
+import { fade, tw } from '@/lib/motion';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
-import { TokenSelect } from '@/features/swap/components/TokenSelect';
-import { useMyStakes, usePool, type MyStake } from '../data';
+import { usePool, type MyStake } from '../data';
 import { CKUSDC, executeWithdrawEvm, executeWithdrawIcp, POOL_PAUSED } from '../flows';
-import { CKUSDC_TOKEN, USDC_LOGO, useUsdcTokens } from '../usdc';
+import { USDC_LOGO } from '../usdc';
 import { usedNonces } from '../used-nonces';
 import { checkWithdrawQuote, type CheckedWithdraw } from '../withdraw-sig';
-import { ReceiveOnPicker } from './ReceiveOnPicker';
-import { WithdrawPick } from './WithdrawPick';
-import { WithdrawStatus } from './WithdrawStatus';
+import { SlidingPill, STAKE_CARD } from './parts';
 
 const BASE = 'eip155:8453';
 /** The design's order of an EVM stake's payout chains: Base first (the payout leaves from Base, so it is the quickest). */
-const PAYOUT_ORDER = ['eip155:8453', 'eip155:42161', 'eip155:1', 'eip155:137'];
+export const PAYOUT_ORDER = ['eip155:8453', 'eip155:42161', 'eip155:1', 'eip155:137'];
 const PCTS = [25, 50, 75, 100] as const;
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -56,54 +56,12 @@ function useDebounced<T>(value: T, ms: number): T {
 
 const minutes = (etaAt: number, nowSec: number) => Math.max(1, Math.round((etaAt - nowSec) / 60));
 
-export function WithdrawFlow() {
-  const router = useRouter();
-  const all = useUsdcTokens();
-  const evmTokens = React.useMemo(() => [...all].sort((x, y) => PAYOUT_ORDER.indexOf(x.chain) - PAYOUT_ORDER.indexOf(y.chain)), [all]);
-  const { stakes, loading } = useMyStakes();
-  const live = stakes.filter((s) => s.shares > 0n);
-  const both = live.length > 1;
-  const [view, setView] = React.useState<'pick' | 'withdraw' | 'receive' | { status: string }>('pick');
-  const [kind, setKind] = React.useState<MyStake['kind']>('evm');
-  const [picked, setPicked] = React.useState<UiToken | null>(null);
-  // Continue on the pick fills in the whole of the picked stake (the design's flow)
-  const [prefill, setPrefill] = React.useState('');
-  // one stake (or none yet): straight to its panel; both: the pick first
-  const stake = both ? live.find((s) => s.kind === kind) : live[0] ?? stakes.find((s) => s.kind === 'evm');
-  const icp = stake?.kind === 'icp';
-  const tokens = icp ? [CKUSDC_TOKEN] : evmTokens;
-  const to = icp ? CKUSDC_TOKEN : picked ?? evmTokens[0] ?? null;
-  const shown = view === 'pick' && !both ? 'withdraw' : view;
-  // which panel opens depends on both wallets' accounts: nothing until they have answered once
-  if (loading && typeof shown !== 'object') return null;
-  if (typeof shown === 'object') return <WithdrawStatus id={shown.status} onBack={() => router.push('/pool')} />;
-  if (shown === 'pick') {
-    return (
-      <WithdrawPick
-        stakes={live} picked={kind} evmChains={evmTokens.map((t) => t.chainName)}
-        onPick={(k) => { setKind(k); setPicked(null); }} onBack={() => router.push('/pool')} onContinue={() => { const st = live.find((x) => x.kind === kind); setPrefill(st ? formatUnits(st.valueUsdc, 6).replace(/,/g, '') : ''); setView('withdraw'); }}
-      />
-    );
-  }
-  if (shown === 'receive' && to && stake) {
-    return <ReceiveOnPicker stake={stake} tokens={tokens} selected={to} onBack={() => setView('withdraw')} onSelect={(t) => { setPicked(t); setView('withdraw'); }} />;
-  }
-  return (
-    <WithdrawPanel
-      key={stake?.kind ?? 'none'}
-      stake={stake} named={both || icp} to={to} prefill={prefill}
-      onBack={() => (both ? setView('pick') : router.push('/pool'))}
-      onPickTo={() => setView('receive')}
-      onStarted={(id) => (icp ? router.push('/pool') : setView({ status: id }))}
-    />
-  );
-}
-
-function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted }: {
-  stake: MyStake | undefined; named: boolean; to: UiToken | null; prefill: string; onBack: () => void; onPickTo: () => void; onStarted: (activityId: string) => void;
+/** Withdraw from one stake: `amountText` is the flow's (it outlives Receive on); `onStarted` hears the started payout. */
+export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBack, onPickTo, onStarted }: {
+  stake: MyStake | undefined; named: boolean; to: UiToken | null; amountText: string; onAmountText: (t: string) => void;
+  onBack: () => void; onPickTo: () => void; onStarted: (activityId: string) => void;
 }) {
   const qc = useQueryClient();
-  const link = useQueryOnce();
   const { evm, icp: icpWallet } = useWallets();
   const signer = useEvmSigner();
   const caller = useIcpCaller();
@@ -114,14 +72,12 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
   const fromIcp = stake?.kind === 'icp';
   const wallet = fromIcp ? !!icpWallet : !!evm;
   const total = stake?.valueUsdc ?? 0n;
-  const [amountText, setAmountText] = React.useState(prefill);
+  const setAmountText = onAmountText;
   const [busy, setBusy] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    const a = prefill ? null : link?.get('amount');
-    if (a) setAmountText(a);
-  }, [link, prefill]);
+  // the wallet is asking right now (a flow step waits on it): the button glows; a "no" there shows the cancelled line
+  const [asking, setAsking] = React.useState(false);
+  const [cancelled, setCancelled] = React.useState(false);
 
   let amount: bigint | null = null;
   let amountError: string | null = null;
@@ -189,23 +145,28 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
 
   const after = (out: ExecOutcome) => {
     setBusy(false);
+    setAsking(false);
     if (out.kind === 'started') {
       void qc.invalidateQueries({ queryKey: ['account', stake?.owner] });
+      setBusy(true);
       onStarted(out.activityId);
-    } else if (out.kind === 'failed' || out.kind === 'unknown') setNote(out.message);
+    } else if (out.kind === 'rejected') setCancelled(true);
+    else if (out.kind === 'failed' || out.kind === 'unknown') setNote(out.message);
   };
   const onSign = async () => {
     if (busy) return;
     if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
+    setCancelled(false);
     if (!ready || !to || amount === null) return;
     setBusy(true);
     setNote(null);
+    const onStep = (_: number, st: 'wait' | 'done' | 'fail') => setAsking(st === 'wait');
     if (fromIcp) {
-      after(await executeWithdrawIcp({ wanted: amount, caller: caller!, onStep: () => {} }, icpClient()));
+      after(await executeWithdrawIcp({ wanted: amount, caller: caller!, onStep }, icpClient()));
       return;
     }
     after(await executeWithdrawEvm(
-      { usdc: amount, dstChain: to.chain, evm: signer!, onStep: () => {} },
+      { usdc: amount, dstChain: to.chain, evm: signer!, onStep },
       { icp: icpClient(), postWithdrawQuote, postWithdraw, nowMs: () => Date.now(), used: usedNonces },
     ));
   };
@@ -216,15 +177,19 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
     : null;
   return (
     <TwoColumn
+      inPlace
       title="Withdraw"
       onBack={onBack}
+      // inside the in place panel each part fades (TwoColumn: callers fade their own parts)
       left={
-        <>
+        <motion.div variants={fade} className="flex w-full flex-col">
+          {/* the stake card flies into this card when Withdraw opens */}
           <AmountCard
+            fly={STAKE_CARD}
             label={named && stake ? `Withdraw from ${short(stake.owner)}` : 'Withdraw from your stake'}
             token={{ logo: USDC_LOGO, chainLogo: SWAPIC_LOGO }}
             amountText={amountText}
-            onAmountText={(t) => { setAmountText(t); setNote(null); }}
+            onAmountText={(t) => { setAmountText(t); setNote(null); setCancelled(false); }}
             usdText={amount === null ? null : formatUsd(amount)}
             balanceText={stake ? tokenAmountText(total, 6, 'USDC') : undefined}
             onMax={() => setAmountText(formatUnits(total, 6).replace(/,/g, ''))}
@@ -237,13 +202,17 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
               return (
                 <span
                   key={p}
-                  onClick={() => { setAmountText(formatUnits(v, 6).replace(/,/g, '')); setNote(null); }}
+                  onClick={() => { setAmountText(formatUnits(v, 6).replace(/,/g, '')); setNote(null); setCancelled(false); }}
                   className={cn(
-                    'flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs transition-colors duration-200 active:scale-95',
-                    on ? 'border border-[#e9ddf9] bg-white/70 font-semibold text-[#0A0A0B]' : 'bg-[#565656] text-white/70 hover:bg-[#6a6a6a]',
+                    'relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs',
+                    tw.quick,
+                    tw.press,
+                    on ? 'font-semibold text-[#0A0A0B]' : 'bg-[#565656] text-white/70 hover:bg-[#6a6a6a]',
                   )}
                 >
-                  {p === 100 ? 'Max' : `${p}%`}
+                  {/* the light pill slides to the chip picked */}
+                  {on && <SlidingPill id="withdraw-percent" />}
+                  <span className="relative">{p === 100 ? 'Max' : `${p}%`}</span>
                 </span>
               );
             })}
@@ -252,10 +221,10 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
             <TokenCard token={to ?? undefined} customOnClick={onPickTo} label="Receive on" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
           </div>
           {note && <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">{note}</p>}
-        </>
+        </motion.div>
       }
       right={
-        <>
+        <motion.div variants={fade} className="flex w-full flex-col gap-y-4 lg:flex-1">
           <ResultCard
             label="You receive"
             loading={loading}
@@ -286,9 +255,9 @@ function WithdrawPanel({ stake, named, to, prefill, onBack, onPickTo, onStarted 
           ) : (
             <Note icon={<CheckIcon />}>One signature, no gas. The USDC arrives in your wallet by itself.</Note>
           )}
-        </>
+        </motion.div>
       }
-      action={<ActionButton isDisabled={!enabled} onClick={enabled ? () => void onSign() : undefined}>{label}</ActionButton>}
+      action={<ConfirmButton label={label} waiting={asking} cancelled={cancelled} disabled={!enabled} onClick={() => void onSign()} />}
     />
   );
 }

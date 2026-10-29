@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { dayText } from '@/lib/copy/format';
 import { formatBps, formatUsd } from '@/lib/money';
 import { cn } from '@/lib/cn';
+import { tw } from '@/lib/motion';
+import { SlidingPill } from './parts';
 import { combine, earningsSeries, launchGainBps, launchSeries, stakeSeries, usePoolHistory, useMyHistory, type MyStake, type Timeframe } from '../data';
 
 const TFS: Timeframe[] = ['1D', '1W', '1M', '1Y'];
@@ -78,11 +80,15 @@ export function PoolChart({ stakes, nowSec }: { stakes: MyStake[]; nowSec: numbe
                 key={t}
                 onClick={() => setTf(t)}
                 className={cn(
-                  'flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-center text-xs transition-colors duration-200 active:scale-90',
-                  t === tf ? 'border border-[#e9ddf9] bg-white/70 font-semibold text-[#0A0A0B]' : 'bg-[#565656] text-white/70 hover:bg-[#6a6a6a]',
+                  'relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-center text-xs',
+                  tw.quick,
+                  tw.pressIcon,
+                  t === tf ? 'font-semibold text-[#0A0A0B]' : 'bg-[#565656] text-white/70 hover:bg-[#6a6a6a]',
                 )}
               >
-                {t}
+                {/* the light pill slides to the timeframe picked (motion part 2) */}
+                {t === tf && <SlidingPill id="pool-timeframe" />}
+                <span className="relative">{t}</span>
               </span>
             ))}
           </div>

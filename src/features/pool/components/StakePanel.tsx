@@ -6,32 +6,33 @@
 // chain: Added to your stake from a stake quote asked 600 ms after typing, the room under the cap checked before any quote,
 // and the button running the checked swap flow (executeStakeEvm). From ICP: two ledger fees, an approval then stake_icp
 // (executeStakeIcp), and a stake whose pull answer was lost shown as pending until its shares grow. It reads `amount` and
-// `from` (`<chain>|<address>`, as the Swap link) from the link once (useQueryOnce).
+// `from` (`<chain>|<address>`, as the Swap link) from the link once (PoolFlow, useQueryOnce).
+// Motion (approved 2026-10-29, part 2): a view of the Pool's in place panel (PoolFlow). The stake card flies into Added to
+// your stake; From opens Stake From in the same panel; while the wallet asks, the button reads "Confirm in your wallet"
+// with a soft glow, and a "no" in the wallet brings it back with "You cancelled in your wallet."; once the stake has gone
+// in, the panel turns back into the pool page. The motion never holds a money action: a click acts at once.
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TokenCard } from '@/components/ui/token-card';
-import ActionButton from '@/components/ui/action-button';
 import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
+import { ConfirmButton } from '@/components/motion/parts';
+import { motion } from 'motion/react';
+import { MS, fade } from '@/lib/motion';
 import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, getAccount, getOrders, getQuote, postStakeQuote, submitGasless, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, parseUnits } from '@/lib/money';
-import { useQueryOnce } from '@/lib/use-query-once';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { useGuardContext } from '@/features/swap/quote';
-import { TokenSelect } from '@/features/swap/components/TokenSelect';
 import { useBalance } from '@/features/swap/tokens';
 import { tiles, useMyStakes, usePool } from '../data';
-import { CKUSDC_TOKEN, USDC_LOGO, useUsdcTokens } from '../usdc';
-import { StakeAvatar } from './parts';
-import { defaultStakeFrom } from '../stake-from';
-import { parseTokenKey, tokenKeyOf } from '@/features/swap/link';
+import { USDC_LOGO } from '../usdc';
+import { STAKE_CARD, StakeAvatar } from './parts';
 import { CKUSDC, executeStakeEvm, executeStakeIcp, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
@@ -48,39 +49,11 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-export function StakeFlow() {
-  const [picking, setPicking] = React.useState(false);
-  const link = useQueryOnce();
-  const icp = useWallets((s) => s.icp);
-  const evmChain = useWallets((s) => s.evm?.chainId ?? null);
-  const evmTokens = useUsdcTokens();
-  const tokens = React.useMemo(() => (icp ? [...evmTokens, CKUSDC_TOKEN] : evmTokens), [evmTokens, icp]);
-  const [picked, setPicked] = React.useState<UiToken | null>(null);
-  // the link may name one (`from=<chain>|<address>`, the swap link's exact form); else the connected chain's USDC, else
-  // Arbitrum's (defaultStakeFrom)
-  const ref = parseTokenKey(link?.get('from'));
-  const linked = ref ? tokens.find((t) => t.key === tokenKeyOf(ref)) : undefined;
-  const from = picked ?? linked ?? defaultStakeFrom(tokens, evmChain);
-  if (picking && from) {
-    return (
-      <TokenSelect
-        title="Stake From"
-        chain={from.chain}
-        chains={tokens.map((t) => t.chain)}
-        fixedTokens={Object.fromEntries(tokens.map((t) => [t.chain, [t]]))}
-        selected={from}
-        onBack={() => setPicking(false)}
-        onSelect={(t) => { setPicked(t); setPicking(false); }}
-      />
-    );
-  }
-  return <StakePanel from={from} onPickFrom={() => setPicking(true)} />;
-}
-
-function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: () => void }) {
-  const router = useRouter();
+/** Stake: `amountText` is the flow's (it outlives Stake From); `onDone` turns the panel back into the pool page. */
+export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack, onDone }: {
+  from: UiToken | null; amountText: string; onAmountText: (t: string) => void; onPickFrom: () => void; onBack: () => void; onDone: () => void;
+}) {
   const qc = useQueryClient();
-  const link = useQueryOnce();
   const { evm, icp } = useWallets();
   const signer = useEvmSigner();
   const caller = useIcpCaller();
@@ -89,16 +62,14 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
   const pool = usePool().data;
   const { stakes } = useMyStakes();
   const guardReady = !!useGuardContext();
-  const [amountText, setAmountText] = React.useState('');
+  const setAmountText = onAmountText;
   const [busy, setBusy] = React.useState(false);
+  // the wallet is asking right now (a flow step waits on it): the button glows; a "no" there shows the cancelled line
+  const [asking, setAsking] = React.useState(false);
+  const [cancelled, setCancelled] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
   const [landing, setLanding] = React.useState(false);
   const [resume, setResume] = React.useState<(() => Promise<ExecOutcome>) | null>(null);
-
-  React.useEffect(() => {
-    const a = link?.get('amount');
-    if (a) setAmountText(a);
-  }, [link]);
 
   const fromIcp = from?.chain_type === 'ICP';
   const wallet = fromIcp ? !!icp : !!evm;
@@ -173,15 +144,19 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
       const a = await qc.fetchQuery({ queryKey: ['account', owner], queryFn: () => getAccount(owner), staleTime: 0 }).catch(() => null);
       if (a && BigInt(a.shares) > before) break;
     }
-    router.push('/pool');
+    onDone();
   };
   const after = (out: ExecOutcome | { kind: 'landing' }, owner: string | undefined, before: bigint) => {
     setBusy(false);
+    setAsking(false);
     setResume(null);
     if (out.kind === 'started') {
       void qc.invalidateQueries({ queryKey: ['account', owner] });
-      router.push('/pool');
-    } else if (out.kind === 'landing') {
+      // the stake has gone in: a short hold, then the pool page (nothing waits on this)
+      setBusy(true);
+      setTimeout(onDone, MS.hold);
+    } else if (out.kind === 'rejected') setCancelled(true);
+    else if (out.kind === 'landing') {
       setBusy(true);
       void waitForShares(owner!, before);
     } else if (out.kind === 'failed') setNote(out.message);
@@ -193,16 +168,18 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
     if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
     const owner = fromIcp ? icp?.principal : evm?.address;
     const before = stakes.find((s) => s.owner === owner)?.shares ?? 0n;
+    setCancelled(false);
     if (resume) { setBusy(true); after(await resume(), owner, before); return; }
     if (!ready || !from || amount === null || !view) return;
     setBusy(true);
     setNote(null);
+    const onStep = (_: number, st: 'wait' | 'done' | 'fail') => setAsking(st === 'wait');
     if (fromIcp) {
-      after(await executeStakeIcp({ amount, caller: caller!, onStep: () => {} }, icpClient()), owner, before);
+      after(await executeStakeIcp({ amount, caller: caller!, onStep }, icpClient()), owner, before);
       return;
     }
     after(await executeStakeEvm(
-      { from, amount, evm: signer!, shownAdded: view.added, onStep: () => {} },
+      { from, amount, evm: signer!, shownAdded: view.added, onStep },
       { getQuote, getOrders, submitGasless, postStakeQuote, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
     ), owner, before);
   };
@@ -211,15 +188,17 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
   const enabled = busy || (!wallet && amount !== null && amount > 0n && !capped) || !!resume || ready;
   return (
     <TwoColumn
+      inPlace
       title="Stake"
-      onBack={() => router.push('/pool')}
+      onBack={onBack}
+      // inside the in place panel each part fades (TwoColumn: callers fade their own parts)
       left={
-        <>
+        <motion.div variants={fade} className="flex w-full flex-col">
           <TokenCard token={from ?? undefined} customOnClick={onPickFrom} label="From" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
           <AmountCard
             token={{ logo: from?.logo ?? USDC_LOGO, chainLogo: from?.chainLogo ?? '' }}
             amountText={amountText}
-            onAmountText={(t) => { setAmountText(t); setNote(null); setResume(null); }}
+            onAmountText={(t) => { setAmountText(t); setNote(null); setResume(null); setCancelled(false); }}
             usdText={amount === null ? null : formatUsd(amount)}
             balanceText={wallet && balance !== undefined && from ? formatAmount(balance, from.decimals) : undefined}
             onMax={() => {
@@ -241,12 +220,13 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
             <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">The pool needs a regular wallet for now.</p>
           )}
           {note && <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">{note}</p>}
-        </>
+        </motion.div>
       }
       right={
-        <>
+        <motion.div variants={fade} className="flex w-full flex-col gap-y-4 lg:flex-1">
           <ResultCard
             label="Added to your stake"
+            fly={STAKE_CARD}
             loading={loading}
             avatar={<StakeAvatar className="h-12 w-12" />}
             big={`~${view ? view.addedText : '0.00'} USDC`}
@@ -270,9 +250,9 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
               Your stake earns from every swap that uses the pool. Withdraw anytime.
             </Note>
           )}
-        </>
+        </motion.div>
       }
-      action={<ActionButton isDisabled={!enabled} onClick={enabled ? () => void onStake() : undefined}>{label}</ActionButton>}
+      action={<ConfirmButton label={label} waiting={asking} cancelled={cancelled} disabled={!enabled} onClick={() => void onStake()} />}
     />
   );
 }
