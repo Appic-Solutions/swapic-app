@@ -10,6 +10,9 @@ test('every tab and both wallet menus load with no CSP violation and no trace he
     document.addEventListener('securitypolicyviolation', (e) => (window as unknown as { reportCsp(v: string): void }).reportCsp(`${e.violatedDirective} ${e.blockedURI}`));
   });
   page.on('console', (m) => { if (/Content Security Policy/i.test(m.text())) violations.push(m.text()); });
+  // the EVM wallet list really loaded (AppKit asks Reown's API for it), so a pass is not an empty one
+  let walletList = false;
+  page.on('request', (r) => { if (r.url().startsWith('https://api.web3modal.org')) walletList = true; });
   page.on('request', (r) => {
     if (r.url().startsWith('https://api-test.swapic.xyz') && (r.headers()['sentry-trace'] || r.headers()['baggage'])) traced.push(r.url());
   });
@@ -27,6 +30,7 @@ test('every tab and both wallet menus load with no CSP violation and no trace he
   await page.getByText('Connect Wallet', { exact: true }).filter({ visible: true }).click();
   await page.getByTestId('wallet-menu').getByText('OISY', { exact: true }).click();
   await page.waitForTimeout(2000);
+  expect(walletList).toBe(true);
   expect(violations).toEqual([]);
   expect(traced).toEqual([]);
 });
