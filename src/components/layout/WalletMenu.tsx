@@ -84,15 +84,20 @@ function Connecting({ logo, name }: { logo: string; name: string }) {
   );
 }
 
+/** Provisional copy (lead, 2026-10-29; Jeff's OK pending): shown when the connect-time guard refused an EVM wallet. */
+export const REFUSED_WALLET_LINE = 'Swapic works with regular wallets for now. Please connect a different wallet.';
+
 export interface WalletMenuProps {
   wallets: Wallets;
+  /** The last EVM wallet was refused (a smart-contract wallet): the menu says so in one line. */
+  evmRefused?: boolean;
   onEvm?: () => void;
   onIcp?: (w: IcpWallet) => void;
   onDisconnect?: (side: 'evm' | 'icp') => void;
 }
 
 /** Body of the wallet menu: an EVM section and an ICP section, each either the choices or the connected wallet. */
-export function WalletMenu({ wallets: w, onEvm, onIcp, onDisconnect }: WalletMenuProps) {
+export function WalletMenu({ wallets: w, evmRefused, onEvm, onIcp, onDisconnect }: WalletMenuProps) {
   return (
     <div data-testid="wallet-menu" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -125,6 +130,7 @@ export function WalletMenu({ wallets: w, onEvm, onIcp, onDisconnect }: WalletMen
         )}
       </div>
       <p className="px-2 text-xs text-[#898989]">You can connect one EVM wallet and one ICP wallet at the same time.</p>
+      {evmRefused && <p className="animate-slide-in-from-top px-2 text-xs text-yellow-600">{REFUSED_WALLET_LINE}</p>}
     </div>
   );
 }
@@ -168,13 +174,21 @@ function Menu({ title, open, onOpenChange, trigger, children }: { title: string;
 
 /** The wallet menu wired to the wallet store: what the Header mounts with its pill as the trigger. */
 export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
-  const { evm, icp } = useWallets();
+  const { evm, icp, evmRefused, setEvmRefused } = useWallets();
   const openEvm = useEvmConnect();
   const evmModalOpen = useEvmModalOpen();
   const connectIcp = useIcpConnect();
   const disconnect = useDisconnectWallets();
   const [open, setOpen] = React.useState(false);
   const [connecting, setConnecting] = React.useState<'evm' | IcpWallet | null>(null);
+
+  // a refused wallet: open the menu so the person sees why the wallet was disconnected
+  React.useEffect(() => {
+    if (evmRefused) {
+      setConnecting((c) => (c === 'evm' ? null : c));
+      setOpen(true);
+    }
+  }, [evmRefused]);
 
   // "Check your wallet" ends when the wallet connects, or when AppKit's list closes without one.
   const evmListSeen = React.useRef(false);
@@ -204,7 +218,9 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
   const props: WalletMenuProps = {
     // the store keeps addresses lower case; people see the checksum form, as their wallet shows it
     wallets: { evm: evm ? getAddress(evm.address) : connecting === 'evm' ? 'connecting' : null, icp: icpView() },
+    evmRefused,
     onEvm: () => {
+      setEvmRefused(false);
       setConnecting('evm');
       void openEvm();
     },

@@ -15,7 +15,8 @@ export function useEvmSigner(): EvmSigner | null {
 
 export { useWallets } from './store';
 export type { EvmWallet, IcpWallet, IcpSignerId } from './store';
-export { isUserRejection, type EvmSigner, type SignableTypedData } from './evm-signer';
+export { type EvmSigner, type SignableTypedData } from './evm-signer';
+export { isUserRejection, isLostSignerAnswer } from './rejection';
 export { useIcpCaller } from './icp-caller';
 export { Providers, queryClient } from './providers';
 export { useEvmConnect, useEvmModalOpen, useIcpConnect, useDisconnectWallets } from './bridge';

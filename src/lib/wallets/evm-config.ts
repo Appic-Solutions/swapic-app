@@ -5,12 +5,15 @@
 // (@reown/appkit/dist/esm/src/utils/ConfigUtil.js), so this imports the `react-core` entry, which builds
 // AppKit with `basic: true`: email, socials, swaps and onramp stay off whatever the dashboard says
 // (plans/2026-10-29-app-stack-upgrade.md). `features` stays as written: it documents the intent.
-// The adapter still adds a Base Account connector (a smart-contract wallet) that no option here turns off: see the
-// design note in evm-signer.ts.
+// The adapter still adds a Base Account connector (a smart-contract wallet) that no option here turns off. Two layers
+// answer it: `excludeWalletIds` hides it from the list once AppKit has fetched that wallet's name from its explorer
+// API (@reown/appkit-controllers/dist/esm/src/utils/ConnectorUtil.js showConnector, ApiController
+// initializeExcludedWallets), and the connect-time guard (guard.ts, run by bridge.tsx) refuses it if it connects.
 import { createAppKit } from '@reown/appkit/react-core';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { arbitrum, base, mainnet, polygon, type AppKitNetwork } from '@reown/appkit/networks';
 import { config } from '@/config';
+import { BASE_ACCOUNT_EXPLORER_ID } from './guard';
 
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base, arbitrum, mainnet, polygon];
 
@@ -33,4 +36,5 @@ export const appKit = createAppKit({
   coinbasePreference: 'eoaOnly',
   themeMode: 'dark',
   allowUnsupportedChain: false,
+  excludeWalletIds: [BASE_ACCOUNT_EXPLORER_ID],
 });

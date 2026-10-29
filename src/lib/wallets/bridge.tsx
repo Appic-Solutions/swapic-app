@@ -1,8 +1,13 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { getAccount, getBytecode } from 'wagmi/actions';
 import { useAppKitAccount, useAppKitNetwork, useAppKitState, useDisconnect as useAppKitDisconnect, useAppKit } from '@reown/appkit/react-core';
 import { useAuth, useSigner } from '@nfid/identitykit/react';
 import { useWallets, type IcpSignerId } from './store';
+import { wagmiConfig } from './evm-config';
+import { BASE_ACCOUNT_CONNECTOR_ID, judgeEvmWallet } from './guard';
+
+type ChainId = (typeof wagmiConfig)['chains'][number]['id'];
 
 /** Copies what the wallet SDKs report into the one store every screen reads. */
 export function WalletBridge() {
@@ -10,7 +15,10 @@ export function WalletBridge() {
   const { chainId } = useAppKitNetwork();
   const { user } = useAuth();
   const signer = useSigner();
-  const { setEvm, setIcp } = useWallets.getState();
+  const { setEvm, setIcp, setEvmRefused } = useWallets.getState();
+  const { disconnect: disconnectEvm } = useAppKitDisconnect();
+  const disconnectRef = useRef(disconnectEvm);
+  disconnectRef.current = disconnectEvm;
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') {
@@ -21,10 +29,40 @@ export function WalletBridge() {
     }
   }, [setEvm, setIcp]);
 
+  // The connect-time guard (guard.ts): a wallet reaches the store only once judged; a refused one is disconnected.
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
-    setEvm(isConnected && address ? { address: address as `0x${string}`, chainId: typeof chainId === 'number' ? chainId : Number(chainId) || null } : null);
-  }, [address, isConnected, chainId, setEvm]);
+    if (!isConnected || !address) {
+      setEvm(null);
+      return;
+    }
+    const wallet = address as `0x${string}`;
+    const chain = typeof chainId === 'number' ? chainId : Number(chainId) || null;
+    let live = true;
+    void (async () => {
+      const connectorId = getAccount(wagmiConfig).connector?.id;
+      let code: string | undefined;
+      if (connectorId !== BASE_ACCOUNT_CONNECTOR_ID && chain !== null) {
+        try {
+          code = await getBytecode(wagmiConfig, { address: wallet, chainId: chain as ChainId });
+        } catch {
+          code = undefined; // unread: the quoter's payerIsContract refusal is the backstop
+        }
+      }
+      if (!live) return;
+      if (judgeEvmWallet(connectorId, code) === 'refuse') {
+        setEvm(null);
+        setEvmRefused(true);
+        await disconnectRef.current();
+        return;
+      }
+      setEvmRefused(false);
+      setEvm({ address: wallet, chainId: chain });
+    })();
+    return () => {
+      live = false;
+    };
+  }, [address, isConnected, chainId, setEvm, setEvmRefused]);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
