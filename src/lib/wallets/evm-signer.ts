@@ -9,7 +9,13 @@
 // (signTypedData, sendTransaction, switchChain, waitForTransactionReceipt); AppKit is created from
 // `@reown/appkit/react-core` (basic mode: email, socials, swaps and onramp off whatever the Reown dashboard says) with
 // `features: { email: false, socials: false, analytics: false, swaps: false, onramp: false }` and
-// `coinbasePreference: 'eoaOnly'` (both checked in node_modules/@reown/appkit* 1.8.24 type files);
+// `coinbasePreference: 'eoaOnly'` (both checked in node_modules/@reown/appkit* 1.8.24 type files).
+// NOT covered (found 2026-10-29, reported to the lead): `coinbasePreference` governs only the Coinbase Wallet
+// connector. AppKit 1.8.24's wagmi adapter also adds a Base Account connector, a smart-contract wallet
+// (@reown/appkit-adapter-wagmi/dist/esm/src/client.js:171-176, unless OptionsController.state.enableBaseAccount is
+// false), and createAppKit never copies an `enableBaseAccount` option into that state
+// (@reown/appkit/dist/esm/src/client/appkit-base-client.js, initializeOptionsController), so this config cannot turn
+// it off. The quoter still refuses a contract payer on the gasless and ck routes (payerIsContract);
 // EvmSigner.sendTransaction switches chain first and refuses when the wallet reports another chain after the switch;
 // the store's setIcp drops 2vxsx-fae (tested); the e2e signers are reached only through an inline
 // `process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e'` check.
@@ -66,7 +72,12 @@ export function wagmiSigner(address: `0x${string}`): EvmSigner {
 
 /**
  * Wallets say "no" in several ways: EIP-1193 4001, viem's UserRejectedRequestError, WalletConnect text, and the
- * ICRC-25 code 3001 (action aborted) that OISY and NFID send through @icp-sdk/signer's SignerError in accounts mode.
+ * ICRC-25 code 3001 ("The user has canceled the action", ICRC-25 Errors table,
+ * github.com/dfinity/wg-identity-authentication topics/icrc_25_signer_interaction_standard.md) that OISY and NFID
+ * send through @icp-sdk/signer's SignerError in accounts mode.
+ * Known gap (reported to the lead): ICRC-25 uses 4001 for "transport channel closed", so a SignerError 4001 (the
+ * signer window closed mid-call) also reads as a "no" here, though the call may have run. SignerError sets no `name`
+ * of its own, so telling it apart needs `instanceof SignerError` from @icp-sdk/signer (not a direct dependency).
  */
 export function isUserRejection(e: unknown): boolean {
   const any = e as { code?: unknown; name?: unknown; message?: unknown; cause?: unknown } | null;
