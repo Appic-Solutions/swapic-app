@@ -1,4 +1,4 @@
-// Usage: npm run shots -- <DesignExport> <route> [scenario] [--click "<text>"]... [--at <ms>] [--fill "<placeholder>=<text>"]
+// Usage: npm run shots -- <DesignExport> <route> [scenario] [--click "<text>"]... [--at <ms>] [--after <ms>] [--fill "<placeholder>=<text>"]
 // Writes .shots/compare/<DesignExport>-{desktop,phone}.png: design left, app right. Open them with the Read tool.
 import { chromium } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -11,13 +11,15 @@ const clicks = [];
 for (let at = args.indexOf('--click'); at >= 0; at = args.indexOf('--click')) clicks.push(args.splice(at, 2)[1]);
 const atIndex = args.indexOf('--at');
 const shootAt = atIndex >= 0 ? Number(args.splice(atIndex, 2)[1]) : undefined;
+const afterIndex = args.indexOf('--after');
+const after = afterIndex >= 0 ? Number(args.splice(afterIndex, 2)[1]) : undefined;
 const fillIndex = args.indexOf('--fill');
 const fill = fillIndex >= 0 ? args.splice(fillIndex, 2)[1] : undefined;
 const [name, route = '/', scenario = 'default'] = args;
 if (!name) { console.log('usage: npm run shots -- <DesignExport> <route> [scenario]'); process.exit(1); }
 const root = new URL('../../.shots/', import.meta.url).pathname;
 await shootDesign(name, `${root}design`);
-await shootApp(route, name, scenario, `${root}app`, clicks, shootAt, fill);
+await shootApp(route, name, scenario, `${root}app`, clicks, shootAt, fill, after);
 mkdirSync(`${root}compare`, { recursive: true });
 const b = await chromium.launch();
 for (const kind of ['desktop', 'phone']) {

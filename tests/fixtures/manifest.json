@@ -398,5 +398,29 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 4 Task 3 Scanner shots and Task 4 click-through"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#progress",
+    "kind": "derived",
+    "source": "contract 5.8 delivered status with outcome pending, stage bridging; 5.14 steps with the last two wait and todo",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 10 SwapProgressScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#refunded",
+    "kind": "derived",
+    "source": "contract 5.8 status with the 5.13 row's refund (outcome refunded); steps built from the 5.13 row (not filled, refunded)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 10 SwapRefundedScreen, Task 12B"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#too-many",
+    "kind": "derived",
+    "source": "contract 1.4 error shape, code rateLimited, on POST /v2/orders",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 9 TooManyTriesScreen look"
   }
 ]

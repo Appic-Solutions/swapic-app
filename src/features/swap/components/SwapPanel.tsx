@@ -23,6 +23,8 @@ import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
 import { useBalance, useChains, useTokenList } from '../tokens';
 import { isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
+import type { PickedOption } from '../options';
+import type { Quote, QuoteQuery } from '@/lib/api';
 
 const NO_ROUTE = 'No route found for this amount';
 const PAUSED = 'Swaps are paused right now';
@@ -31,7 +33,10 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 /** The gas price Max falls back to when the wallet cannot tell: 50 gwei. */
 const FALLBACK_FEE_PER_GAS = 50_000_000_000n;
 
-export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') => void; onReview: () => void }) {
+/** What Review swap takes from the panel: the option on screen, its quote and the query that asked it. */
+export interface ReviewStart { option: PickedOption; quote: Quote; query: QuoteQuery; native: NativeCoin; amountIn: bigint }
+
+export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') => void; onReview: (start: ReviewStart) => void }) {
   const f = useSwapForm();
   const { evm, icp } = useWallets();
   const signer = useEvmSigner();
@@ -110,7 +115,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
       else void openEvm();
       return;
     }
-    if (button.enabled) onReview();
+    if (button.enabled && picked && quote && query && amount !== null) onReview({ option: picked, quote, query, native, amountIn: amount });
   };
 
   const actions = (cls: string, fades: boolean) => (

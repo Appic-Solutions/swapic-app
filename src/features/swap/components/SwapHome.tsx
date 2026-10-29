@@ -13,7 +13,7 @@ import { useWallets } from '@/lib/wallets';
 import { recipientError, useSwapForm } from '../form';
 import { useChains, useTokenList } from '../tokens';
 import { linkAmount, parseSwapLink, swapLinkQuery, type TokenRef } from '../link';
-import { SwapPanel } from './SwapPanel';
+import { SwapFlow } from './SwapFlow';
 import { TokenSelect } from './TokenSelect';
 import { ScrollHint } from '@/features/home/ScrollHint';
 import { HowItWorks } from '@/features/home/HowItWorks';
@@ -117,24 +117,28 @@ export function SwapHome() {
       />
     );
   })() : null;
-  // the review and the progress are drawn by Tasks 9 and 10 (held for Jeff's motion approval): nothing yet
-  if (view === 'review' || view === 'status') return null;
   // Motion (approved 2026-10-29): the Swap panel fades out and the token page slides in from 16 px right; Back plays it
-  // in reverse. The design's SwapHomeScreen: the panel and the scroll hint, then the info sections.
+  // in reverse. Swap, Review swap and Your swap change in place in one frame (SwapFlow). The design's SwapHomeScreen: the
+  // panel and the scroll hint, then the info sections (on the Swap view only).
+  const flowView = view === 'review' || view === 'status' ? view : 'swap';
   return (
     <AnimatePresence mode="wait">
       {tokenPage ?? (
         <Enter key="panel" skip={first} variants={fade} className="flex w-full flex-col items-center">
           <div className="flex w-full flex-col items-center justify-center md:min-h-[760px]">
-            <SwapPanel onPick={(side) => setView(side)} onReview={() => setView('review')} />
-            <ScrollHint />
+            <SwapFlow view={flowView} setView={setView} onPick={(side) => setView(side)} />
+            {flowView === 'swap' && <ScrollHint />}
           </div>
-          <HowItWorks />
-          <Chains />
-          <Earn />
-          <Why />
-          <Faq />
-          <Footer />
+          {flowView === 'swap' && (
+            <>
+              <HowItWorks />
+              <Chains />
+              <Earn />
+              <Why />
+              <Faq />
+              <Footer />
+            </>
+          )}
         </Enter>
       )}
     </AnimatePresence>

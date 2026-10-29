@@ -146,6 +146,27 @@ function searchFor(u) {
   return { status: 200, json: { q, match: 'none', items: [], nextCursor: null } };
 }
 
+// Your swap after signing (plan 2 Task 10, swap motion run): the default quote and submit, then the tracking answers.
+// progress: the 5.8 delivered status as still pending (bridging), the 5.14 steps with the last two waiting and to come;
+// refunded: the 5.13 row's refund through the status, its steps ending not filled then refunded; derived, manifest
+const SWAP_CLOCK = 1792336073;
+const swapPending = () => ({ status: 200, json: { ...C('order-status-delivered.json'), outcome: 'pending', stage: 'bridging', etaAt: SWAP_CLOCK + 9, refund: null } });
+const stepsPending = () => {
+  const d = C('steps-delivered.json');
+  const steps = d.steps.slice(0, 4).map((x, k) => (k < 2 ? x : k === 2 ? { ...x, state: 'wait', atMs: null, tx: null, block: null } : { ...x, state: 'todo', atMs: null, tx: null, block: null, amount: null }));
+  return { status: 200, json: { ...d, outcome: 'pending', steps } };
+};
+const swapRefunded = () => ({ status: 200, json: { ...C('order-status-delivered.json'), outcome: 'refunded', stage: 'refunded', refund: ROW_REFUNDED().refund } });
+const stepsRefunded = () => {
+  const r = ROW_REFUNDED();
+  return { status: 200, json: { id: r.id, kind: 'swap', outcome: 'refunded', steps: [
+    step({ step: 'signed', state: 'done', chain: r.from.chain, atMs: r.createdAt * 1000 }),
+    step({ step: 'sent', state: 'done', chain: r.from.chain, atMs: r.createdAt * 1000 + 2600, tx: r.from.tx, amount: r.from.amount, token: r.from.token }),
+    step({ step: 'failed', state: 'fail', chain: r.from.chain, atMs: r.endedAt * 1000 - 9000, reason: r.reasonCode }),
+    step({ step: 'refunded', state: 'done', chain: r.refund.chain, atMs: r.endedAt * 1000, tx: r.refund.tx, amount: r.refund.amount, token: r.refund.token }),
+  ] } };
+};
+
 const common = {
   '/v2/chains': contract('chains.json'),
   '/v2/tokens': (u) => ({ status: 200, file: contract(`tokens-${{ 'eip155:1': 1, 'eip155:137': 137, 'eip155:8453': 8453, 'eip155:42161': 42161 }[u.searchParams.get('chain')] ?? 0}.json`) }),
@@ -214,5 +235,11 @@ export const SCENARIOS = {
     '/v2/orders': (u) => page([ROW_PENDING(), ROW_DELIVERED(), ROW_QUEUED(), ROW_REFUNDED()])(u),
     '/v2/orders/*/steps': stepsFor,
   }, clockAt: POOL_CLOCK },
+  // Your swap still on its way (plan 2 Task 10): derived, manifest
+  progress: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsPending, '/v2/orders/*': swapPending }, clockAt: SWAP_CLOCK },
+  // Your swap refunded (plan 2 Task 10): derived, manifest
+  refunded: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsRefunded, '/v2/orders/*': swapRefunded }, clockAt: SWAP_CLOCK },
+  // too many tries: the watcher's rate limit answer to the submit (contract 1.4 shape); derived, manifest
+  'too-many': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 429, json: { code: 'rateLimited', message: 'too many requests' } } }, clockAt: SWAP_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };
