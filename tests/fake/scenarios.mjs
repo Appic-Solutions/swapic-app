@@ -93,6 +93,38 @@ const emptyAccount = (u) => ({ status: 200, json: { account: decodeURIComponent(
 /** The EVM wallet holds the 5.5 stake, the ICP wallet none. */
 const evmStakeOnly = (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u));
 
+// History (plan 4 Task 2): the contract's own example rows joined into one page (5.11's pending swap, 5.9's queued withdrawal,
+// 5.13's refunded swap), and steps for each in the 5.14 shape (only the delivered example exists); derived, manifest
+const C = (f) => JSON.parse(readFileSync(new URL(`../fixtures/contract/${f}`, import.meta.url), 'utf8'));
+const ROW_PENDING = () => C('scanner-latest.json').items[0];
+const ROW_QUEUED = () => C('orders-page.json').orders[0];
+const ROW_REFUNDED = () => C('scanner-search-tx.json').items[0];
+const step = (o) => ({ chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null, ...o });
+function stepsFor(u) {
+  const id = decodeURIComponent(u.pathname.split('/')[3]);
+  const p = ROW_PENDING(), q = ROW_QUEUED(), r = ROW_REFUNDED();
+  if (id === p.id) return { status: 200, json: { id, kind: 'swap', outcome: 'pending', steps: [
+    step({ step: 'signed', state: 'done', chain: p.from.chain, atMs: p.createdAt * 1000 }),
+    step({ step: 'sent', state: 'done', chain: p.from.chain, atMs: p.createdAt * 1000 + 3100, tx: p.from.tx, amount: p.from.amount, token: p.from.token }),
+    step({ step: 'onItsWay', state: 'done', chain: p.to.chain, atMs: p.createdAt * 1000 + 4200 }),
+    step({ step: 'paidOut', state: 'wait', chain: p.to.chain }),
+    step({ step: 'delivered', state: 'todo', chain: p.to.chain }),
+  ] } };
+  if (id === q.id) return { status: 200, json: { id, kind: 'withdraw', outcome: 'pending', steps: [
+    step({ step: 'signed', state: 'done', chain: 'eip155:8453', atMs: q.createdAt * 1000 }),
+    step({ step: 'queued', state: 'wait', chain: 'eip155:8453' }),
+    step({ step: 'paidOut', state: 'todo', chain: q.to.chain }),
+  ] } };
+  if (id === r.id) return { status: 200, json: { id, kind: 'swap', outcome: 'refunded', steps: [
+    step({ step: 'signed', state: 'done', chain: r.from.chain, atMs: r.createdAt * 1000 }),
+    step({ step: 'sent', state: 'done', chain: r.from.chain, atMs: r.createdAt * 1000 + 2600, tx: r.from.tx, amount: r.from.amount, token: r.from.token }),
+    step({ step: 'failed', state: 'fail', chain: r.from.chain, atMs: r.endedAt * 1000 - 9000, reason: r.reasonCode }),
+    step({ step: 'refunded', state: 'done', chain: r.refund.chain, atMs: r.endedAt * 1000, tx: r.refund.tx, amount: r.refund.amount, token: r.refund.token }),
+  ] } };
+  return { status: 200, file: 'tests/fixtures/contract/steps-delivered.json' };
+}
+const page = (rows) => () => ({ status: 200, json: { orders: rows, nextCursor: null } });
+
 const common = {
   '/v2/chains': contract('chains.json'),
   '/v2/tokens': (u) => ({ status: 200, file: contract(`tokens-${{ 'eip155:1': 1, 'eip155:137': 137, 'eip155:8453': 8453, 'eip155:42161': 42161 }[u.searchParams.get('chain')] ?? 0}.json`) }),
@@ -147,5 +179,11 @@ export const SCENARIOS = {
   // the pool closed (contract 5.3 shape with open false): stake and withdraw both off; derived, manifest
   'pool-paused': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool': () => ({ status: 200, json: { ...JSON.parse(readFileSync(new URL('../fixtures/contract/pool.json', import.meta.url), 'utf8')), open: false, closedReason: 'paused' } }),
     '/v2/pool/accounts/*': evmStakeOnly }, clockAt: POOL_CLOCK },
+  // History (plan 4 Task 2), at the contract 5.3 snapshot: three rows, each with its steps; derived, manifest
+  history: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/orders': (u) => page([ROW_PENDING(), ROW_QUEUED(), ROW_REFUNDED()])(u), '/v2/orders/*/steps': stepsFor }, clockAt: POOL_CLOCK },
+  // the 5.13 refunded row first (alone), opened in the shot; derived, manifest
+  'history-refund': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/orders': (u) => page([ROW_REFUNDED()])(u), '/v2/orders/*/steps': stepsFor }, clockAt: POOL_CLOCK },
+  // no rows yet (5.9 shape); derived, manifest
+  'history-empty': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/orders': { status: 200, json: { orders: [], nextCursor: null } } }, clockAt: POOL_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

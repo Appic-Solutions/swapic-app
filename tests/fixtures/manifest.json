@@ -366,5 +366,29 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 3 Task 8 PoolPausedScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#history",
+    "kind": "derived",
+    "source": "contract 5.11 (scanner-latest), 5.9 (orders-page) and 5.13 (scanner-search-tx) example rows joined into one 5.9 page; steps per row in the 5.14 shape built from each row's own fields (only the delivered 5.14 example exists)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 4 Task 2 HistoryScreen, HistoryOpenScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#history-refund",
+    "kind": "derived",
+    "source": "the 5.13 refunded row alone in a 5.9 page, its steps as in #history",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "HistoryRefundScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#history-empty",
+    "kind": "derived",
+    "source": "5.9 shape with no rows",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "HistoryEmptyScreen"
   }
 ]

@@ -17,6 +17,7 @@ import { ChevronDownIcon, CloseIcon, CopyIcon } from '@/components/icons';
 import {
   useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
+import { useWalletMenu } from '@/lib/wallets/menu';
 
 type IcpWallet = 'OISY' | 'NFID' | 'Internet Identity';
 const ICP_WALLETS: [IcpWallet, string, IcpSignerId][] = [
@@ -173,7 +174,8 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
   const evmModalOpen = useEvmModalOpen();
   const connectIcp = useIcpConnect();
   const disconnect = useDisconnectWallets();
-  const [open, setOpen] = React.useState(false);
+  // shared, so a page's own "Connect wallet" opens this menu too
+  const { open, setOpen } = useWalletMenu();
   const [connecting, setConnecting] = React.useState<'evm' | IcpWallet | null>(null);
 
   // "Check your wallet" ends when the wallet connects, or when AppKit's list closes without one.
