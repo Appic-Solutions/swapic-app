@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { useAppKitAccount, useAppKitNetwork, useDisconnect as useAppKitDisconnect, useAppKit } from '@reown/appkit/react-core';
+import { useAppKitAccount, useAppKitNetwork, useAppKitState, useDisconnect as useAppKitDisconnect, useAppKit } from '@reown/appkit/react-core';
 import { useAuth, useSigner } from '@nfid/identitykit/react';
 import { useWallets, type IcpSignerId } from './store';
 
@@ -37,6 +37,10 @@ export function WalletBridge() {
 export function useEvmConnect() {
   const { open } = useAppKit();
   return () => open({ view: 'Connect' });
+}
+/** True while AppKit's own wallet list is open (the menu shows "Check your wallet" until it closes). */
+export function useEvmModalOpen(): boolean {
+  return useAppKitState().open;
 }
 export function useIcpConnect() {
   const { connect } = useAuth();
