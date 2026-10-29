@@ -30,9 +30,9 @@ import { useBalance } from '@/features/swap/tokens';
 import { tiles, useMyStakes, usePool } from '../data';
 import { CKUSDC_TOKEN, USDC_LOGO, useUsdcTokens } from '../usdc';
 import { StakeAvatar } from './parts';
+import { defaultStakeFrom } from '../stake-from';
 import { CKUSDC, executeStakeEvm, executeStakeIcp, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
 
-const ARBITRUM = 'eip155:42161';
 const NO_ROUTE = 'No route found for this amount';
 /** A stake from ICP whose pull answer was lost: its account is read every 5 s, for at most two minutes (plan 3 Task 8). */
 const LANDING_EVERY_MS = 5_000;
@@ -51,12 +51,13 @@ export function StakeFlow() {
   const [picking, setPicking] = React.useState(false);
   const link = useQueryOnce();
   const icp = useWallets((s) => s.icp);
+  const evmChain = useWallets((s) => s.evm?.chainId ?? null);
   const evmTokens = useUsdcTokens();
   const tokens = React.useMemo(() => (icp ? [...evmTokens, CKUSDC_TOKEN] : evmTokens), [evmTokens, icp]);
   const [picked, setPicked] = React.useState<UiToken | null>(null);
-  // the design opens on USDC on Arbitrum; the link may name another (`from=<chain>|<address>`)
+  // the link may name one (`from=<chain>|<address>`); else the connected chain's USDC, else Arbitrum's (defaultStakeFrom)
   const linked = tokens.find((t) => t.key === link?.get('from'));
-  const from = picked ?? linked ?? tokens.find((t) => t.chain === ARBITRUM) ?? tokens[0] ?? null;
+  const from = picked ?? linked ?? defaultStakeFrom(tokens, evmChain);
   if (picking && from) {
     return (
       <TokenSelect
