@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+.shots/
+.dfx/
+tools/candid/.dfx/
+tools/candid/out/
+test-results/
+playwright-report/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+# never used by this app; kept so a stray one never lands in git
+.env*
