@@ -28,7 +28,7 @@ import { chainNumber } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
-import { fade, tw } from '@/lib/motion';
+import { MS, fade, tw } from '@/lib/motion';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
@@ -148,8 +148,10 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
     setAsking(false);
     if (out.kind === 'started') {
       void qc.invalidateQueries({ queryKey: ['account', stake?.owner] });
+      // the withdrawal has started: a short hold (as Swap's), then the next view (nothing waits on this)
       setBusy(true);
-      onStarted(out.activityId);
+      const id = out.activityId;
+      setTimeout(() => onStarted(id), MS.hold);
     } else if (out.kind === 'rejected') setCancelled(true);
     else if (out.kind === 'failed' || out.kind === 'unknown') setNote(out.message);
   };

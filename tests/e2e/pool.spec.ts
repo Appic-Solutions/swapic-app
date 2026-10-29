@@ -59,10 +59,10 @@ test.describe('Pool', () => {
     // a step shows a check only when the payout record says it is done
     await expect(page.locator('svg path[d="m4.5 12.75 6 6 9-13.5"]')).toHaveCount(1);
     await button(page, 'Back to pool').click();
-    // the same panel turns into the pool page (motion part 2); the link stays as it was loaded
+    // the same panel turns into the pool page (motion part 2) and the link follows it
     await expect(page.getByText('Swapic Pool')).toBeVisible();
     await expect(page.getByText('Withdrawal signed')).toHaveCount(0);
-    await expect(page).toHaveURL(/\/pool\/withdraw$/);
+    await expect(page).toHaveURL(/\/pool$/);
   });
 
   test('while the wallet asks, the button says so (its glow); then the status page', async ({ page }) => {
@@ -84,16 +84,18 @@ test.describe('Pool', () => {
     await expect(page.getByText('Withdrawal signed')).toHaveCount(0);
   });
 
-  test('Stake and Stake From open in the same panel; Back returns', async ({ page }) => {
+  test('Stake and Stake From open in the same panel; the link follows; Back returns', async ({ page }) => {
     await open(page, '/pool', 'pool');
     await expect(page.getByText('Swapic Pool')).toBeVisible();
     await page.getByRole('link', { name: 'Stake', exact: true, includeHidden: true }).click();
     await expect(page.getByText('Added to your stake')).toBeVisible();
     await expect(page.getByText('Swapic Pool')).toHaveCount(0);
-    await expect(page).toHaveURL(/\/pool$/);
+    await expect(page).toHaveURL(/\/pool\/stake$/);
     await page.locator('input[type=number]').fill('100');
     await page.getByText('From', { exact: true }).click();
     await expect(page.getByText('Stake From')).toBeVisible();
+    // a picker keeps its parent's link
+    await expect(page).toHaveURL(/\/pool\/stake$/);
     // the leaving view fades out (one Back once it has gone)
     await expect(page.getByText('Added to your stake')).toHaveCount(0);
     await button(page, 'Back').click();
@@ -103,6 +105,34 @@ test.describe('Pool', () => {
     await button(page, 'Back').click();
     await expect(page.getByText('Swapic Pool')).toBeVisible();
     await expect(page.getByText('Added to your stake')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pool$/);
+  });
+
+  test('the browser\'s Back returns to the previous view, a refresh reopens the view, the Pool tab goes back to the pool page', async ({ page }) => {
+    await open(page, '/pool', 'pool');
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await page.getByRole('link', { name: 'Stake', exact: true, includeHidden: true }).click();
+    await expect(page).toHaveURL(/\/pool\/stake$/);
+    await expect(page.getByText('Added to your stake')).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/pool$/);
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await expect(page.getByText('Added to your stake')).toHaveCount(0);
+    await page.goForward();
+    await expect(page.getByText('Added to your stake')).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('Added to your stake')).toBeVisible();
+    await expect(page).toHaveURL(/\/pool\/stake$/);
+    // from the pool page loaded fresh: Withdraw in place, then a click on the Pool tab
+    await page.goto('/pool');
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await page.getByRole('link', { name: 'Withdraw', exact: true, includeHidden: true }).click();
+    await expect(page.getByText('You receive')).toBeVisible();
+    await expect(page).toHaveURL(/\/pool\/withdraw$/);
+    await page.getByTestId('tab-nav').locator('a[href="/pool"]').click();
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await expect(page.getByText('You receive')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pool$/);
   });
 
   test('reduce motion: one view after each change', async ({ page }) => {
