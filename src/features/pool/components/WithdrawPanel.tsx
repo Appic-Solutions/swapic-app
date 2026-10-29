@@ -60,7 +60,7 @@ export function WithdrawFlow() {
   const router = useRouter();
   const all = useUsdcTokens();
   const evmTokens = React.useMemo(() => [...all].sort((x, y) => PAYOUT_ORDER.indexOf(x.chain) - PAYOUT_ORDER.indexOf(y.chain)), [all]);
-  const { stakes } = useMyStakes();
+  const { stakes, loading } = useMyStakes();
   const live = stakes.filter((s) => s.shares > 0n);
   const both = live.length > 1;
   const [view, setView] = React.useState<'pick' | 'withdraw' | 'receive' | { status: string }>('pick');
@@ -74,6 +74,8 @@ export function WithdrawFlow() {
   const tokens = icp ? [CKUSDC_TOKEN] : evmTokens;
   const to = icp ? CKUSDC_TOKEN : picked ?? evmTokens[0] ?? null;
   const shown = view === 'pick' && !both ? 'withdraw' : view;
+  // which panel opens depends on both wallets' accounts: nothing until they have answered once
+  if (loading && typeof shown !== 'object') return null;
   if (typeof shown === 'object') return <WithdrawStatus id={shown.status} onBack={() => router.push('/pool')} />;
   if (shown === 'pick') {
     return (

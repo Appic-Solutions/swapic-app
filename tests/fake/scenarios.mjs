@@ -90,6 +90,9 @@ const accountFor = (u) => {
 /** No stake: the 5.5 shape with zeros, for whichever address asks. */
 const emptyAccount = (u) => ({ status: 200, json: { account: decodeURIComponent(u.pathname.split('/').pop()), shares: '0', valueUsdc: '0', staked: '0', withdrawn: '0', earned: '0', since: null, waiting: [] } });
 
+/** The EVM wallet holds the 5.5 stake, the ICP wallet none. */
+const evmStakeOnly = (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u));
+
 const common = {
   '/v2/chains': contract('chains.json'),
   '/v2/tokens': (u) => ({ status: 200, file: contract(`tokens-${{ 'eip155:1': 1, 'eip155:137': 137, 'eip155:8453': 8453, 'eip155:42161': 42161 }[u.searchParams.get('chain')] ?? 0}.json`) }),
@@ -127,12 +130,12 @@ export const SCENARIOS = {
     ? { status: 200, json: { chain: u.searchParams.get('chain'), tokens: [{ address: WOOF, symbol: 'WOOF', name: 'Woof Token', decimals: 18, verified: false, class: 'unlisted' }] } }
     : common['/v2/tokens'](u)) }, clockAt: 1792336073 },
   // plan 3 Task 9: withdraw with a key made for the run; the quote built from the request (derived, manifest)
-  withdraw: { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': accountFor, 'POST /v2/withdraw/quote': withdrawQuote(false) }, clockAt: POOL_CLOCK },
+  withdraw: { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': evmStakeOnly, 'POST /v2/withdraw/quote': withdrawQuote(false) }, clockAt: POOL_CLOCK },
   // the same, with the Base side short: the quote says it waits in line (contract 5.15's example); derived, manifest
-  'withdraw-queued': { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': accountFor, 'POST /v2/withdraw/quote': withdrawQuote(true) }, clockAt: POOL_CLOCK },
+  'withdraw-queued': { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': evmStakeOnly, 'POST /v2/withdraw/quote': withdrawQuote(true) }, clockAt: POOL_CLOCK },
   // the pool page at the contract 5.3 snapshot (the 5.5 account's queued withdrawal 40 min out): the EVM wallet holds the
   // 5.5 stake, the ICP wallet none (Task 8's both-stakes adds one); derived, manifest
-  pool: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u)) }, clockAt: POOL_CLOCK },
+  pool: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': evmStakeOnly }, clockAt: POOL_CLOCK },
   // no stake in either wallet (plan 3 Task 3): the 5.5 shape with zeros; derived, manifest
   'no-stake': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': emptyAccount }, clockAt: POOL_CLOCK },
   // both wallets hold a stake (plan 3 Task 8, provisional): the EVM address the 5.5 example, the ICP principal the 5.5 shape
@@ -143,6 +146,6 @@ export const SCENARIOS = {
   } }, clockAt: POOL_CLOCK },
   // the pool closed (contract 5.3 shape with open false): stake and withdraw both off; derived, manifest
   'pool-paused': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool': () => ({ status: 200, json: { ...JSON.parse(readFileSync(new URL('../fixtures/contract/pool.json', import.meta.url), 'utf8')), open: false, closedReason: 'paused' } }),
-    '/v2/pool/accounts/*': (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u)) }, clockAt: POOL_CLOCK },
+    '/v2/pool/accounts/*': evmStakeOnly }, clockAt: POOL_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };
