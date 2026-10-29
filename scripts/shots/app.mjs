@@ -1,5 +1,5 @@
 // Usage: node scripts/shots/app.mjs <route> <name> [scenario]   (needs `npm run dev:e2e` running)
-// `click`: text of an element to click before the shot (a menu's open state). `at`: shoot this many ms after load (a passing state).
+// `click`: text of an element (or a list, clicked in order) to click before the shot (a menu's open state). `at`: shoot this many ms after load (a passing state).
 // `fill`: `<placeholder>=<text>` typed into a field before the shot.
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
@@ -15,9 +15,9 @@ export async function shootApp(route, name, scenario, outDir, click, at = 2500, 
     await setE2eWallets(p, scenario);
     await p.goto(`http://localhost:3100${route}`);
     await p.waitForTimeout(at);
-    if (click) {
+    for (const c of [click ?? []].flat()) {
       // the panels draw their action button twice (one per layout): click the one on screen
-      await p.getByText(click, { exact: true }).filter({ visible: true }).first().click();
+      await p.getByText(c, { exact: true }).filter({ visible: true }).first().click();
       await p.waitForTimeout(800);
     }
     if (fill) {

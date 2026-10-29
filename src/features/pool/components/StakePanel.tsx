@@ -1,10 +1,12 @@
 'use client';
 // Stake: moved from the design's pool-screens.tsx StakePanel (the approved static look; the design bundle built 2026-10-29
 // 14:46 was rebuilt with the motion pass before this task, so the body is the current source with no motion part in it, in
-// the app's static TwoColumn), wired to data: From is USDC on an EVM chain (the address from the canister's get_config, plan
-// check C4; the chain's name and logo from GET /v2/chains), the amount with the wallet's balance, Added to your stake from a
-// stake quote asked 600 ms after typing, the room under the cap checked before any quote, and the button running the
-// checked swap flow (executeStakeEvm). It reads `amount` from the link once (useQueryOnce), as the screenshots do.
+// the app's static TwoColumn), wired to data. From is USDC on an EVM chain (the address from the canister's get_config, plan
+// check C4; the chain's name and logo from GET /v2/chains) or, with the ICP wallet connected, ckUSDC on ICP. From an EVM
+// chain: Added to your stake from a stake quote asked 600 ms after typing, the room under the cap checked before any quote,
+// and the button running the checked swap flow (executeStakeEvm). From ICP: two ledger fees, an approval then stake_icp
+// (executeStakeIcp), and a stake whose pull answer was lost shown as pending until its shares grow. It reads `amount` and
+// `from` (`<chain>|<address>`, as the Swap link) from the link once (useQueryOnce).
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,24 +16,27 @@ import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
-import { ClockIcon, FireIcon } from '@/components/icons';
+import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
-import { ApiError, getOrders, getQuote, postStakeQuote, submitGasless, userMessage, type StakeRequest } from '@/lib/api';
+import { ApiError, getAccount, getOrders, getQuote, postStakeQuote, submitGasless, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, parseUnits } from '@/lib/money';
 import { useQueryOnce } from '@/lib/use-query-once';
-import { useEvmConnect, useEvmSigner, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { useGuardContext } from '@/features/swap/quote';
 import { TokenSelect } from '@/features/swap/components/TokenSelect';
 import { useBalance } from '@/features/swap/tokens';
-import { tiles, usePool } from '../data';
-import { USDC_LOGO, useUsdcTokens } from '../usdc';
+import { tiles, useMyStakes, usePool } from '../data';
+import { CKUSDC_TOKEN, USDC_LOGO, useUsdcTokens } from '../usdc';
 import { StakeAvatar } from './parts';
-import { executeStakeEvm, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
+import { CKUSDC, executeStakeEvm, executeStakeIcp, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
 
 const ARBITRUM = 'eip155:42161';
 const NO_ROUTE = 'No route found for this amount';
+/** A stake from ICP whose pull answer was lost: its account is read every 5 s, for at most two minutes (plan 3 Task 8). */
+const LANDING_EVERY_MS = 5_000;
+const LANDING_FOR_MS = 120_000;
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = React.useState(value);
@@ -44,10 +49,14 @@ function useDebounced<T>(value: T, ms: number): T {
 
 export function StakeFlow() {
   const [picking, setPicking] = React.useState(false);
-  const tokens = useUsdcTokens();
+  const link = useQueryOnce();
+  const icp = useWallets((s) => s.icp);
+  const evmTokens = useUsdcTokens();
+  const tokens = React.useMemo(() => (icp ? [...evmTokens, CKUSDC_TOKEN] : evmTokens), [evmTokens, icp]);
   const [picked, setPicked] = React.useState<UiToken | null>(null);
-  // the design opens on USDC on Arbitrum
-  const from = picked ?? tokens.find((t) => t.chain === ARBITRUM) ?? tokens[0] ?? null;
+  // the design opens on USDC on Arbitrum; the link may name another (`from=<chain>|<address>`)
+  const linked = tokens.find((t) => t.key === link?.get('from'));
+  const from = picked ?? linked ?? tokens.find((t) => t.chain === ARBITRUM) ?? tokens[0] ?? null;
   if (picking && from) {
     return (
       <TokenSelect
@@ -68,14 +77,18 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
   const router = useRouter();
   const qc = useQueryClient();
   const link = useQueryOnce();
-  const evm = useWallets((s) => s.evm);
+  const { evm, icp } = useWallets();
   const signer = useEvmSigner();
+  const caller = useIcpCaller();
   const openEvm = useEvmConnect();
+  const openIcp = useIcpConnect();
   const pool = usePool().data;
+  const { stakes } = useMyStakes();
   const guardReady = !!useGuardContext();
   const [amountText, setAmountText] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
+  const [landing, setLanding] = React.useState(false);
   const [resume, setResume] = React.useState<(() => Promise<ExecOutcome>) | null>(null);
 
   React.useEffect(() => {
@@ -83,6 +96,8 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
     if (a) setAmountText(a);
   }, [link]);
 
+  const fromIcp = from?.chain_type === 'ICP';
+  const wallet = fromIcp ? !!icp : !!evm;
   let amount: bigint | null = null;
   let amountError: string | null = null;
   if (from && amountText) {
@@ -96,13 +111,14 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
   const room = pool ? stakeRoom(pool) : null;
   const closed = pool ? !pool.open : false;
   const capped = amount !== null && room !== null && amount > room;
-  const smart = evm?.smartWallet === true;
+  const smart = !fromIcp && evm?.smartWallet === true;
   const overBalance = amount !== null && balance !== undefined && amount > balance;
 
-  // the stake quote: 600 ms after typing, only under the room (the quoter refuses past the cap), for the paying wallet as owner
+  // from an EVM chain, the stake quote: 600 ms after typing, only under the room (the quoter refuses past the cap), for the
+  // paying wallet as owner
   const typed = useDebounced(amountText, 600);
   let request: StakeRequest | null = null;
-  if (from && evm && pool && !closed && !smart && room !== null) {
+  if (from && !fromIcp && evm && pool && !closed && !smart && room !== null) {
     try {
       const a = parseUnits(typed, from.decimals);
       if (a > 0n && a <= room) request = { fromChain: from.chain, fromToken: from.address, amount: a.toString(), owner: evm.address, payer: evm.address };
@@ -118,20 +134,25 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
     refetchOnWindowFocus: false,
     refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 20_000 : false),
   });
+  // from ICP: the pool takes the amount itself; the person pays two ledger fees (the approval and the pull)
+  const fee = useQuery({ queryKey: ['ledger-fee', CKUSDC], queryFn: () => icpClient().ledgerFee(CKUSDC), enabled: fromIcp, staleTime: 600_000 }).data;
   const option = q.data ? pickStakeOption(q.data) : undefined;
-  const view = option ? stakeView(option) : null;
+  const view = fromIcp
+    ? (amount !== null && amount > 0n && fee !== undefined ? { added: amount, addedText: formatUsd(amount).slice(1), feeText: formatUsd(2n * fee), readyText: '5 Sec' } : null)
+    : option ? stakeView(option) : null;
   // skeletons from the moment an amount that will be quoted is typed until its quote answers (the design's loading card)
-  const asks = !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
+  const asks = !fromIcp && !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
-  const quoteError = q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
+  const quoteError = fromIcp ? null : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
 
   const message = overBalance && from ? `Not enough ${from.symbol} in your wallet` : amountError ?? quoteError ?? undefined;
-  const ready = amount !== null && amount > 0n && !capped && !closed && !smart && !overBalance && !!view && !amountError && guardReady;
+  const ready = amount !== null && amount > 0n && !capped && !closed && !smart && !overBalance && !!view && !amountError
+    && (fromIcp ? !!caller : guardReady && !!signer);
   const label = amount === null || amount === 0n
     ? 'Set token amount to continue'
     : capped && room !== null
       ? `Up to ${formatUsdWhole(room)} right now`
-      : !evm
+      : !wallet
         ? 'Connect wallet'
         : busy
           ? undefined
@@ -139,31 +160,51 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
             ? 'Try again'
             : `Stake ${formatUnits(amount, from!.decimals)} ${from!.symbol}`;
 
-  const after = (out: ExecOutcome) => {
+  /** A lost pull: the stake shows as pending; the account is read every 5 s until its shares grow, two minutes at most. */
+  const waitForShares = async (owner: string, before: bigint) => {
+    setLanding(true);
+    const until = Date.now() + LANDING_FOR_MS;
+    while (Date.now() < until) {
+      await new Promise((r) => setTimeout(r, LANDING_EVERY_MS));
+      const a = await qc.fetchQuery({ queryKey: ['account', owner], queryFn: () => getAccount(owner), staleTime: 0 }).catch(() => null);
+      if (a && BigInt(a.shares) > before) break;
+    }
+    router.push('/pool');
+  };
+  const after = (out: ExecOutcome | { kind: 'landing' }, owner: string | undefined, before: bigint) => {
     setBusy(false);
     setResume(null);
     if (out.kind === 'started') {
-      void qc.invalidateQueries({ queryKey: ['account', evm?.address] });
+      void qc.invalidateQueries({ queryKey: ['account', owner] });
       router.push('/pool');
+    } else if (out.kind === 'landing') {
+      setBusy(true);
+      void waitForShares(owner!, before);
     } else if (out.kind === 'failed') setNote(out.message);
-    else if (out.kind === 'unknown') { setNote(out.message); setResume(() => out.resume); }
+    else if (out.kind === 'unknown') { setNote(out.message); if (out.resume) setResume(() => out.resume); }
     else if (out.kind === 'newPrice') { setNote('The amount added changed. Check it and stake again.'); void q.refetch(); }
   };
   const onStake = async () => {
     if (busy) return;
-    if (!evm) { void openEvm(); return; }
-    if (resume) { setBusy(true); after(await resume()); return; }
-    if (!ready || !signer || !from || amount === null || !view) return;
+    if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
+    const owner = fromIcp ? icp?.principal : evm?.address;
+    const before = stakes.find((s) => s.owner === owner)?.shares ?? 0n;
+    if (resume) { setBusy(true); after(await resume(), owner, before); return; }
+    if (!ready || !from || amount === null || !view) return;
     setBusy(true);
     setNote(null);
+    if (fromIcp) {
+      after(await executeStakeIcp({ amount, caller: caller!, onStep: () => {} }, icpClient()), owner, before);
+      return;
+    }
     after(await executeStakeEvm(
-      { from, amount, evm: signer, shownAdded: view.added, onStep: () => {} },
+      { from, amount, evm: signer!, shownAdded: view.added, onStep: () => {} },
       { getQuote, getOrders, submitGasless, postStakeQuote, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
-    ));
+    ), owner, before);
   };
 
   const apy = pool ? tiles(pool).apy : null;
-  const enabled = busy || (!evm && amount !== null && amount > 0n && !capped) || !!resume || ready;
+  const enabled = busy || (!wallet && amount !== null && amount > 0n && !capped) || !!resume || ready;
   return (
     <TwoColumn
       title="Stake"
@@ -176,9 +217,9 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
             amountText={amountText}
             onAmountText={(t) => { setAmountText(t); setNote(null); setResume(null); }}
             usdText={amount === null ? null : formatUsd(amount)}
-            balanceText={evm && balance !== undefined && from ? formatAmount(balance, from.decimals) : undefined}
+            balanceText={wallet && balance !== undefined && from ? formatAmount(balance, from.decimals) : undefined}
             onMax={() => { if (balance !== undefined && from) setAmountText(formatUnits(balance, from.decimals).replace(/,/g, '')); }}
-            balanceLoading={!!evm && balanceLoading}
+            balanceLoading={wallet && balanceLoading}
             message={capped ? undefined : message}
           />
           {capped && room !== null && (
@@ -204,11 +245,17 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
             rows={[
               ['Fee', view ? view.feeText : '$0.00'],
               ['Ready in', view ? view.readyText : ''],
-              ['Withdraw', 'Anytime, no exit fee', 'green'],
+              ['Withdraw', fromIcp ? 'Anytime on ICP, no exit fee' : 'Anytime, no exit fee', 'green'],
             ]}
           />
           {closed ? (
             <Note tone="yellow" icon={<ClockIcon width={18} height={18} />}>{POOL_PAUSED}</Note>
+          ) : landing ? (
+            <Note tone="blue" icon={<ClockIcon width={18} height={18} />}>Your stake is going in. It shows in Your stake in a moment.</Note>
+          ) : fromIcp ? (
+            <Note icon={<CheckIcon />}>
+              Your ICP wallet asks you to approve the ckUSDC, then to confirm. No gas. A stake from ICP pays out on ICP.
+            </Note>
           ) : (
             <Note icon={<FireIcon width={18} height={18} />}>
               Your stake earns from every swap that uses the pool. Withdraw anytime.

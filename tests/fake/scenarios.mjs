@@ -135,5 +135,14 @@ export const SCENARIOS = {
   pool: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u)) }, clockAt: POOL_CLOCK },
   // no stake in either wallet (plan 3 Task 3): the 5.5 shape with zeros; derived, manifest
   'no-stake': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': emptyAccount }, clockAt: POOL_CLOCK },
+  // both wallets hold a stake (plan 3 Task 8, provisional): the EVM address the 5.5 example, the ICP principal the 5.5 shape
+  // with its own account and nothing waiting (an ICP withdrawal pays at once); derived, manifest
+  'both-stakes': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': (u) => {
+    const a = accountFor(u);
+    return u.pathname.includes('/0x') ? a : { status: 200, json: { ...a.json, account: ICP, waiting: [] } };
+  } }, clockAt: POOL_CLOCK },
+  // the pool closed (contract 5.3 shape with open false): stake and withdraw both off; derived, manifest
+  'pool-paused': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool': () => ({ status: 200, json: { ...JSON.parse(readFileSync(new URL('../fixtures/contract/pool.json', import.meta.url), 'utf8')), open: false, closedReason: 'paused' } }),
+    '/v2/pool/accounts/*': (u) => (u.pathname.includes('/0x') ? accountFor(u) : emptyAccount(u)) }, clockAt: POOL_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

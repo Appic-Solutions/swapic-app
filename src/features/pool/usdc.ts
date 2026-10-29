@@ -5,6 +5,7 @@ import type { UiToken } from '@/components/ui/token-types';
 import { chainLogo, chainName, chainNumber } from '@/lib/explorer';
 import { useGuardContext } from '@/features/swap/quote';
 import { useChains } from '@/features/swap/tokens';
+import { CKUSDC } from './flows';
 
 export const USDC_LOGO = '/images/tokens/usdc.png';
 
@@ -25,3 +26,9 @@ export function useUsdcTokens(): UiToken[] {
     }];
   }), [chains, guard]);
 }
+
+/** ckUSDC on ICP, the pool's ICP side: a stake from ICP pays in it and an ICP stake pays out in it. */
+export const CKUSDC_TOKEN: UiToken = {
+  key: `${config.icpChain}|${CKUSDC}`, chain: config.icpChain, chainId: 0, chainName: chainName(config.icpChain), chainLogo: chainLogo(config.icpChain),
+  chain_type: 'ICP', address: CKUSDC, canisterId: CKUSDC, symbol: 'ckUSDC', name: 'ckUSDC', logo: USDC_LOGO, decimals: 6, priceUsd: null, verified: true,
+};

@@ -350,5 +350,21 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "PoolNoPositionScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#both-stakes",
+    "kind": "derived",
+    "source": "contract 5.5 example for the EVM address; the same shape for the ICP principal with waiting []",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 3 Task 8 (provisional): the wallet pick, Receive on, withdraw on ICP, stake from ICP"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#pool-paused",
+    "kind": "derived",
+    "source": "contract 5.3 example with open: false",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 3 Task 8 PoolPausedScreen"
   }
 ]

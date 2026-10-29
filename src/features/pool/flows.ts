@@ -81,7 +81,8 @@ export function stakeRoom(p: PoolAnswer): bigint {
   return room > 0n ? room : 0n;
 }
 
-const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
+/** The ckUSDC ledger (the pool's ICP side). */
+export const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
 
 /** Gasless when allowed, else the fastest you pay gas route; executable routes only. */
 export function pickStakeOption(q: StakeQuote): PickedOption | undefined {
