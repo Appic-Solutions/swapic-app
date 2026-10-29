@@ -1,0 +1,123 @@
+'use client';
+// The token page: moved from the design's swap-screens.tsx TokenSelect (the approved static look, as the design bundle
+// built 2026-10-29 14:46 holds it), wired to data: chain circles from GET /v2/chains, tokens from GET /v2/tokens (50 a
+// page, more as the list scrolls), balances beside them, a pasted address found on no list flagged.
+import * as React from 'react';
+import Box from '@/components/ui/box';
+import BoxHeader from '@/components/ui/box-header';
+import ChainItem from '@/components/ui/chain-item';
+import TokenListItem from '@/components/ui/token-list-item';
+import TokenSkeleton from '@/components/ui/token-skeleton';
+import Skeleton from '@/components/ui/skeleton';
+import type { UiToken } from '@/components/ui/token-types';
+import { chainLogo, chainNumber } from '@/lib/explorer';
+import { useChains, useTokenList } from '../tokens';
+
+export interface TokenSelectProps {
+  title: string;
+  /** The CAIP-2 chain shown first. */
+  chain: string;
+  selected: UiToken | null;
+  onBack: () => void;
+  onSelect: (t: UiToken) => void;
+  /** Only these chains (CAIP-2), e.g. the chains a withdrawal can pay to. */
+  chains?: string[];
+  /** A fixed list per chain instead of the quoter's (plan 3's "Receive on"). */
+  fixedTokens?: Record<string, UiToken[]>;
+  /** Shown instead of the search box. */
+  note?: React.ReactNode;
+}
+
+function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = React.useState(value);
+  React.useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note }: TokenSelectProps) {
+  const [chain, setChain] = React.useState(start);
+  const [query, setQuery] = React.useState('');
+  const searched = useDebounced(query.trim(), 300);
+  const { chains } = useChains();
+  const list = useTokenList(chain, fixedTokens ? '' : searched);
+  const fixed = fixedTokens?.[chain];
+  const tokens = fixed ?? list.tokens;
+  const loading = fixed ? false : list.isLoading;
+  const pasted = !fixed && list.pasted;
+
+  // more tokens as the list scrolls to its end
+  const sentinel = React.useRef<HTMLDivElement>(null);
+  const { hasMore, loadMore } = list;
+  React.useEffect(() => {
+    const el = sentinel.current;
+    if (!el || fixed || !hasMore) return;
+    const seen = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore();
+    });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [fixed, hasMore, loadMore, tokens.length]);
+
+  return (
+    <Box className="animate-slide-in justify-normal gap-y-6 opacity-0 md:h-[607px] md:max-w-[537px]">
+      <BoxHeader title={title} onBack={onBack} />
+      <div className="grid w-full select-none grid-cols-5 place-items-center gap-5">
+        {chains
+          .filter((c) => !only || only.includes(c.chainId))
+          .map((c) => (
+            <div key={c.chainId} className="rounded-full transition-transform duration-200 hover:scale-110 active:scale-95">
+              <ChainItem
+                chain={{ chainId: chainNumber(c.chainId), name: c.name, logo: chainLogo(c.chainId) }}
+                selectedId={chainNumber(chain)}
+                onClick={() => setChain(c.chainId)}
+              />
+            </div>
+          ))}
+      </div>
+      <hr className="w-full bg-[#636363]/25 max-md:hidden" />
+      {note}
+      {!note && (
+        <input
+          type="text"
+          placeholder="Search token"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-md border-[#000000] bg-white/30 px-3 py-2 text-white placeholder:text-white/50"
+        />
+      )}
+      <div className="flex h-full w-full flex-col gap-y-6 overflow-y-scroll">
+        {loading ? (
+          [0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex w-full items-center justify-between">
+              <TokenSkeleton />
+              <div className="flex flex-col items-end gap-y-2 pr-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </div>
+          ))
+        ) : tokens.length ? (
+          <>
+            {pasted && (
+              <div className="animate-slide-in-from-top rounded-md bg-yellow-600/10 p-4 text-left text-white">
+                <span className="inline pr-2 text-yellow-600">Not on our list.</span>
+                <p className="inline text-sm font-thin">Check the address before you swap.</p>
+              </div>
+            )}
+            {tokens.map((t) => (
+              <div key={t.key} className="transition-transform duration-150 active:scale-[0.98]">
+                <TokenListItem token={t} onClick={() => onSelect(t)} isSelected={!!selected && selected.key === t.key} />
+              </div>
+            ))}
+            <div ref={sentinel} aria-hidden className="h-px w-full shrink-0" />
+          </>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-primary">No coins were found.</div>
+        )}
+      </div>
+    </Box>
+  );
+}

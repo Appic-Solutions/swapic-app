@@ -16,6 +16,8 @@ export default function ChainItem({ chain, selectedId, disabled, onClick }: Chai
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger
+          // a test hook (plan 2 Task 12), not a visible change
+          data-chain-id={chain.chainId}
           disabled={disabled}
           className={cn(
             'flex h-12 w-12 cursor-pointer select-none items-center justify-center rounded-full',
