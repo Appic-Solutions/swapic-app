@@ -334,5 +334,21 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 3 Task 6 WithdrawQueueScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#pool",
+    "kind": "derived",
+    "source": "contract 5.5 example answered for the EVM address, the 5.5 shape with zeros for the ICP principal; clock at contract 5.3 stats.snapshotAt",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 3 Task 3 pool page shots: one stake, its queued withdrawal 40 min out"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#no-stake",
+    "kind": "derived",
+    "source": "contract 5.5 shape with zeros (plan 3 Task 3 Step 2)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "PoolNoPositionScreen"
   }
 ]
