@@ -13,9 +13,23 @@
 // from the canister means its pull's answer was lost on its side: the screen shows the stake as pending and polls
 // pool_account. A lost answer is anything but a PoolErrorFailure or a real "no" (isUserRejection: an ICP signer's closed
 // channel, ICRC-25 4001, is a lost answer, never a no). Tests: flows.test.ts.
+// Design note (withdraw on ICP, plan 3 Task 7).
+// Must never happen: shares burned that the owner did not ask for; a payout to anyone but the caller; a retry after a lost
+// answer that withdraws twice.
+// How the design proves it: executeWithdrawIcp computes usdc and max_shares with planIcpWithdraw (all of it, or the amount
+// with the quoter's 0.5% room, capped at the owned shares); to = the caller's default account, from empty (the caller's
+// default account owns the shares, contract section 2); token_out = ckUSDC; min_out = usdc - 2 * fee (the canister takes
+// every ledger fee out of usdc, can.did withdraw_icp). ShortShares: read account and pool again and retry once (spec 11).
+// A lost answer is never retried (plan check M4): the owner's shares (pool_account) are read every 15 s with settleLost;
+// fewer shares means it went through; the same shares read as "it did not go through" only after 6 minutes, when the call
+// can no longer run; anything else says plainly it cannot tell. Unavailable with shares burned means the canister's timer
+// finishes the payout, shown as started. The ICP side being short is refused, never queued (the canister answers Closed
+// with its "pocket is short" reason, or a Ledger failure): "Not enough ckUSDC on ICP right now. Try a smaller amount or
+// later." (Jeff, 2026-10-28). Tests: flows.test.ts.
 import { userMessage, type PoolAnswer } from '@/lib/api';
 import { PoolErrorFailure, poolErrorMessage, stakeRoom as roomAfterCap, type IcpCaller, type IcpClient } from '@/lib/icp';
-import { formatUsdWhole } from '@/lib/money';
+import { Principal } from '@icp-sdk/core/principal';
+import { formatUsdWhole, planIcpWithdraw } from '@/lib/money';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
 import { isUserRejection } from '@/lib/wallets/rejection';
 import type { ExecOutcome } from '@/features/swap/execute';
@@ -88,5 +102,46 @@ async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: n
     if (left === approveAmount) return { kind: 'unknown', message: 'Nothing was taken. Try again.', resume: () => callStake(i, icp, approveAmount, clock) as Promise<ExecOutcome> };
     i.onStep(1, 'fail');
     return { kind: 'failed', message: 'Nothing was taken. Try again.' };
+  }
+}
+
+export async function executeWithdrawIcp(
+  i: { wanted: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  icp: IcpClient,
+  clock: Clock = realClock,
+  retried = false,
+): Promise<ExecOutcome> {
+  const [pool, fee] = await Promise.all([icp.poolState(), icp.ledgerFee(CKUSDC)]);
+  if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
+  const owner = { Icp: { owner: i.caller.principal, subaccount: [] as [] } };
+  const holding = await icp.poolAccount(owner);
+  if (holding.shares === 0n) return { kind: 'failed', message: 'This wallet holds no stake' };
+  const plan = planIcpWithdraw(i.wanted, holding, pool.totalAssets, pool.totalShares);
+  const minOut = plan.usdc > 2n * fee ? plan.usdc - 2n * fee : 0n;
+  try {
+    i.onStep(0, 'wait');
+    await icp.withdrawIcp(i.caller, { to: { owner: i.caller.principal, subaccount: [] }, from: [], usdc: plan.usdc, max_shares: plan.maxShares, min_out: minOut, token_out: Principal.fromText(CKUSDC) });
+    i.onStep(0, 'done');
+    return { kind: 'started', activityId: 'withdraw' };
+  } catch (e) {
+    if (isUserRejection(e)) return { kind: 'rejected' };
+    if (e instanceof PoolErrorFailure) {
+      if ('ShortShares' in e.err && !retried) return executeWithdrawIcp(i, icp, clock, true);
+      if ('Unavailable' in e.err) return { kind: 'started', activityId: 'withdraw' };
+      i.onStep(0, 'fail');
+      // the ICP side is short: the canister's Closed reason names it (pool/icp POCKET_SHORT), or its ledger call failed
+      if ('Ledger' in e.err || ('Closed' in e.err && /short|free/i.test(e.err.Closed))) {
+        return { kind: 'failed', message: 'Not enough ckUSDC on ICP right now. Try a smaller amount or later.' };
+      }
+      return { kind: 'failed', message: poolErrorMessage(e.err) };
+    }
+    // the answer was lost (plan check M4): the canister's shares decide; never retried by the app
+    const seen = await settleLost(async () => {
+      const now = (await icp.poolAccount(owner)).shares;
+      return now < holding.shares ? 'done' : now === holding.shares ? 'nothing' : 'unclear';
+    }, clock, clock.nowMs());
+    if (seen === 'done') return { kind: 'started', activityId: 'withdraw' };
+    if (seen === 'nothing') { i.onStep(0, 'fail'); return { kind: 'failed', message: 'Your withdrawal did not go through. Nothing changed. Try again.' }; }
+    return { kind: 'unknown', message: 'We cannot tell yet whether your withdrawal went through. Check Your stake before you try again.', resume: null };
   }
 }
