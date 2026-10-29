@@ -1,0 +1,12 @@
+{
+  "windowSeconds": 86400,
+  "swaps": 1284,
+  "swapsBefore": 1189,
+  "medianMs": 12000,
+  "delivered": 1279,
+  "refunded": 5,
+  "failed": 0,
+  "deliveredBps": 9961,
+  "volumeUsd": "412880.12",
+  "updatedAt": 1793408400
+}

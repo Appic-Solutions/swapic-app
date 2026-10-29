@@ -1,0 +1,6 @@
+{
+  "account": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+  "range": "30d",
+  "stepSeconds": 14400,
+  "points": [ { "t": 1790812800, "valueUsdc": "998820000" }, { "t": 1790827200, "valueUsdc": "998861000" } ]
+}

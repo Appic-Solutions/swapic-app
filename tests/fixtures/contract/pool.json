@@ -1,0 +1,15 @@
+{
+  "open": true,
+  "openForSwaps": true,
+  "base": { "free": "5040330000", "reserved": "0", "inFlight": "0" },
+  "icp": { "free": "3380220000", "reserved": "0", "inFlight": "0" },
+  "totalAssets": "8420550000",
+  "totalShares": "8346065000000000000000",
+  "sharePrice": "1008924",
+  "tvlCap": "10000000000",
+  "perSwapCap": "1000000000",
+  "premiumBps": 10,
+  "ckusdcLedger": "xevnm-gaaaa-aaaar-qafnq-cai",
+  "icpTokens": [ { "ledger": "ryjl3-tyaaa-aaaaa-aaaba-cai", "icpswapPool": "mohjv-bqaaa-aaaag-qjyia-cai" } ],
+  "stats": { "apy7dBps": 420, "apy30dBps": 380, "earned24h": "8420000", "snapshotAt": 1793408400 }
+}

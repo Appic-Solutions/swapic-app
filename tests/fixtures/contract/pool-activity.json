@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "id": "0x85b8b7b95710e393065f21c74255cb9e32968ac94a18df39dc576383c9aa223d", "kind": "stake", "at": 1793408220,
+      "usdc": "998820000", "earned": null, "chain": "eip155:42161", "walletShort": "0xf00e…89ac", "from": null, "to": null },
+    { "id": "0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227", "kind": "swap", "at": 1793407980,
+      "usdc": "250000000", "earned": "250000", "chain": null, "walletShort": "0xf00e…89ac",
+      "from": { "chain": "eip155:42161", "symbol": "USDC" }, "to": { "chain": "icp:737ba355e855bd4b61279056603e0550", "symbol": "ckBTC" } },
+    { "id": "payout-41", "kind": "withdraw", "at": 1793397180,
+      "usdc": "250000000", "earned": null, "chain": "eip155:42161", "walletShort": "0x05bd…a2c7", "from": null, "to": null }
+  ],
+  "nextCursor": "1793397180000000.payout-41"
+}

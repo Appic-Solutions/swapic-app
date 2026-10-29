@@ -1,0 +1,8 @@
+{
+  "range": "7d",
+  "stepSeconds": 3600,
+  "points": [
+    { "t": 1793404800, "sharePrice": "1008870", "totalAssets": "8418210000", "earned": "350112" },
+    { "t": 1793408400, "sharePrice": "1008912", "totalAssets": "8420550000", "earned": "352004" }
+  ]
+}

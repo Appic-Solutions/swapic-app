@@ -1,0 +1,18 @@
+{
+  "id": "0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227",
+  "kind": "swap",
+  "outcome": "delivered",
+  "steps": [
+    { "step": "signed", "state": "done", "chain": "eip155:42161", "atMs": 1793407921000, "tx": null, "block": null,
+      "amount": null, "token": null, "reason": null },
+    { "step": "sent", "state": "done", "chain": "eip155:42161", "atMs": 1793407924100,
+      "tx": "0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a", "block": null,
+      "amount": "250000000", "token": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "reason": null },
+    { "step": "onItsWay", "state": "done", "chain": "icp:737ba355e855bd4b61279056603e0550", "atMs": 1793407925000, "tx": null, "block": null,
+      "amount": null, "token": null, "reason": null },
+    { "step": "paidOut", "state": "done", "chain": "icp:737ba355e855bd4b61279056603e0550", "atMs": 1793407930300, "tx": null, "block": 2184903,
+      "amount": "240300", "token": "mxzaz-hqaaa-aaaar-qaada-cai", "reason": null },
+    { "step": "delivered", "state": "done", "chain": "icp:737ba355e855bd4b61279056603e0550", "atMs": 1793407933000, "tx": null, "block": 2184903,
+      "amount": "240300", "token": "mxzaz-hqaaa-aaaar-qaada-cai", "reason": null }
+  ]
+}

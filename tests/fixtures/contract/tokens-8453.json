@@ -1,0 +1,85 @@
+{
+  "chain": "eip155:8453",
+  "tokens": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "symbol": "ETH",
+      "name": "ETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0x4200000000000000000000000000000000000006",
+      "symbol": "WETH",
+      "name": "WETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      "symbol": "USDC",
+      "name": "USDC",
+      "decimals": 6,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca",
+      "symbol": "USDbC",
+      "name": "USDbC",
+      "decimals": 6,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2",
+      "symbol": "USDT",
+      "name": "USDT",
+      "decimals": 6,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0x50c5725949a6f0c72e6c4a641f24049a917db0cb",
+      "symbol": "DAI",
+      "name": "DAI",
+      "decimals": 18,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "symbol": "cbBTC",
+      "name": "cbBTC",
+      "decimals": 8,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452",
+      "symbol": "wstETH",
+      "name": "wstETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22",
+      "symbol": "cbETH",
+      "name": "cbETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xb6fe221fe9eef5aba221c348ba20a1bf5e73624c",
+      "symbol": "rETH",
+      "name": "rETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    }
+  ]
+}

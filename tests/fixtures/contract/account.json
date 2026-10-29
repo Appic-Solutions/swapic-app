@@ -1,0 +1,12 @@
+{
+  "account": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+  "shares": "1182254000000000000000",
+  "valueUsdc": "1192800000",
+  "staked": "1430400000",
+  "withdrawn": "250000000",
+  "earned": "12400000",
+  "since": 1791878400,
+  "waiting": [
+    { "payoutId": 41, "usdc": "601710000", "status": "queued", "place": 2, "etaAt": 1793410800 }
+  ]
+}

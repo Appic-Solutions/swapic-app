@@ -1,0 +1,109 @@
+{
+  "chain": "eip155:1",
+  "tokens": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "symbol": "ETH",
+      "name": "ETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      "symbol": "WETH",
+      "name": "WETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+      "symbol": "USDC",
+      "name": "USDC",
+      "decimals": 6,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0xdac17f958d2ee523a2206206994597c13d831ec7",
+      "symbol": "USDT",
+      "name": "USDT",
+      "decimals": 6,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0x6b175474e89094c44da98b954eedeac495271d0f",
+      "symbol": "DAI",
+      "name": "DAI",
+      "decimals": 18,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+      "symbol": "WBTC",
+      "name": "WBTC",
+      "decimals": 8,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf",
+      "symbol": "cbBTC",
+      "name": "cbBTC",
+      "decimals": 8,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+      "symbol": "wstETH",
+      "name": "wstETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+      "symbol": "stETH",
+      "name": "stETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xd46ba6d942050d489dbd938a2c909a5d5039a161",
+      "symbol": "AMPL",
+      "name": "AMPL",
+      "decimals": 9,
+      "verified": true,
+      "class": "other"
+    },
+    {
+      "address": "0x2a8e1e676ec238d8a992307b495b45b3feaa5e86",
+      "symbol": "OUSD",
+      "name": "OUSD",
+      "decimals": 18,
+      "verified": true,
+      "class": "stable"
+    },
+    {
+      "address": "0xae78736cd615f374d3085123a210448e74fc6393",
+      "symbol": "rETH",
+      "name": "rETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    },
+    {
+      "address": "0xbe9895146f7af43049ca1c1ae358b0541ea49704",
+      "symbol": "cbETH",
+      "name": "cbETH",
+      "decimals": 18,
+      "verified": true,
+      "class": "major"
+    }
+  ]
+}

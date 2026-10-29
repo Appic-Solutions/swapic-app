@@ -1,0 +1,16 @@
+{
+  "id": 41,
+  "kind": "withdrawal",
+  "terms": { "dstChain": 8453, "recipient": "0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC",
+             "tokenOut": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "minOut": "601110000", "deadlineNs": "1793483580000000000" },
+  "amount": "601110000",
+  "received": null,
+  "planned": null,
+  "status": "queued",
+  "orderId": null,
+  "txHash": null,
+  "outcome": "pending",
+  "stage": "queued",
+  "queue": { "place": 2, "aheadUsdc": "1200000000", "etaAt": 1793410800 },
+  "refund": null
+}

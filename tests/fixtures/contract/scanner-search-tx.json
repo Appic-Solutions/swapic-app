@@ -1,0 +1,21 @@
+{
+  "q": "0x278d9ce98715d455ab24565fd54356bad62b79be489524bddc5cdb672f741443",
+  "match": "tx",
+  "items": [
+    {
+      "id": "0xc5ba7744c87e6b1eafef80ff5e3a6d7976c26b011292a7858c161cffe7330f35", "kind": "swap", "outcome": "refunded", "stage": "refunded",
+      "createdAt": 1793220450, "endedAt": 1793220698, "etaAt": 1793220470, "gasMode": "gasless",
+      "from": { "chain": "eip155:137", "token": "0xc2132d05d31c914a87c6611c10748aeb04b58e8f", "symbol": "USDT", "decimals": 6,
+                "amount": "120000000", "amountMin": null, "wallet": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+                "tx": "0x278d9ce98715d455ab24565fd54356bad62b79be489524bddc5cdb672f741443", "block": null },
+      "to": { "chain": "icp:737ba355e855bd4b61279056603e0550", "token": "ryjl3-tyaaa-aaaaa-aaaba-cai", "symbol": "ICP", "decimals": 8,
+              "amount": null, "amountMin": "1180000000", "wallet": "3yfhk-hdnwx-2xo3k-pjyl5-ugvqk-zsj4q-rrq7m-aocl5-iz5re-kxxtc-2qe",
+              "tx": null, "block": null },
+      "feeUsdc": "690000", "payoutId": null, "reason": "the intent was not filled before its deadline", "reasonCode": "notFilled",
+      "refund": { "chain": "eip155:137", "token": "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359", "symbol": "USDC", "decimals": 6,
+                  "amount": "119800000", "receiver": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+                  "tx": "0xb269cc198cf850ac6c433523816a4e3d9f6c9660f0e226274a7c39a1c3fd1d07", "block": null }
+    }
+  ],
+  "nextCursor": null
+}

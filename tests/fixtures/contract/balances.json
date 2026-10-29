@@ -1,0 +1,10 @@
+{
+  "chain": "eip155:8453",
+  "wallet": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+  "block": 37210455,
+  "balances": [
+    { "token": "0x0000000000000000000000000000000000000000", "balance": "1840000000000000" },
+    { "token": "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", "balance": "250000000" },
+    { "token": "0x05bda321ada1ec8124d960b9a26293662924a2c7", "balance": "0" }
+  ]
+}

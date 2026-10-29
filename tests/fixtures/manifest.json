@@ -1,0 +1,274 @@
+[
+  {
+    "path": "tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261018T150707Z/gasless/quote.json",
+    "recordedAt": "2026-10-18T15:07:07Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792336070 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/status/arb-usdc-to-pol-wbtc.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261018T150707Z/gasless/status.json",
+    "recordedAt": "2026-10-18T15:07:07Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/submit/accepted.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261018T150707Z/gasless/submit.json",
+    "recordedAt": "2026-10-18T15:07:07Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/quote/eth-usdc-to-base-usdc.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T093157Z/eth-cctp/quote.json",
+    "recordedAt": "2026-10-19T09:31:57Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792402328 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/status/eth-usdc-to-base-usdc.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T093157Z/eth-cctp/status.json",
+    "recordedAt": "2026-10-19T09:31:57Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/quote/arb-usdc-to-base-eth.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T095250Z/eco-swap/quote.json",
+    "recordedAt": "2026-10-19T09:52:50Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792403587 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/status/arb-usdc-to-base-eth.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T095250Z/eco-swap/status.json",
+    "recordedAt": "2026-10-19T09:52:50Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/quote/base-usdc-to-base-eth.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T100322Z/same-chain/quote.json",
+    "recordedAt": "2026-10-19T10:03:22Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792404264 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/quote/base-eth-to-arb-arb.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T100322Z/eco-both/quote.json",
+    "recordedAt": "2026-10-19T10:03:22Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792404217 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/quote/pol-wbtc-to-arb-usdc.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T104636Z/wbtc-gasless/quote.json",
+    "recordedAt": "2026-10-19T10:46:36Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy; quotedAt 1792406810 is the test clock; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/real/submit/reverts.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261019T095250Z/polygon-cctp/submit.json",
+    "recordedAt": "2026-10-19T09:52:50Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/submit/halted.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/halt-drill-20261019T094942Z/gasless-submit.json",
+    "recordedAt": "2026-10-19T09:49:42Z",
+    "replacedBy": null,
+    "note": "mainnet canary against the staging deploy"
+  },
+  {
+    "path": "tests/fixtures/real/quote/base-usdc-to-ckusdc.fork.json",
+    "kind": "real",
+    "source": "/Users/jeff/appic/.superpowers/sdd/2026-10-17-q3-quoter/live/fork_flow4.json",
+    "recordedAt": "2026-10-17",
+    "replacedBy": "plan 4 Task 5 (a staging EVM to ICP quote)",
+    "note": "recorded on a mainnet fork, not mainnet; an EVM to ckUSDC quote; its deadlines are in the past"
+  },
+  {
+    "path": "tests/fixtures/derived/swapic-config.json",
+    "kind": "derived",
+    "source": "the real mainnet quotes above: contracts, tokens, step targets and calldata (plan 1 Task 9 Step 1)",
+    "recordedAt": "2026-10-28",
+    "replacedBy": null,
+    "note": "paired with the mainnet quotes and never replaced; plan 4 Task 5 records staging's own answers into tests/fixtures/real/staging/swapic-config.json, used only with the staging quotes"
+  },
+  {
+    "path": "tests/fixtures/contract/account-history.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.6",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/account.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.5",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/balances.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.1",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/chains.json",
+    "kind": "provisional",
+    "source": "ChainInfo, /Users/jeff/appic/.worktrees/swapic-backend-simplify/services/quoter/src/api/mod.rs:142-177; addresses from the real quotes and config/tokens/*.json",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "shape copied from the Rust struct"
+  },
+  {
+    "path": "tests/fixtures/contract/order-status-delivered.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.8",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/orders-page.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.9",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/payout-queued.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.10",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/pool-activity.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.4",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/pool-history-7d.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.2",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/pool.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.3",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/scanner-latest.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.11",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/scanner-search-none.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.13",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "written from 5.13's nothing found rule"
+  },
+  {
+    "path": "tests/fixtures/contract/scanner-search-tx.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.13",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/scanner-stats.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.12",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/steps-delivered.json",
+    "kind": "contract",
+    "source": "/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md section 5.14",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "copied byte for byte from the section's example"
+  },
+  {
+    "path": "tests/fixtures/contract/tokens-0.json",
+    "kind": "provisional",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-simplify/config/tokens/*.json through scripts/fixtures/tokens-from-config.mjs; TokensAnswer, services/quoter/src/api/tokens.rs:38-87",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  },
+  {
+    "path": "tests/fixtures/contract/tokens-1.json",
+    "kind": "provisional",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-simplify/config/tokens/*.json through scripts/fixtures/tokens-from-config.mjs; TokensAnswer, services/quoter/src/api/tokens.rs:38-87",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  },
+  {
+    "path": "tests/fixtures/contract/tokens-137.json",
+    "kind": "provisional",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-simplify/config/tokens/*.json through scripts/fixtures/tokens-from-config.mjs; TokensAnswer, services/quoter/src/api/tokens.rs:38-87",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  },
+  {
+    "path": "tests/fixtures/contract/tokens-42161.json",
+    "kind": "provisional",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-simplify/config/tokens/*.json through scripts/fixtures/tokens-from-config.mjs; TokensAnswer, services/quoter/src/api/tokens.rs:38-87",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  },
+  {
+    "path": "tests/fixtures/contract/tokens-8453.json",
+    "kind": "provisional",
+    "source": "/Users/jeff/appic/.worktrees/swapic-backend-simplify/config/tokens/*.json through scripts/fixtures/tokens-from-config.mjs; TokensAnswer, services/quoter/src/api/tokens.rs:38-87",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  }
+]
