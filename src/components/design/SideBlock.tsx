@@ -11,7 +11,7 @@ export function SideBlock({ label, side, amount, tone }: { label: string; side: 
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[#898989]">{label}</p>
         <p className={cn('truncate', tone)}>{amount}</p>
-        <p className="text-sm font-normal text-[#898989]">{side.usdText} · {side.chain}</p>
+        <p className="text-sm font-normal text-[#898989]">{[side.usdText, side.chain].filter(Boolean).join(' · ')}</p>
       </div>
     </div>
   );

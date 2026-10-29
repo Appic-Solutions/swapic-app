@@ -70,3 +70,13 @@ export function mergeRows(pages: ActivityRow[][]): ActivityRow[] {
   for (const p of pages) for (const r of p) if (!by.has(r.id.toLowerCase())) by.set(r.id.toLowerCase(), r);
   return [...by.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
+
+/** The token a step names, from the row's own sides (rows carry symbol and decimals, contract 5.7): stepViews' `token`. */
+export const tokenMetaOf = (r: ActivityRow) => (chain: string | null, token: string | null) => {
+  for (const x of [r.from, r.to, ...(r.refund ? [r.refund] : [])]) {
+    if (x.chain === chain && x.token !== null && token !== null && x.token.toLowerCase() === token.toLowerCase() && x.symbol !== null && x.decimals !== null) {
+      return { symbol: x.symbol, decimals: x.decimals };
+    }
+  }
+  return null;
+};

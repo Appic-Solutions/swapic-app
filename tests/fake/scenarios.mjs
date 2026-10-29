@@ -124,6 +124,27 @@ function stepsFor(u) {
   return { status: 200, file: 'tests/fixtures/contract/steps-delivered.json' };
 }
 const page = (rows) => () => ({ status: 200, json: { orders: rows, nextCursor: null } });
+// The Scanner (plan 4 Task 3): the delivered swap of contract 5.8 and 5.14 (Arbitrum USDC to ckBTC, 0x9fa1…) as a 5.7 row
+// built from those two examples and 5.4's swap line; derived, manifest
+const ROW_DELIVERED = () => ({
+  id: '0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227', kind: 'swap', outcome: 'delivered', stage: 'delivered',
+  createdAt: 1793407921, endedAt: 1793407933, etaAt: 1793407945, gasMode: 'gasless',
+  from: { chain: 'eip155:42161', token: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', symbol: 'USDC', decimals: 6, amount: '250000000', amountMin: null, wallet: PAYER.toLowerCase(), tx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a', block: null },
+  to: { chain: 'icp:737ba355e855bd4b61279056603e0550', token: 'mxzaz-hqaaa-aaaar-qaada-cai', symbol: 'ckBTC', decimals: 8, amount: '240300', amountMin: null, wallet: ICP, tx: null, block: 2184903 },
+  feeUsdc: '690000', payoutId: null, reason: null, reasonCode: null, refund: null,
+});
+/** Search answered in its canonical form (services S4: `q` lower case, principal text): each example row by its id, the
+ *  refunded one also by its source transaction; anything else found nowhere. */
+function searchFor(u) {
+  const raw = (u.searchParams.get('q') ?? '').trim();
+  const q = raw.startsWith('0x') ? raw.toLowerCase() : raw;
+  const rows = [ROW_DELIVERED(), ROW_PENDING(), ROW_QUEUED(), ROW_REFUNDED()];
+  const byId = rows.find((r) => r.id.toLowerCase() === q);
+  if (byId) return { status: 200, json: { q, match: 'order', items: [byId], nextCursor: null } };
+  const byTx = rows.find((r) => r.from.tx?.toLowerCase() === q);
+  if (byTx) return { status: 200, json: { q, match: 'tx', items: [byTx], nextCursor: null } };
+  return { status: 200, json: { q, match: 'none', items: [], nextCursor: null } };
+}
 
 const common = {
   '/v2/chains': contract('chains.json'),
@@ -185,5 +206,13 @@ export const SCENARIOS = {
   'history-refund': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/orders': (u) => page([ROW_REFUNDED()])(u), '/v2/orders/*/steps': stepsFor }, clockAt: POOL_CLOCK },
   // no rows yet (5.9 shape); derived, manifest
   'history-empty': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/orders': { status: 200, json: { orders: [], nextCursor: null } } }, clockAt: POOL_CLOCK },
+  // the Scanner (plan 4 Task 3) at the contract 5.3 snapshot: the feed and wallet rows are the four example rows, search
+  // finds each by id (the refunded one also by its transaction), steps per row; derived, manifest
+  scanner: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common,
+    '/v2/scanner/latest': () => ({ status: 200, json: { items: [ROW_PENDING(), ROW_DELIVERED(), ROW_QUEUED(), ROW_REFUNDED()], nextCursor: null } }),
+    '/v2/scanner/search': searchFor,
+    '/v2/orders': (u) => page([ROW_PENDING(), ROW_DELIVERED(), ROW_QUEUED(), ROW_REFUNDED()])(u),
+    '/v2/orders/*/steps': stepsFor,
+  }, clockAt: POOL_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

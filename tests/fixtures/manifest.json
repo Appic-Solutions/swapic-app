@@ -390,5 +390,13 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "HistoryEmptyScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#scanner",
+    "kind": "derived",
+    "source": "the four contract example rows (5.11, 5.9, 5.13, and a delivered 5.7 row built from 5.8, 5.14 and 5.4's swap line); search by id or source transaction answering q in canonical form (services S4)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 4 Task 3 Scanner shots and Task 4 click-through"
   }
 ]

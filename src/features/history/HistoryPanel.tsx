@@ -11,21 +11,11 @@ import { OrderRowSkeleton } from '@/components/orders/OrderRowSkeleton';
 import { getSteps, type ActivityRow } from '@/lib/api';
 import { stepViews } from '@/lib/copy/status';
 import { useWalletMenu } from '@/lib/wallets/menu';
-import type { OrderView } from '@/features/activity/rows';
+import { tokenMetaOf, type OrderView } from '@/features/activity/rows';
 import { counts as countRows, filterRows, useHistory, type Filter } from './data';
 import { Empty } from './Empty';
 import { Filters } from './Filters';
 import { WalletChips } from './WalletChips';
-
-/** The token a step names, from the row's own sides (rows carry symbol and decimals; contract 5.7). */
-const metaOf = (r: ActivityRow) => (chain: string | null, token: string | null) => {
-  for (const s of [r.from, r.to, ...(r.refund ? [r.refund] : [])]) {
-    if (s.chain === chain && s.token !== null && token !== null && s.token.toLowerCase() === token.toLowerCase() && s.symbol !== null && s.decimals !== null) {
-      return { symbol: s.symbol, decimals: s.decimals };
-    }
-  }
-  return null;
-};
 
 function HistoryRow({ order, raw, open, onToggle }: { order: OrderView; raw: ActivityRow; open: boolean; onToggle: () => void }) {
   const router = useRouter();
@@ -42,7 +32,7 @@ function HistoryRow({ order, raw, open, onToggle }: { order: OrderView; raw: Act
       open={open}
       onToggle={onToggle}
       onOpenScanner={() => router.push(`/scanner?order=${encodeURIComponent(order.id)}`)}
-      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: metaOf(raw) }) : undefined}
+      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw) }) : undefined}
     />
   );
 }
