@@ -3,6 +3,7 @@ const real = (p) => `tests/fixtures/real/${p}`;
 const contract = (p) => `tests/fixtures/contract/${p}`;
 const PAYER = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC';
 const ICP = '3yfhk-v3nwx-2xo3k-pjyl5-ugvqk-ywkpy-qaq7m-aocl5-iz5re-kxxtc-2qe';
+const WOOF = '0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07';
 
 const common = {
   '/v2/chains': contract('chains.json'),
@@ -31,5 +32,11 @@ export const SCENARIOS = {
   'no-route': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: 'no route could carry this swap: eco did not answer' } } }, clockAt: 1792336073 },
   // swaps from ICP held while a withdrawal waits in line (contract 5.15): today's quoter refusal; derived, manifest
   'icp-paused': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: "no route could carry this swap: poolShort: the pool's Base pocket holds 0.00 USDC, below the payout" } } }, clockAt: 1792336073 },
+  // the system halted: the quoter answers no route, naming the halt (errors.ts reads it as paused); derived, manifest
+  paused: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: 'no route could carry this swap: the canister is halted' } } }, clockAt: 1792336073 },
+  // a pasted address on no list: GET /v2/tokens answers it unverified (TokensAnswer shape, the design's sample token); derived, manifest
+  pasted: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/tokens': (u) => (u.searchParams.get('q')?.toLowerCase() === WOOF
+    ? { status: 200, json: { chain: u.searchParams.get('chain'), tokens: [{ address: WOOF, symbol: 'WOOF', name: 'Woof Token', decimals: 18, verified: false, class: 'unlisted' }] } }
+    : common['/v2/tokens'](u)) }, clockAt: 1792336073 },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

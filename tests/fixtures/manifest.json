@@ -294,5 +294,21 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 2 Task 12, swaps from ICP paused"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#paused",
+    "kind": "derived",
+    "source": "quoter no_route shape (contract 1.4) with the halt reason errors.ts reads",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 11 SwapPausedScreen"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#pasted",
+    "kind": "derived",
+    "source": "TokensAnswer shape (services/quoter/src/api/tokens.rs:38-87) with the design's sample token WOOF (data.ts unknownToken)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 11 SelectUnknownTokenScreen"
   }
 ]
