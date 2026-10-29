@@ -28,6 +28,10 @@ export interface TokenSelectProps {
   note?: React.ReactNode;
 }
 
+/** The design's order of the chain circles (design data.ts swapicChains); a chain the design does not name goes last. */
+const DESIGN_ORDER = ['icp:737ba355e855bd4b61279056603e0550', 'eip155:1', 'eip155:8453', 'eip155:42161', 'eip155:137'];
+const place = (c: string) => (DESIGN_ORDER.includes(c) ? DESIGN_ORDER.indexOf(c) : DESIGN_ORDER.length);
+
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = React.useState(value);
   React.useEffect(() => {
@@ -67,6 +71,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
       <div className="grid w-full select-none grid-cols-5 place-items-center gap-5">
         {chains
           .filter((c) => !only || only.includes(c.chainId))
+          .sort((a, b) => place(a.chainId) - place(b.chainId))
           .map((c) => (
             <div key={c.chainId} className="rounded-full transition-transform duration-200 hover:scale-110 active:scale-95">
               <ChainItem

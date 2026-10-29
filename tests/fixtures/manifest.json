@@ -270,5 +270,29 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "curated list: no logo, no priceUsd (prices are not invented)"
+  },
+  {
+    "path": "tests/fixtures/derived/balances-42161.json",
+    "kind": "derived",
+    "source": "contract 5.1 example (/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md) moved to Arbitrum: chain, Arbitrum USDC 0xaf88\u20265831",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "the Swap click-through pays from USDC on Arbitrum; the contract example is Base only"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#no-route",
+    "kind": "derived",
+    "source": "quoter error shape, contract 1.4 (no_route 422)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 5 SwapNoRoutesScreen and Task 12"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#icp-paused",
+    "kind": "derived",
+    "source": "services/quoter/src/engine/icp/mod.rs:934-938 joined by Quote::of (contract 5.15)",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 2 Task 12, swaps from ICP paused"
   }
 ]

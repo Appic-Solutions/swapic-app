@@ -1,0 +1,9 @@
+{
+  "chain": "eip155:42161",
+  "wallet": "0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac",
+  "block": 263004118,
+  "balances": [
+    { "token": "0x0000000000000000000000000000000000000000", "balance": "1840000000000000" },
+    { "token": "0xaf88d065e77c8cc2239327c5edb3a432268e5831", "balance": "250000000" }
+  ]
+}
