@@ -3,7 +3,6 @@
 // lookup, GET /v2/scanner/search, contract 5.13) and its timeline (GET /v2/orders/{id}/steps through useActivity, polling
 // while pending). What went in and came out, who sent and received it, the route, and the timeline.
 import * as React from 'react';
-import Box from '@/components/ui/box';
 import BoxHeader from '@/components/ui/box-header';
 import { Card } from '@/components/ui/card';
 import Skeleton from '@/components/ui/skeleton';
@@ -19,6 +18,10 @@ import { ArrowDownIcon, CheckIcon, ClockIcon, LinkIcon } from '@/components/icon
 import { config } from '@/config';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
+import { motion } from 'motion/react';
+import { PanelBox } from '@/components/motion/parts';
+import { flyNames } from '@/components/orders/OrderRow';
+import { T, fade, tw, useMounted } from '@/lib/motion';
 import type { OrderView } from '@/features/activity/rows';
 
 /** "29 Oct 2026" (display only). */
@@ -32,16 +35,19 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
   const took = o?.took ? ` in ${o.took}` : '';
   const headline = !o ? '' : refund ? `Refunded${took}` : live ? o.stageText ?? '' : o.status === 'failed' ? 'Failed' : `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
   const busy = loading || !o;
+  const fly = o ? flyNames(o.id) : { from: undefined, to: undefined, pill: undefined };
+  // Motion (approved 2026-10-29, part 2): inside the History or Scanner panel (MorphFrame) the parts fade in place and the
+  // row's tokens and status pill fly here (data-fly); the link copy turns into a check for a second.
   return (
-    <Box className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
-      <div className="flex w-full items-center justify-center">
+    <PanelBox className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
+      <motion.div variants={fade} className="flex w-full items-center justify-center [&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100">
         <BoxHeader title="Order" onBack={onBack} />
         {o && (
           <CopyLink id={o.id} copied={copied} onCopy={copy} />
         )}
-      </div>
+      </motion.div>
       <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-stretch">
-        <div data-testid="col-left" className="flex w-full lg:max-w-[482px] lg:shrink-0">
+        <motion.div variants={fade} data-testid="col-left" className="flex w-full lg:max-w-[482px] lg:shrink-0">
           <Card className="h-full cursor-auto flex-col items-start justify-start gap-4 hover:bg-[#000000]/0">
             {busy ? (
               <div className="flex w-full flex-col gap-y-4">
@@ -51,23 +57,23 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
             ) : (
               <>
                 <div className="flex w-full items-center justify-between gap-3">
-                  <StatusPill status={o.status} />
+                  <StatusPill status={o.status} fly={fly.pill} />
                   <p className="text-sm font-semibold text-[#898989]">{headline}</p>
                 </div>
                 <div className="flex w-full flex-1 flex-col justify-center gap-4">
-                  <SideBlock label="Sent" side={o.from} amount={`${o.from.amountText} ${o.from.symbol}`} />
+                  <SideBlock label="Sent" side={o.from} amount={`${o.from.amountText} ${o.from.symbol}`} fly={fly.from} />
                   <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
                   {refund && o.refund ? (
-                    <SideBlock label={`Refunded to ${o.refund.toText}`} side={o.refund} amount={`${o.refund.amountText} ${o.refund.symbol}`} tone="text-yellow-500" />
+                    <SideBlock label={`Refunded to ${o.refund.toText}`} side={o.refund} amount={`${o.refund.amountText} ${o.refund.symbol}`} tone="text-yellow-500" fly={fly.to} />
                   ) : (
-                    <SideBlock label={live ? 'Receiving' : 'Received'} side={o.to} amount={`${o.to.amountText} ${o.to.symbol}`} tone={live ? 'text-white/60' : undefined} />
+                    <SideBlock label={live ? 'Receiving' : 'Received'} side={o.to} amount={`${o.to.amountText} ${o.to.symbol}`} tone={live ? 'text-white/60' : undefined} fly={fly.to} />
                   )}
                 </div>
               </>
             )}
           </Card>
-        </div>
-        <div data-testid="col-right" className="flex w-full flex-col gap-4">
+        </motion.div>
+        <motion.div variants={fade} data-testid="col-right" className="flex w-full flex-col gap-4">
           <div className={cn(statCard, 'flex-1 gap-y-5')}>
             <div className="flex items-center justify-between">
               <p className="text-xl font-bold text-white">Timeline</p>
@@ -96,9 +102,9 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
               <p>This page updates by itself. If the swap can&apos;t finish, the money comes back as USDC.</p>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
-      <div className={cn(statCard, 'grid w-full gap-x-12 lg:grid-cols-2')}>
+      <motion.div variants={fade} className={cn(statCard, 'grid w-full gap-x-12 lg:grid-cols-2')}>
         {busy
           ? Array.from({ length: 8 }).map((_, i) => <div key={i} className="flex justify-between"><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-32" /></div>)
           : (
@@ -113,19 +119,22 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
               <InfoRow k={refund ? 'Refunded' : 'Finished'}>{live || o.endedAt === null ? 'Not yet' : `${fullDay(o.endedAt)}, ${steps?.at(-1)?.at ?? clock(o.endedAt)}`}</InfoRow>
             </>
           )}
-      </div>
-    </Box>
+      </motion.div>
+    </PanelBox>
   );
 }
 
 function CopyLink({ id, copied, onCopy }: { id: string; copied: string | null; onCopy: (k: string) => void }) {
   const link = `${config.siteOrigin}/scanner?order=${encodeURIComponent(id)}`;
+  const mounted = useMounted();
   return (
     <a
       onClick={() => void navigator.clipboard?.writeText(link).then(() => onCopy('link'), () => {})}
-      className="absolute right-4 flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-white/20 active:scale-95 md:right-10"
+      className={cn('absolute right-4 flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 md:right-10', tw.quick, tw.press)}
     >
-      {copied === 'link' ? <CheckIcon width={14} height={14} className="text-[#12b76a]" /> : <LinkIcon width={14} height={14} />}
+      <motion.span key={copied === 'link' ? 'check' : 'link'} className="flex" initial={mounted ? { opacity: 0, scale: 0.6 } : false} animate={{ opacity: 1, scale: 1 }} transition={T.hover}>
+        {copied === 'link' ? <CheckIcon width={14} height={14} className="text-[#12b76a]" /> : <LinkIcon width={14} height={14} />}
+      </motion.span>
       {copied === 'link' ? 'Copied' : 'Copy link'}
     </a>
   );

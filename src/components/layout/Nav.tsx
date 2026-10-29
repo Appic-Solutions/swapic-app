@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { motion } from 'motion/react';
 import { BlockchainIcon, HistoryIcon, ManageSearchIcon, PoolIcon } from '@/components/icons';
 import { T, press, useMounted, usePhone } from '@/lib/motion';
+import { useNavTab } from '@/lib/nav-tab';
 
 export type Tab = 'Swap' | 'Pool' | 'History' | 'Scanner';
 
@@ -20,7 +21,10 @@ const TABS: [Tab, string, React.ComponentType<React.SVGProps<SVGSVGElement>>][] 
 
 const MotionLink = motion.create(Link);
 
-export function Nav({ active }: { active: Tab }) {
+export function Nav({ active: own }: { active: Tab }) {
+  // a page showing another tab's page in place moves the highlight there (useNavTab)
+  const override = useNavTab((s) => s.override);
+  const active = override ?? own;
   const mounted = useMounted();
   const phone = usePhone();
   return (
