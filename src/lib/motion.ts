@@ -37,6 +37,12 @@ export const DUR = {
   glow: 0.6,
 };
 
+/** The waiting glow around a button the wallet signs: at rest and at its brightest. */
+export const GLOW = {
+  off: '0 0 0px 0px rgba(59,130,246,0)',
+  on: '0 0 26px 2px rgba(59,130,246,0.45)',
+};
+
 /** Times in milliseconds, for timers. */
 export const MS = {
   /** A copy button shows its check this long. */
@@ -132,6 +138,8 @@ export const tw = {
   edge: 'hover:ring-1 hover:ring-white/15',
   /** Skeleton shimmer on a Skeleton (replaces its pulse): a soft light band crosses it every 1.6 s; 70% opacity is the pulse's middle, so it looks as dim at rest. */
   shimmer: 'animate-shimmer bg-[linear-gradient(100deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] bg-[length:200%_100%] opacity-70 motion-reduce:animate-pulse',
+  /** The soft green glow behind a delivered swap's circle. */
+  glowDelivered: 'bg-[radial-gradient(circle,rgba(18,183,106,0.42)_0%,rgba(18,183,106,0.16)_42%,rgba(18,183,106,0)_70%)]',
   /** Skeleton shimmer for every Skeleton inside (real skeleton components). */
   shimmerAll: '[&_.animate-pulse]:animate-shimmer [&_.animate-pulse]:bg-[linear-gradient(100deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] [&_.animate-pulse]:bg-[length:200%_100%] [&_.animate-pulse]:opacity-70 motion-reduce:[&_.animate-pulse]:animate-pulse',
 };

@@ -1,14 +1,17 @@
 'use client';
 // Moved from the approved design's motion-parts.tsx (Jeff, 2026-10-29), values in @/lib/motion: MotionCard (the live Card
 // as a motion element, so a card can glide), Enter (a presence child), PanelBox and MorphFrame (one panel that changes in
-// place: Swap, Review swap, Your swap), shrinkInto (the route card flying into the status circle) and DrawCheck (a check
-// that draws itself in). The prototype's demo controls (DemoBar) are not part of the app.
+// place: Swap, Review swap, Your swap), flyInto and shrinkInto (the route card flying into the status circle), DrawCheck
+// (a check that draws itself in) and ConfirmButton (the wallet step's button with its waiting glow). The prototype's demo
+// controls (DemoBar) are not part of the app.
 import * as React from 'react';
 import { motion, AnimatePresence, animate, useMotionValue } from 'motion/react';
 import type { HTMLMotionProps } from 'motion/react';
 import { cn } from '@/lib/cn';
 import Box from '@/components/ui/box';
-import { DUR, EASE, T, view as viewVariants, tw, useFirstRender, useReducedMotion } from '@/lib/motion';
+import ActionButton from '@/components/ui/action-button';
+import Spinner from '@/components/ui/spinner';
+import { DUR, EASE, GLOW, T, view as viewVariants, tw, openHeight, useFirstRender, useReducedMotion } from '@/lib/motion';
 
 /** layoutId of a route card: the same id on the Swap list and on Review swap makes it glide between them. */
 export const routeLayoutId = (id: string) => `route-${id}`;
@@ -59,8 +62,12 @@ const BOX = cn(
   'md:max-h-[80vh] md:p-8',
   '*:z-10',
 );
-// One view inside the frame: the Box's own layout and padding.
-const VIEW = 'flex w-full flex-col items-center justify-between gap-6 md:p-8 *:z-10';
+// One view inside the frame: the Box's own layout and padding. While it
+// leaves it is held at the frame's centre, so a panel that narrows (or
+// widens) around it does not slide it sideways.
+const VIEW = 'flex w-full flex-col items-center justify-between gap-6 md:p-8 *:z-10 [&[data-motion-pop-id]]:!left-1/2 [&[data-motion-pop-id]]:[translate:-50%_0]';
+/** The Swap panel's width: one column, two on large screens once it is wide. */
+const SWAP_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px]';
 
 /** The live Box, unless a MorphFrame already draws it (then only the content). */
 export function PanelBox({ className, children }: { className?: string; children: React.ReactNode }) {
@@ -70,8 +77,12 @@ export function PanelBox({ className, children }: { className?: string; children
 export interface MorphFrameProps {
   /** The view showing. A new value cross fades in place; shared cards glide. */
   view: string;
-  /** Two columns on large screens (the Swap panel with routes, Review swap, Your swap). */
-  wide: boolean;
+  /** Swap panel: two columns on large screens (with routes, Review swap, Your swap). */
+  wide?: boolean;
+  /** The panel's size classes for this view (default: the Swap panel's). Width changes glide (350 ms). */
+  frameClass?: string;
+  /** The view's own layout classes (added to the Box layout, e.g. a row on desktop). */
+  viewClass?: string;
   /** Renders a view's content (its panels use PanelBox). */
   children: (view: string) => React.ReactNode;
 }
@@ -82,7 +93,7 @@ export interface MorphFrameProps {
  * fades out on top while the new one fades in, and cards with the same
  * layoutId glide from the old spot to the new one.
  */
-export function MorphFrame({ view, wide, children }: MorphFrameProps) {
+export function MorphFrame({ view, wide, frameClass, viewClass, children }: MorphFrameProps) {
   const frame = React.useRef<HTMLDivElement>(null);
   const inner = React.useRef<HTMLDivElement>(null);
   const height = useMotionValue<number | 'auto'>('auto');
@@ -129,11 +140,11 @@ export function MorphFrame({ view, wide, children }: MorphFrameProps) {
       <motion.div
         ref={frame}
         style={{ height }}
-        className={cn(BOX, 'h-full md:h-fit md:w-full md:max-w-[537px] md:p-0', 'transition-[max-width]', tw.big, wide && 'lg:max-w-[1060px]', moving && 'overflow-hidden')}
+        className={cn(BOX, frameClass ?? cn(SWAP_FRAME, wide && 'lg:max-w-[1060px]'), 'md:p-0', 'transition-[max-width]', tw.big, moving && 'overflow-hidden')}
       >
         <div ref={inner} className="w-full">
           <AnimatePresence mode="popLayout">
-            <Enter key={view} skip={first} className={VIEW} variants={viewVariants}>
+            <Enter key={view} skip={first} className={cn(VIEW, viewClass)} variants={viewVariants}>
               {children(view)}
             </Enter>
           </AnimatePresence>
@@ -143,16 +154,19 @@ export function MorphFrame({ view, wide, children }: MorphFrameProps) {
   );
 }
 
-// ---------------------------------------------------------------- shrink into
+// ---------------------------------------------------------------- fly into
 
 /**
  * Flies a copy of `from` (an element of the view that is leaving) into
- * `target`, scaling it evenly so its text shrinks instead of squashing, and
- * fades it out on the last stretch. The copy is drawn in the MorphFrame, so it
- * moves with the panel while the panel changes height. Hides `from` at once
- * (the copy covers it exactly). Returns a stop function.
+ * `target`, scaling it evenly so its text shrinks or grows instead of
+ * squashing, and fades it out on the last stretch while the target fades in.
+ * fit: 'contain' lands it inside the target (a card into the status circle),
+ * 'width' matches the target's width (a card into another card). The copy is
+ * drawn in the MorphFrame, so it moves with the panel while the panel changes
+ * height. Hides `from` at once (the copy covers it exactly). Returns a stop
+ * function.
  */
-export function shrinkInto(from: HTMLElement, target: HTMLElement, frame: HTMLElement) {
+export function flyInto(from: HTMLElement, target: HTMLElement, frame: HTMLElement, fit: 'contain' | 'width' = 'contain') {
   const fr = frame.getBoundingClientRect();
   const a = from.getBoundingClientRect();
   const b = target.getBoundingClientRect();
@@ -170,7 +184,7 @@ export function shrinkInto(from: HTMLElement, target: HTMLElement, frame: HTMLEl
   from.style.filter = 'opacity(0)';
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
   const dy = b.top + b.height / 2 - (a.top + a.height / 2);
-  const scale = Math.min(b.width / a.width, b.height / a.height);
+  const scale = fit === 'width' ? b.width / a.width : Math.min(b.width / a.width, b.height / a.height);
   const run = animate(copy, { x: [0, dx], y: [0, dy], scale: [1, scale], opacity: [1, 1, 0] }, {
     duration: DUR.big,
     ease: EASE.enter,
@@ -179,11 +193,30 @@ export function shrinkInto(from: HTMLElement, target: HTMLElement, frame: HTMLEl
   run.then(() => copy.remove());
   return () => { run.stop(); copy.remove(); };
 }
+/** A route card shrinking into the status circle. */
+export const shrinkInto = (from: HTMLElement, target: HTMLElement, frame: HTMLElement) => flyInto(from, target, frame, 'contain');
+
+const visible = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+/**
+ * Pieces marked data-fly="name" fly from the leaving view (inside `fromScope`)
+ * to the piece with the same name in the new view (inside `toScope`): e.g. an
+ * order row's tokens and status pill land where the order page shows them.
+ * Hidden duplicates (phone and desktop markup) are skipped.
+ */
+export function flyMatching(fromScope: Element, toScope: Element, frame: HTMLElement) {
+  const stops: (() => void)[] = [];
+  toScope.querySelectorAll<HTMLElement>('[data-fly]').forEach((to) => {
+    if (!visible(to)) return;
+    const from = [...fromScope.querySelectorAll<HTMLElement>(`[data-fly="${to.dataset.fly}"]`)].find(visible);
+    if (from) stops.push(flyInto(from, to, frame, 'contain'));
+  });
+  return () => stops.forEach((s) => s());
+}
 
 // ---------------------------------------------------------------- check
 
-/** The live CheckIcon, drawn in (350 ms). Reduce motion: it fades in. */
-export function DrawCheck({ size = 24, delay = 0, className }: { size?: number; delay?: number; className?: string }) {
+/** The live CheckIcon, drawn in (350 ms). Reduce motion: it fades in. still: drawn already (a fixed screen). */
+export function DrawCheck({ size = 24, delay = 0, className, still }: { size?: number; delay?: number; className?: string; still?: boolean }) {
   const reduced = useReducedMotion();
   return (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
@@ -191,10 +224,52 @@ export function DrawCheck({ size = 24, delay = 0, className }: { size?: number; 
         strokeLinecap="round"
         strokeLinejoin="round"
         d="m4.5 12.75 6 6 9-13.5"
-        initial={reduced ? { opacity: 0 } : { pathLength: 0 }}
+        initial={still ? false : reduced ? { opacity: 0 } : { pathLength: 0 }}
         animate={reduced ? { opacity: 1 } : { pathLength: 1 }}
         transition={{ ...T.draw, delay }}
       />
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------- wallet confirm
+
+/**
+ * The main button of a step the wallet signs: shows its label; while the
+ * wallet asks it shows a spinner and "Confirm in your wallet" and breathes a
+ * soft blue glow; after a cancel a short line opens under it.
+ */
+export function ConfirmButton({ label, waiting, cancelled, disabled, onClick }: { label?: React.ReactNode; waiting?: boolean; cancelled?: boolean; disabled?: boolean; onClick?: () => void }) {
+  const reduced = useReducedMotion();
+  return (
+    <div className="w-full">
+      <motion.div
+        className="rounded-xl"
+        initial={false}
+        animate={{ boxShadow: waiting ? (reduced ? GLOW.on : [GLOW.off, GLOW.on]) : GLOW.off }}
+        transition={waiting && !reduced ? { duration: DUR.breathe, ease: EASE.breathe, repeat: Infinity, repeatType: 'mirror' } : T.enter}
+      >
+        <ActionButton isDisabled={!!disabled} onClick={disabled || waiting ? undefined : onClick}>
+          {waiting ? (
+            <span className="inline-flex items-center justify-center gap-x-2">
+              <span className="w-5"><Spinner width={18} height={18} className="fill-white text-white/30" /></span>
+              Confirm in your wallet
+            </span>
+          ) : label}
+        </ActionButton>
+      </motion.div>
+      <AnimatePresence initial={false}>
+        {cancelled && (
+          <motion.p
+            className="overflow-hidden text-center text-sm font-normal text-[#898989]"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto', transition: openHeight(true, reduced) }}
+            exit={{ opacity: 0, height: 0, transition: openHeight(false, reduced) }}
+          >
+            <span className="block pt-2">You cancelled in your wallet.</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
