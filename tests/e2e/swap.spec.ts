@@ -2,12 +2,13 @@ import { expect, test, type Page } from '@playwright/test';
 
 // Loaded with import(): Playwright compiles a TypeScript spec as CommonJS and would compile a static import of the
 // ES module fake backend the same way, which Node refuses for a .mjs file.
-async function open(page: Page, scenario: string) {
+async function openAt(page: Page, scenario: string, path: string) {
   const { installFakeBackend, setE2eWallets } = await import('../fake/backend.mjs');
   await installFakeBackend(page, scenario);
   await setE2eWallets(page, scenario);
-  await page.goto('/');
+  await page.goto(path);
 }
+const open = (page: Page, scenario: string) => openAt(page, scenario, '/');
 
 // IdentityKit keeps its Radix dialog open and hides it with a class, so the page is aria-hidden: role queries need
 // includeHidden. The design draws the action button twice (desktop and phone layouts, one hidden by CSS): the shown one.
@@ -88,5 +89,31 @@ test.describe('Swap', () => {
     await pickTokens(page);
     await expect(page.getByText('No routes found')).toBeVisible();
     await expect(button(page, 'No route found')).toBeDisabled();
+  });
+});
+
+test.describe('Swap, the shareable link', () => {
+  const ARB_USDC = 'eip155:42161|0xaf88d065e77c8cc2239327c5edb3a432268e5831';
+  const POL_WBTC = 'eip155:137|0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6';
+  const bar = (k: string) => k.replace('|', '(\\||%7C)');
+  test('picking tokens and an amount updates the address bar, without a history entry per change', async ({ page }) => {
+    await open(page, 'default');
+    const before = await page.evaluate(() => history.length);
+    await pickTokens(page);
+    await expect(page).toHaveURL(new RegExp(`\\?from=${bar(ARB_USDC)}&to=${bar(POL_WBTC)}&amount=5$`));
+    expect(await page.evaluate(() => history.length)).toBe(before);
+  });
+  test('opening a link fills the panel and never a receiving address', async ({ page }) => {
+    await openAt(page, 'default', `/?from=${ARB_USDC}&to=${POL_WBTC}&amount=5&send=0x000000000000000000000000000000000000dEaD`);
+    await expect(page.getByTestId('swap-left').getByText('USDC', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('swap-left').getByText('WBTC', { exact: true })).toBeVisible();
+    await expect(page.locator('input[type=number]')).toHaveValue('5');
+    await expect(page.getByPlaceholder(/0x0f70e/)).toHaveValue('');
+    await expect(button(page, 'Review swap')).toBeEnabled();
+  });
+  test('a token from a link that is not on the list shows its warning first', async ({ page }) => {
+    await openAt(page, 'pasted', '/?from=eip155:8453|0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
+    await expect(page.getByText('Not on our list.')).toBeVisible();
+    await expect(page.getByPlaceholder('Search token')).toHaveValue('0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
   });
 });

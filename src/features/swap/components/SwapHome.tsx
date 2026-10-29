@@ -1,14 +1,18 @@
 'use client';
 // The Swap page body: the panel and the info sections (the design's SwapHomeScreen), or a token page (SwapFlowScreen).
-// It reads `pick`, `from`, `to`, `amount` and `send` from the link once on load (useQueryOnce, never useSearchParams,
-// which breaks the static build without a Suspense boundary), so a swap can be shared as a link.
+// The shareable link (Jeff, 2026-10-29, link.ts): it reads `pick`, `from`, `to` and `amount` once on load (useQueryOnce,
+// never useSearchParams, which breaks the static build without a Suspense boundary), and from then on the address bar
+// follows the picks and the amount (history.replaceState, 300 ms after the last change, never a new history entry). A token
+// from the link that is not on Swapic's list opens its token page first, with the unknown token warning. The receiving
+// address is never read from a link nor written to one.
 import * as React from 'react';
 import { config } from '@/config';
 import type { UiToken } from '@/components/ui/token-types';
 import { useQueryOnce } from '@/lib/use-query-once';
 import { useWallets } from '@/lib/wallets';
 import { recipientError, useSwapForm } from '../form';
-import { useTokenList } from '../tokens';
+import { useChains, useTokenList } from '../tokens';
+import { linkAmount, parseSwapLink, swapLinkQuery, type TokenRef } from '../link';
 import { SwapPanel } from './SwapPanel';
 import { TokenSelect } from './TokenSelect';
 import { ScrollHint } from '@/features/home/ScrollHint';
@@ -25,12 +29,15 @@ import { fade, useFirstRender } from '@/lib/motion';
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
 const ARBITRUM = 'eip155:42161';
 
-/** A token named in the link by its key (`<chain>|<address>`), found in that chain's list. */
-function useLinkedToken(key: string | null): UiToken | undefined {
-  const [chain, address] = key && key.includes('|') ? (key.split('|') as [string, string]) : ['', ''];
-  const lower = chain === config.icpChain ? address : address.toLowerCase();
-  const { tokens } = useTokenList(chain, address);
-  return chain ? tokens.find((t) => t.address === lower) : undefined;
+/** A token named in the link by its exact key, looked up in that chain's list (an unlisted one comes back unverified). */
+function useLinkedToken(ref: TokenRef | null): { token: UiToken | undefined; done: boolean } {
+  const { chains, settled: chainsSettled } = useChains();
+  const { tokens, settled } = useTokenList(ref?.chain ?? '', ref?.address ?? '');
+  if (!ref) return { token: undefined, done: true };
+  // a chain the app does not serve never answers: done, nothing found
+  if (chainsSettled && !chains.some((c) => c.chainId === ref.chain)) return { token: undefined, done: true };
+  // done once the list has answered (isLoading is false for a moment before a newly enabled query starts)
+  return { token: tokens.find((t) => t.address === ref.address), done: settled };
 }
 
 export function SwapHome() {
@@ -41,26 +48,41 @@ export function SwapHome() {
   const first = useFirstRender();
 
   // the link, once
-  const linkedFrom = useLinkedToken(q?.get('from') ?? null);
-  const linkedTo = useLinkedToken(q?.get('to') ?? null);
-  const applied = React.useRef(false);
+  const link = React.useMemo(() => (q ? parseSwapLink(q) : null), [q]);
+  const linkedFrom = useLinkedToken(link?.from ?? null);
+  const linkedTo = useLinkedToken(link?.to ?? null);
+  const [ready, setReady] = React.useState(false);
+  // tokens from the link that are not on the list: their token page opens first, its search filled with the address
+  const [unlisted, setUnlisted] = React.useState<{ side: 'from' | 'to'; query: string; chain: string }[]>([]);
+  const pendingAmount = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!q || applied.current) return;
+    if (!q || ready) return;
+    if (!linkedFrom.done || !linkedTo.done) return; // wait for the token lists
+    setReady(true);
     const pick = q.get('pick');
-    if (pick === 'from' || pick === 'to') setView(pick);
-    const wantsFrom = !!q.get('from');
-    const wantsTo = !!q.get('to');
-    if ((wantsFrom && !linkedFrom) || (wantsTo && !linkedTo)) return; // wait for the token lists
-    applied.current = true;
-    const send = q.get('send');
-    const to = linkedTo ?? f.to;
-    f.set({
-      ...(linkedFrom ? { from: linkedFrom } : {}),
-      ...(linkedTo ? { to: linkedTo } : {}),
-      ...(q.get('amount') ? { amountText: q.get('amount')! } : {}),
-      ...(send ? { recipient: { show: true, address: send, error: recipientError(to, send) } } : {}),
-    });
-  }, [q, linkedFrom, linkedTo, f]);
+    const known = (r: { token: UiToken | undefined }) => (r.token && r.token.verified ? r.token : undefined);
+    const from = known(linkedFrom);
+    const to = known(linkedTo);
+    const queue: { side: 'from' | 'to'; query: string; chain: string }[] = [];
+    if (link?.from && linkedFrom.token && !from) queue.push({ side: 'from', query: link.from.address, chain: link.from.chain });
+    if (link?.to && linkedTo.token && !to) queue.push({ side: 'to', query: link.to.address, chain: link.to.chain });
+    const amount = from ? linkAmount(link?.amount, from.decimals) : null;
+    if (!from && queue[0]?.side === 'from') pendingAmount.current = link?.amount ?? null;
+    f.set({ ...(from ? { from } : {}), ...(to ? { to } : {}), ...(amount ? { amountText: amount } : {}) });
+    setUnlisted(queue);
+    if (queue.length) setView(queue[0]!.side);
+    else if (pick === 'from' || pick === 'to') setView(pick);
+  }, [q, ready, link, linkedFrom, linkedTo, f]);
+
+  // the address bar follows the picks and the amount, once the link has been read
+  React.useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => {
+      const query = swapLinkQuery({ from: f.from, to: f.to, amountText: f.amountText });
+      if (query !== window.location.search) window.history.replaceState(window.history.state, '', `${window.location.pathname}${query}${window.location.hash}`);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [ready, f.from, f.to, f.amountText]);
 
   const pickToken = (side: 'from' | 'to') => (t: UiToken) => {
     const other = side === 'from' ? f.to : f.from;
@@ -68,21 +90,30 @@ export function SwapHome() {
     // a new To token: the typed address is checked again for its chain
     if (side === 'to') next.recipient = { ...f.recipient, error: recipientError(t, f.recipient.address) };
     if (other && other.key === t.key) next[side === 'from' ? 'to' : 'from'] = null;
+    // a From token picked from a link's unlisted token page: the link's amount, when the token can hold it
+    if (side === 'from' && pendingAmount.current !== null) {
+      const amount = linkAmount(pendingAmount.current, t.decimals);
+      if (amount) next.amountText = amount;
+      pendingAmount.current = null;
+    }
     f.set(next);
-    setView('swap');
+    const rest = unlisted.filter((u) => u.side !== side);
+    setUnlisted(rest);
+    setView(rest[0]?.side ?? 'swap');
   };
 
   const tokenPage = view === 'from' || view === 'to' ? (() => {
     const current = view === 'from' ? f.from : f.to;
-    const start = current?.chain ?? (view === 'from' ? (evm?.chainId ? `eip155:${evm.chainId}` : ARBITRUM) : config.icpChain);
+    const start = unlisted.find((u) => u.side === view)?.chain ?? current?.chain ?? (view === 'from' ? (evm?.chainId ? `eip155:${evm.chainId}` : ARBITRUM) : config.icpChain);
     return (
       <TokenSelect
         key={view}
         title={view === 'from' ? 'Swap From' : 'Swap To'}
         chain={start}
         selected={current}
-        onBack={() => setView('swap')}
+        onBack={() => { setUnlisted([]); setView('swap'); }}
         onSelect={pickToken(view)}
+        initialQuery={unlisted.find((u) => u.side === view)?.query}
       />
     );
   })() : null;

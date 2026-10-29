@@ -29,6 +29,8 @@ export interface TokenSelectProps {
   fixedTokens?: Record<string, UiToken[]>;
   /** Shown instead of the search box. */
   note?: React.ReactNode;
+  /** The search box starts with this (a token address from a shared link: an unlisted one shows its warning first). */
+  initialQuery?: string;
 }
 
 /** The design's order of the chain circles (design data.ts swapicChains); a chain the design does not name goes last. */
@@ -44,9 +46,9 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note }: TokenSelectProps) {
+export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note, initialQuery }: TokenSelectProps) {
   const [chain, setChain] = React.useState(start);
-  const [query, setQuery] = React.useState('');
+  const [query, setQuery] = React.useState(initialQuery ?? '');
   const searched = useDebounced(query.trim(), 300);
   const { chains } = useChains();
   const list = useTokenList(chain, fixedTokens ? '' : searched);

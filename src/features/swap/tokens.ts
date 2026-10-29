@@ -38,7 +38,7 @@ export function joinBalances(list: UiToken[], b: BalancesAnswer | undefined, cha
 export function useChains() {
   const q = useQuery({ queryKey: ['chains'], queryFn: getChains, staleTime: 10 * 60_000 });
   const chains = (q.data ?? []).filter((c) => config.chains.includes(c.chainId) && isKnownChain(c.chainId));
-  return { chains, isLoading: q.isLoading };
+  return { chains, isLoading: q.isLoading, settled: q.isSuccess || q.isError };
 }
 
 export function useTokenList(chain: string, query: string) {
@@ -77,7 +77,10 @@ export function useTokenList(chain: string, query: string) {
   const tokens = isIcp
     ? base.map((t) => (icpBalances.data?.has(t.address) ? withBalance(t, icpBalances.data.get(t.address)!) : t))
     : joinBalances(base, balances.data, chain);
-  return { tokens, isLoading: list.isLoading || !info, pasted: pasted && tokens.length > 0 && !tokens[0]!.verified, loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage };
+  return {
+    tokens, isLoading: list.isLoading || !info, settled: list.isSuccess || list.isError,
+    pasted: pasted && tokens.length > 0 && !tokens[0]!.verified, loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage,
+  };
 }
 
 export function useBalance(token: UiToken | null) {

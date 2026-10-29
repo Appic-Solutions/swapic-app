@@ -31,6 +31,7 @@ import { tiles, useMyStakes, usePool } from '../data';
 import { CKUSDC_TOKEN, USDC_LOGO, useUsdcTokens } from '../usdc';
 import { StakeAvatar } from './parts';
 import { defaultStakeFrom } from '../stake-from';
+import { parseTokenKey, tokenKeyOf } from '@/features/swap/link';
 import { CKUSDC, executeStakeEvm, executeStakeIcp, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
@@ -55,8 +56,10 @@ export function StakeFlow() {
   const evmTokens = useUsdcTokens();
   const tokens = React.useMemo(() => (icp ? [...evmTokens, CKUSDC_TOKEN] : evmTokens), [evmTokens, icp]);
   const [picked, setPicked] = React.useState<UiToken | null>(null);
-  // the link may name one (`from=<chain>|<address>`); else the connected chain's USDC, else Arbitrum's (defaultStakeFrom)
-  const linked = tokens.find((t) => t.key === link?.get('from'));
+  // the link may name one (`from=<chain>|<address>`, the swap link's exact form); else the connected chain's USDC, else
+  // Arbitrum's (defaultStakeFrom)
+  const ref = parseTokenKey(link?.get('from'));
+  const linked = ref ? tokens.find((t) => t.key === tokenKeyOf(ref)) : undefined;
   const from = picked ?? linked ?? defaultStakeFrom(tokens, evmChain);
   if (picking && from) {
     return (
