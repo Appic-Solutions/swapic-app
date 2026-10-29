@@ -13,13 +13,19 @@ import { useSwapForm, type SwapFormState } from './form';
 
 type Wallets = { evm: EvmWallet | null; icp: IcpWallet | null };
 
+/** A smart wallet's address may not be the person's on another EVM chain (plan 2 Smart wallets, Jeff 2026-10-29): there the
+ *  recipient is never the connected address, it is typed. Same chain swaps and swaps to ICP are unchanged. */
+export function smartWalletTypesRecipient(f: Pick<SwapFormState, 'from' | 'to'>, w: Wallets): boolean {
+  return !!w.evm?.smartWallet && !!f.from && !!f.to && f.to.chain_type === 'EVM' && f.from.chain !== f.to.chain;
+}
+
 export function quoteQueryOf(f: Pick<SwapFormState, 'from' | 'to' | 'amountText' | 'recipient'>, w: Wallets): QuoteQuery | null {
   if (!f.from || !f.to) return null;
   let amount: bigint;
   try { amount = parseUnits(f.amountText, f.from.decimals); } catch { return null; }
   if (amount <= 0n) return null;
   const payer = f.from.chain_type === 'ICP' ? w.icp?.principal : w.evm?.address;
-  const own = f.to.chain_type === 'ICP' ? w.icp?.principal : w.evm?.address;
+  const own = f.to.chain_type === 'ICP' ? w.icp?.principal : smartWalletTypesRecipient(f, w) ? undefined : w.evm?.address;
   const recipient = f.recipient.show ? (f.recipient.address && !f.recipient.error ? f.recipient.address : undefined) : own;
   return {
     fromChain: f.from.chain, fromToken: f.from.address, amount: amount.toString(), toChain: f.to.chain, toToken: f.to.address,

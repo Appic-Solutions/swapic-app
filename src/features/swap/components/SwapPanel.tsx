@@ -17,7 +17,7 @@ import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
 import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
-import { ICP_PAUSED, useSwapQuote } from '../quote';
+import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
 import { useBalance, useChains, useTokenList } from '../tokens';
 import { isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
 
@@ -69,12 +69,14 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
 
   // the From side can pay but the To side has no wallet and no address yet: open Send To Wallet so the button asks for
   // one. With no From wallet, "Connect wallet" comes first (spec 5.1; plan 2 Task 12's no wallet test).
-  const ownRecipient = to ? (to.chain_type === 'ICP' ? !!icp : !!evm) : true;
+  // A smart wallet sending to another EVM chain: the field opens EMPTY and stays required (never its own address there).
+  const smartTyped = smartWalletTypesRecipient(f, { evm, icp });
+  const ownRecipient = to ? (to.chain_type === 'ICP' ? !!icp : !!evm && !smartTyped) : true;
   React.useEffect(() => {
-    if (fromWallet && to && !ownRecipient && !recipient.show && !recipient.address) {
-      f.set({ recipient: { show: true, address: '', error: recipientError(to, '') } });
+    if (fromWallet && to && !ownRecipient && !recipient.show && (smartTyped || !recipient.address)) {
+      f.set({ recipient: { show: true, address: recipient.address, error: recipientError(to, recipient.address) } });
     }
-  }, [fromWallet, to, ownRecipient, recipient.show, recipient.address, f]);
+  }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
   const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' ? error ?? undefined : undefined;
   const button = swapButton({
@@ -163,6 +165,12 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
               show={recipient.show}
               avatar={to!.chainLogo}
             />
+          )}
+          {both && smartTyped && recipient.show && (
+            // PROVISIONAL copy (plan 2 Smart wallets, awaiting Jeff)
+            <p className="mt-2 px-2 text-xs text-yellow-600">
+              You are using a smart wallet. Type the address that should receive on {to!.chainName}, and make sure it is yours there.
+            </p>
           )}
           {actions('mt-4 max-lg:hidden')}
         </div>

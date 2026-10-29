@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError } from '@/lib/api';
-import { icpSwapsPaused, quoteQueryOf } from './quote';
+import { icpSwapsPaused, quoteQueryOf, smartWalletTypesRecipient } from './quote';
 
 const t = (chain: string, address: string, decimals: number, chain_type: 'EVM' | 'ICP'): UiToken => ({
   key: `${chain}|${address}`, chain, chainId: chain_type === 'ICP' ? 0 : 1, chainName: '', chainLogo: '', chain_type, address, symbol: 'X', name: 'X', logo: '', decimals, priceUsd: null, verified: true,
@@ -38,5 +38,26 @@ describe('quoteQueryOf', () => {
     expect(quoteQueryOf({ ...form, to: null }, wallets)).toBeNull();
     expect(quoteQueryOf({ ...form, amountText: '0' }, wallets)).toBeNull();
     expect(quoteQueryOf({ ...form, amountText: '1,5' }, wallets)).toBeNull();
+  });
+});
+
+describe('a smart wallet types the recipient on another EVM chain (plan 2 Smart wallets, Jeff 2026-10-29)', () => {
+  const usdcPol = t('eip155:137', '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', 6, 'EVM');
+  const ethArb = t('eip155:42161', '0x0000000000000000000000000000000000000000', 18, 'EVM');
+  const smart = { ...wallets, evm: { ...wallets.evm, smartWallet: true } };
+  const typed = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC';
+  it('applies only to a smart wallet, an EVM destination, and another chain', () => {
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, smart)).toBe(true);
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: ethArb }, smart)).toBe(false);
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: ckbtc }, smart)).toBe(false);
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, wallets)).toBe(false);
+  });
+  it('never fills the connected address there; a typed address is the recipient', () => {
+    expect(quoteQueryOf({ ...form, to: usdcPol }, smart)?.recipient).toBeUndefined();
+    expect(quoteQueryOf({ ...form, to: usdcPol, recipient: { show: true, address: typed, error: '' } }, smart)?.recipient).toBe(typed);
+  });
+  it('leaves same chain swaps and swaps to ICP as they were', () => {
+    expect(quoteQueryOf({ ...form, to: ethArb }, smart)?.recipient).toBe(wallets.evm.address);
+    expect(quoteQueryOf(form, smart)?.recipient).toBe(wallets.icp.principal);
   });
 });
