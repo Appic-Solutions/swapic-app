@@ -129,7 +129,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
             <span className="max-sm:hidden">Order ID:</span><span className="sm:hidden">Order</span> <span className="font-mono font-normal text-white/80">{short(o.id)}</span>
             <CopyButton id={o.id} copied={copied} onCopy={copy} text={o.id} />
           </div>
-          <a onClick={onOpenScanner} className="flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/20 active:scale-95">
+          <a data-testid="open-scanner" onClick={onOpenScanner} className="flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white transition-colors hover:bg-white/20 active:scale-95">
             <ManageSearchIcon width={14} height={14} /><span className="whitespace-nowrap"><span className="max-sm:hidden">Open in </span>Scanner</span>
           </a>
         </div>
