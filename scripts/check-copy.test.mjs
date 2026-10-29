@@ -10,6 +10,10 @@ describe('check-copy', () => {
     expect(p.some((x) => x.startsWith('em dash'))).toBe(true);
     expect(p.some((x) => x.startsWith('hyphen separator'))).toBe(true);
   });
+  it('ignores a key name tested with in (a candid variant: \'IcpSwap\' in kind), but not the same word as text', () => {
+    expect(problems(visibleTexts(`const swap = (k: object) => 'IcpSwap' in k;`))).toEqual([]);
+    expect(problems(visibleTexts(`export const C = () => <p>{'IcpSwap'}</p>;`)).length).toBe(1);
+  });
   it('ignores class names, object keys and identifiers', () => {
     const src = `const maxShares = 1; const o = { 'shares': 1 }; export const B = () => <p className="text-muted">Withdraw anytime</p>;`;
     expect(problems(visibleTexts(src))).toEqual([]);
