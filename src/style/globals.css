@@ -1,0 +1,85 @@
+/* Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    height: 100% !important;
+  }
+
+  /* Chrome, Safari, Edge, Opera */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Firefox */
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer utilities {
+  .position-detail-chart > svg {
+    overflow: visible !important;
+  }
+}
+
+/* Text overflow */
+.text-ellipsis {
+  text-overflow: ellipsis !important;
+  overflow: hidden !important;
+  white-space: nowrap !important;
+  display: block !important;
+}
+
+/* Plug Modal */
+#ik-identity-kit-modal {
+  pointer-events: auto !important;
+}
+
+/* chart */
+.chart-background {
+  background-color: transparent;
+  background-image:
+    linear-gradient(to right, #ffffff14 1px, transparent 1px),
+    linear-gradient(to bottom, #ffffff14 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@layer utilities {
+  @keyframes toast-in {
+    0% {
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes toast-out {
+    0% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(20px) scale(0.98);
+    }
+  }
+
+  .animate-toast-in {
+    animation: toast-in 0.3s ease-out forwards;
+  }
+
+  .animate-toast-out {
+    animation: toast-out 0.3s ease-in forwards;
+  }
+}
