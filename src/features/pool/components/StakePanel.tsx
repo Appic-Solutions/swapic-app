@@ -20,7 +20,7 @@ import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, getAccount, getOrders, getQuote, postStakeQuote, submitGasless, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
-import { formatAmount, formatUnits, formatUsd, formatUsdWhole, parseUnits } from '@/lib/money';
+import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, parseUnits } from '@/lib/money';
 import { useQueryOnce } from '@/lib/use-query-once';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
@@ -218,7 +218,12 @@ function StakePanel({ from, onPickFrom }: { from: UiToken | null; onPickFrom: ()
             onAmountText={(t) => { setAmountText(t); setNote(null); setResume(null); }}
             usdText={amount === null ? null : formatUsd(amount)}
             balanceText={wallet && balance !== undefined && from ? formatAmount(balance, from.decimals) : undefined}
-            onMax={() => { if (balance !== undefined && from) setAmountText(formatUnits(balance, from.decimals).replace(/,/g, '')); }}
+            onMax={() => {
+              if (balance === undefined || !from) return;
+              // from ICP the wallet also pays two ledger fees (the approval and the pull), so Max leaves them
+              const max = fromIcp ? (fee === undefined ? null : maxIcp(balance, fee)) : balance;
+              if (max !== null) setAmountText(formatUnits(max, from.decimals).replace(/,/g, ''));
+            }}
             balanceLoading={wallet && balanceLoading}
             message={capped ? undefined : message}
           />

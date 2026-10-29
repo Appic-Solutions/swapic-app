@@ -22,8 +22,11 @@ export function withdrawRows(p: PayoutAnswer | undefined, nowSec: number): Row[]
   const amount = p ? BigInt(p.received ?? p.amount ?? p.terms.minOut) : null;
   const paid: Row = [p?.outcome === 'delivered' ? 'done' : 'todo', `Paid out to your ${where} wallet`, amount === null ? '' : `${tokenAmountText(amount, 6, 'USDC')} USDC`];
   const rows: Row[] = [['done', 'Withdrawal signed', 'One signature, no gas']];
-  if (!p) return [...rows, ['wait', 'Waiting in line', 'Pays out by itself'], paid];
-  if (p.outcome === 'refunded' || p.outcome === 'failed') return [...rows, ['done', 'Your stake is back', 'You can try again later']];
+  // until the payout record answers, only the signature is known
+  if (!p) return rows;
+  // contract 5.10: refunded is an undone withdrawal (its shares came back); failed is stopped for a human, nothing more is known
+  if (p.outcome === 'refunded') return [...rows, ['done', 'Your stake is back', 'You can try again later']];
+  if (p.outcome === 'failed') return [...rows, ['todo', 'Stopped, our team is on it', '']];
   if (p.stage === 'queued') {
     const etaAt = p.queue?.etaAt ?? null;
     const sub = etaAt === null ? 'Pays out by itself' : `Pays out in about ${Math.max(1, Math.round((etaAt - nowSec) / 60))} min`;
