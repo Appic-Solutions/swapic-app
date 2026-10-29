@@ -10,12 +10,25 @@
 // chain and the Pool keeps Stake off.
 import { createAppKit } from '@reown/appkit/react-core';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
+import { baseAccount, coinbaseWallet } from '@wagmi/connectors';
 import { arbitrum, base, mainnet, polygon, type AppKitNetwork } from '@reown/appkit/networks';
 import { config } from '@/config';
 
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base, arbitrum, mainnet, polygon];
 
-export const wagmiAdapter = new WagmiAdapter({ projectId: config.reownProjectId, networks, ssr: false });
+// Coinbase Wallet and Base Account are given here with their SDK telemetry off: on, each SDK injects an inline analytics
+// script (Coinbase's ClientAnalytics) that the site's Content-Security-Policy blocks (plan 4 Task 6). The adapter adds its own
+// Base Account only when none is given (same id); its Coinbase connector is turned off below (enableCoinbase: false), since
+// its id check misses this one.
+export const wagmiAdapter = new WagmiAdapter({
+  projectId: config.reownProjectId,
+  networks,
+  ssr: false,
+  connectors: [
+    coinbaseWallet({ version: '4', appName: 'Swapic', preference: { options: 'eoaOnly', telemetry: false } }),
+    baseAccount({ appName: 'Swapic', preference: { telemetry: false } }),
+  ],
+});
 export const wagmiConfig = wagmiAdapter.wagmiConfig;
 
 export const appKit = createAppKit({
@@ -32,6 +45,7 @@ export const appKit = createAppKit({
   },
   features: { email: false, socials: false, analytics: false, swaps: false, onramp: false },
   coinbasePreference: 'eoaOnly',
+  enableCoinbase: false,
   themeMode: 'dark',
   allowUnsupportedChain: false,
 });

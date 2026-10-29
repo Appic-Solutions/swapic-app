@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "NEXT_PUBLIC_SWAPIC_ENV=test next dev -p 3000",
     "dev:e2e": "NEXT_PUBLIC_SWAPIC_ENV=e2e next dev -p 3100",
-    "build:test": "NEXT_PUBLIC_SWAPIC_ENV=test next build",
-    "build:prod": "NEXT_PUBLIC_SWAPIC_ENV=prod next build",
+    "build:test": "NEXT_PUBLIC_SWAPIC_ENV=test next build && node scripts/ic-assets.mjs test && node scripts/check-build.mjs",
+    "build:prod": "NEXT_PUBLIC_SWAPIC_ENV=prod next build && node scripts/ic-assets.mjs prod && node scripts/check-build.mjs",
     "build:e2e": "NEXT_PUBLIC_SWAPIC_ENV=e2e next build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run && playwright test",

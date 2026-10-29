@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: 'tests/e2e',
+  // the CSP check runs against the built site with its own config (playwright.csp.config.ts)
+  testIgnore: 'csp.spec.ts',
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
