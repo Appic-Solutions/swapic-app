@@ -16,7 +16,8 @@ export async function shootApp(route, name, scenario, outDir, click, at = 2500, 
     await p.goto(`http://localhost:3100${route}`);
     await p.waitForTimeout(at);
     if (click) {
-      await p.getByText(click, { exact: true }).first().click();
+      // the panels draw their action button twice (one per layout): click the one on screen
+      await p.getByText(click, { exact: true }).filter({ visible: true }).first().click();
       await p.waitForTimeout(800);
     }
     if (fill) {

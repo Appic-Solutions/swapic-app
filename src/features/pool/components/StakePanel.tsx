@@ -10,39 +10,28 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TokenCard } from '@/components/ui/token-card';
 import ActionButton from '@/components/ui/action-button';
-import { Avatar } from '@/components/ui/avatar';
 import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
-import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { ClockIcon, FireIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, getOrders, getQuote, postStakeQuote, submitGasless, userMessage, type StakeRequest } from '@/lib/api';
-import { config } from '@/config';
-import { chainLogo, chainName, chainNumber } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, parseUnits } from '@/lib/money';
 import { useQueryOnce } from '@/lib/use-query-once';
 import { useEvmConnect, useEvmSigner, useWallets } from '@/lib/wallets';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { useGuardContext } from '@/features/swap/quote';
-import { useBalance, useChains } from '@/features/swap/tokens';
 import { TokenSelect } from '@/features/swap/components/TokenSelect';
+import { useBalance } from '@/features/swap/tokens';
 import { tiles, usePool } from '../data';
+import { USDC_LOGO, useUsdcTokens } from '../usdc';
+import { StakeAvatar } from './parts';
 import { executeStakeEvm, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
 
-const USDC_LOGO = '/images/tokens/usdc.png';
 const ARBITRUM = 'eip155:42161';
 const NO_ROUTE = 'No route found for this amount';
-
-// A stake: USDC with the Swapic mark.
-const StakeAvatar = ({ className = 'h-12 w-12' }: { className?: string }) => (
-  <div className="relative shrink-0">
-    <Avatar src={USDC_LOGO} className={className} />
-    <Avatar src={SWAPIC_LOGO} className="absolute -bottom-1 -right-1 h-5 w-5 bg-black p-0.5 shadow-[0_0_3px_0_rgba(255,255,255,0.5)]" />
-  </div>
-);
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = React.useState(value);
@@ -53,26 +42,9 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-/** USDC on each EVM chain the app serves: the address is the canister's (get_config), never the quoter's. */
-function useStakeTokens(): UiToken[] {
-  const { chains } = useChains();
-  const guard = useGuardContext();
-  return React.useMemo(() => chains.flatMap((c) => {
-    if (c.chainId === config.icpChain) return [];
-    const usdc = guard?.config.chains.get(chainNumber(c.chainId))?.usdc;
-    if (!usdc) return [];
-    const address = usdc.toLowerCase();
-    return [{
-      key: `${c.chainId}|${address}`, chain: c.chainId, chainId: chainNumber(c.chainId), chainName: chainName(c.chainId), chainLogo: chainLogo(c.chainId),
-      chain_type: 'EVM' as const, address, contractAddress: address, symbol: 'USDC', name: 'USD Coin', logo: USDC_LOGO,
-      decimals: c.usdc.decimals, priceUsd: null, verified: true,
-    }];
-  }), [chains, guard]);
-}
-
 export function StakeFlow() {
   const [picking, setPicking] = React.useState(false);
-  const tokens = useStakeTokens();
+  const tokens = useUsdcTokens();
   const [picked, setPicked] = React.useState<UiToken | null>(null);
   // the design opens on USDC on Arbitrum
   const from = picked ?? tokens.find((t) => t.chain === ARBITRUM) ?? tokens[0] ?? null;

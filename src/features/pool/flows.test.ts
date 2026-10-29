@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { hashTypedData } from 'viem';
+import { ApiError } from '@/lib/api';
+import { withdrawalTypedData } from './withdraw-sig';
 import { Principal } from '@icp-sdk/core/principal';
 import type { IcpClient } from '@/lib/icp';
 import { PoolErrorFailure } from '@/lib/icp';
-import { executeStakeIcp, executeWithdrawIcp, POOL_PAUSED, stakeRoom } from './flows';
+import { executeStakeIcp, executeWithdrawEvm, executeWithdrawIcp, POOL_PAUSED, stakeRoom } from './flows';
 describe('stake room', () => {
   it('is the cap less what is staked, never below zero (contract 5.3 example)', () => {
     const p = JSON.parse(readFileSync('tests/fixtures/contract/pool.json', 'utf8'));
@@ -92,5 +96,72 @@ describe('executeWithdrawIcp', () => {
     // fewer shares: it went through
     const went = c({ withdrawIcp: vi.fn(async () => { throw new TypeError('fetch failed'); }), poolAccount: vi.fn().mockResolvedValueOnce(owned).mockResolvedValue({ shares: 1n, valueUsdc: 1n }) });
     expect(await executeWithdrawIcp({ wanted: 600_000_000n, caller, onStep: () => {} }, went, clockAt(0))).toEqual({ kind: 'started', activityId: 'withdraw' });
+  });
+});
+
+describe('executeWithdrawEvm', () => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const SWAPIC = '0xF0Ba68cBc87c31eCaA9654EB14daF3632eaCa406' as const;
+  const ARB_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+  const record = {
+    staker: account.address, usdc: '5000000', maxShares: '4980000000000000000', rebalanceShare: '1000', networkFee: '50000',
+    payout: { dstChain: 42161, recipient: account.address, tokenOut: ARB_USDC, minOut: '4949000', deadlineNs: '1800000000000000000' }, nonce: '987654321',
+  };
+  const typed = withdrawalTypedData(record, 8453, SWAPIC);
+  const quote = {
+    withdrawal: record, typedData: typed, digest: hashTypedData(typed as never), verifyingContract: SWAPIC,
+    fees: { networkFee: '50000', rebalanceShare: '1000', moveCost: '0', networkLines: [] }, payout: { route: 'cctp', amount: '4949000', expectedOut: '4949000', minOut: '4949000' },
+    shares: { burn: '0', maxShares: record.maxShares, label: 'estimated' }, etaSeconds: 20, quotedAt: 1_799_999_000, expiresAt: 1_800_000_000,
+  };
+  const evm = { address: account.address, ensureChain: async () => {}, signTypedData: (td: never) => account.signTypedData(td), sendTransaction: vi.fn(), waitForReceipt: vi.fn(), maxFeePerGas: vi.fn() };
+  const deps = (over: Partial<IcpClient> = {}, postWithdraw = vi.fn(async () => ({ id: 43, burned: '1' }))) => ({
+    icp: client({
+      getConfig: async () => ({
+        poolChain: 8453, cctpDomains: new Map(), ecoPortal: null,
+        chains: new Map([
+          [8453, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }],
+          [42161, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: ARB_USDC.toLowerCase() as `0x${string}`, runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }],
+        ]),
+      }),
+      poolState: async () => ({ open: true, totalAssets: 8_420_550_000n, totalShares: 8_346_065_000_000_000_000_000n, tvlCap: 1n }),
+      withdrawEvm: vi.fn(async () => ({ id: 41n, burned: 1n })), ...over,
+    }),
+    postWithdrawQuote: vi.fn(async () => quote as never), postWithdraw, nowMs: () => 1_799_999_000_000, used: { has: () => false, add: vi.fn() },
+  });
+  const run = (d: ReturnType<typeof deps>) => executeWithdrawEvm({ usdc: 5_000_000n, dstChain: 'eip155:42161', evm: evm as never, onStep: () => {} }, d);
+
+  it('signs the rebuilt record and sends exactly it to withdraw_evm', async () => {
+    const d = deps();
+    expect(await run(d)).toEqual({ kind: 'started', activityId: 'payout-41' });
+    const [sent, sig] = (d.icp.withdrawEvm as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(sent.nonce).toBe(987_654_321n);
+    expect(sent.payout.deadline_ns).toBe(1_800_000_000_000_000_000n);
+    expect([27, 28]).toContain(sig[64]);
+    expect(d.used.add).toHaveBeenCalledWith('987654321');
+  });
+  it('a lost canister answer resends the same record and signature to the watcher (Review Focus 3)', async () => {
+    const post = vi.fn(async () => ({ id: 43, burned: '1' }));
+    const d = deps({ withdrawEvm: vi.fn(async () => { throw new TypeError('fetch failed'); }) }, post);
+    expect(await run(d)).toEqual({ kind: 'started', activityId: 'payout-43' });
+    expect(post).toHaveBeenCalledWith({ withdrawal: record, signature: expect.stringMatching(/^0x[0-9a-f]{130}$/) });
+    expect(d.postWithdrawQuote).toHaveBeenCalledTimes(1);
+  });
+  it('a refusal after a lost answer says it may have gone through', async () => {
+    const post = vi.fn(async () => { throw new ApiError(422, 'refused', 'nonce used', '/v2/withdraw'); });
+    const d = deps({ withdrawEvm: vi.fn(async () => { throw new TypeError('fetch failed'); }) }, post);
+    expect(await run(d)).toEqual({ kind: 'unknown', message: 'Your withdrawal may have gone through. It shows in Your stake in a minute.', resume: null });
+  });
+  it('asks for and signs only the USDC the canister names for that chain (plan check C4)', async () => {
+    const d = deps();
+    await run(d);
+    expect(d.postWithdrawQuote).toHaveBeenCalledWith(expect.objectContaining({ tokenOut: ARB_USDC.toLowerCase() }));
+    const other = deps({ getConfig: async () => ({ ...(await deps().icp.getConfig()), chains: new Map([[8453, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: '0x', runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }]]) }) });
+    expect(await run(other)).toEqual({ kind: 'failed', message: 'This quote could not be checked. Get a new quote and try again.' });
+    expect(other.icp.withdrawEvm).not.toHaveBeenCalled();
+  });
+  it('refuses while the pool is closed, before any quote', async () => {
+    const d = deps({ poolState: async () => ({ open: false, totalAssets: 1n, totalShares: 1n, tvlCap: 1n }) });
+    expect(await run(d)).toEqual({ kind: 'failed', message: POOL_PAUSED });
+    expect(d.postWithdrawQuote).not.toHaveBeenCalled();
   });
 });

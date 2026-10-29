@@ -38,10 +38,25 @@
 // loadGuardContext in the same run; the room tvlCap - totalAssets is checked before the quote (StakePanel), and an amount
 // over it never reaches a wallet; the signing and sending is plan 2's sendCheckedEvm, unchanged. Tests: the stake tests in
 // src/features/swap/guards/evm.test.ts, on a real Base order made into a stake with its ref recomputed (plan 2's forge).
-import { userMessage, type PoolAnswer, type Quote, type StakeQuote, postStakeQuote } from '@/lib/api';
+// Design note (sending the withdrawal, plan 3 Task 6).
+// Must never happen: a record sent that differs from the one signed; a payout in anything but the destination chain's USDC
+// as the canister names it; a fresh quote or nonce sent after a lost answer (a second withdrawal); a withdrawal started
+// while the pool is closed.
+// How the design proves it: executeWithdrawEvm reads get_config in the same run and asks the quote for, and checks it
+// against, cfg.chains.get(dst).usdc (plan check C4; the Receive on list from /v2/chains only names the chain); it signs
+// checked.typedData (withdraw-sig.ts) and sends checked.candid with the normalized signature to withdraw_evm from the
+// anonymous agent (the signature proves the staker); the nonce goes into usedNonces right after the signature; on a lost
+// answer (anything but a PoolErrorFailure) it posts { withdrawal: checked.record, signature } to POST /v2/withdraw once (the
+// same record and signature; the canister takes one nonce per staker once, so if the first call landed this one is
+// refused and nothing doubles); a refused from the watcher after a lost canister answer says "Your withdrawal may have gone
+// through. It shows in Your stake in a minute." ShortShares asks one new quote and one new signature, shown to the person
+// (spec 11: retry once with fresh numbers). The wallet moves to the pool chain before signing (the domain names it).
+import { bytesToHex } from 'viem';
+import { ApiError, userMessage, type PoolAnswer, type Quote, type StakeQuote, postStakeQuote, postWithdraw as postWithdrawFn, postWithdrawQuote as postWithdrawQuoteFn } from '@/lib/api';
 import { PoolErrorFailure, poolErrorMessage, stakeRoom as roomAfterCap, type IcpCaller, type IcpClient } from '@/lib/icp';
 import { Principal } from '@icp-sdk/core/principal';
 import { ICP_CHAIN } from '@/config';
+import { chainNumber } from '@/lib/explorer';
 import type { UiToken } from '@/components/ui/token-types';
 import { formatUsd, formatUsdWhole, planIcpWithdraw } from '@/lib/money';
 import { captureFailure } from '@/lib/sentry';
@@ -54,6 +69,8 @@ import { loadGuardContext } from '@/features/swap/guards/context';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import type { PickedOption } from '@/features/swap/options';
 import { etaText, sumFees } from '@/features/swap/view';
+import { checkWithdrawQuote, normalizeSignature, type CheckedWithdraw } from './withdraw-sig';
+import type { usedNonces } from './used-nonces';
 import { realClock, settleLost, type Clock } from '@/features/swap/lost';
 
 /** The paused pool (lead's call, 2026-10-28, as the canister: stakes and withdrawals are both refused while closed). */
@@ -211,5 +228,60 @@ export async function executeWithdrawIcp(
     if (seen === 'done') return { kind: 'started', activityId: 'withdraw' };
     if (seen === 'nothing') { i.onStep(0, 'fail'); return { kind: 'failed', message: 'Your withdrawal did not go through. Nothing changed. Try again.' }; }
     return { kind: 'unknown', message: 'We cannot tell yet whether your withdrawal went through. Check Your stake before you try again.', resume: null };
+  }
+}
+
+type WithdrawDeps = { icp: IcpClient; postWithdrawQuote: typeof postWithdrawQuoteFn; postWithdraw: typeof postWithdrawFn; nowMs(): number; used: typeof usedNonces };
+
+export async function executeWithdrawEvm(
+  i: { usdc: bigint; dstChain: string; evm: EvmSigner; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  d: WithdrawDeps,
+  retried = false,
+): Promise<ExecOutcome> {
+  const [pool, cfg] = await Promise.all([d.icp.poolState(), d.icp.getConfig()]);
+  if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
+  let checked: CheckedWithdraw;
+  try {
+    // the token is the canister's: the destination chain's USDC from get_config, never the quoter's chain list (plan check C4)
+    const dstUsdc = cfg.chains.get(chainNumber(i.dstChain))?.usdc;
+    if (!dstUsdc) throw new GuardError('noAnchor');
+    const answer = await d.postWithdrawQuote({ staker: i.evm.address, usdc: i.usdc.toString(), dstChain: i.dstChain, recipient: i.evm.address, tokenOut: dstUsdc });
+    checked = checkWithdrawQuote({
+      answer, staker: i.evm.address, usdc: i.usdc, dstChainId: chainNumber(i.dstChain), dstUsdc,
+      poolChain: cfg.poolChain, swapic: cfg.poolChain === null ? undefined : cfg.chains.get(cfg.poolChain)?.swapic,
+      totalAssets: pool.totalAssets, totalShares: pool.totalShares, nowSec: Math.floor(d.nowMs() / 1000), used: d.used.has,
+    });
+  } catch (e) {
+    if (e instanceof GuardError) { captureFailure(e, `guard:${e.rule}`); return { kind: 'failed', message: GUARD_MESSAGE }; }
+    return { kind: 'failed', message: userMessage(e) };
+  }
+  let signature: Uint8Array;
+  try {
+    i.onStep(0, 'wait');
+    await i.evm.ensureChain(cfg.poolChain!);
+    signature = await normalizeSignature(await i.evm.signTypedData(checked.typedData), checked.typedData, i.evm.address);
+    d.used.add(checked.record.nonce);
+    i.onStep(0, 'done');
+  } catch (e) {
+    if (isUserRejection(e)) return { kind: 'rejected' };
+    i.onStep(0, 'fail');
+    return { kind: 'failed', message: e instanceof GuardError ? GUARD_MESSAGE : userMessage(e) };
+  }
+  try {
+    const ok = await d.icp.withdrawEvm(checked.candid, signature);
+    return { kind: 'started', activityId: `payout-${ok.id}` };
+  } catch (e) {
+    if (e instanceof PoolErrorFailure) {
+      if ('ShortShares' in e.err && !retried) return executeWithdrawEvm(i, d, true);
+      return { kind: 'failed', message: poolErrorMessage(e.err) };
+    }
+    // the canister did not answer: the watcher's door forwards the same record (same nonce: never a second withdrawal)
+    try {
+      const ok = await d.postWithdraw({ withdrawal: checked.record, signature: bytesToHex(signature) });
+      return { kind: 'started', activityId: `payout-${ok.id}` };
+    } catch (e2) {
+      if (e2 instanceof ApiError && e2.code === 'refused') return { kind: 'unknown', message: 'Your withdrawal may have gone through. It shows in Your stake in a minute.', resume: null };
+      return { kind: 'unknown', message: 'We could not reach Swapic. Check Your stake before trying again.', resume: null };
+    }
   }
 }

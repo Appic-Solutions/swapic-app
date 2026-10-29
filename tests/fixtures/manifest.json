@@ -318,5 +318,21 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 3 Task 4 StakeScreen; no guard data (order, sign, tx): the Stake button is not clicked in e2e"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#withdraw",
+    "kind": "derived",
+    "source": "plan 3 Task 1 test helper answer(): the backend's fixed example record (libraries/common/src/pool_eip712/tests.rs fixed()) with the run's staker, the asked usdc, maxSharesFor at the contract 5.3 price, deadline and expiresAt 6 h after the scenario clock (contract 5.15), tokenOut from the derived get_config, a random nonce, viem's digest",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "no real withdraw quote exists for a key the test holds; a recorded one names Jeff's wallet. /v2/pool/accounts/* answers the 5.5 example with the asking address"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#withdraw-queued",
+    "kind": "derived",
+    "source": "the withdraw scenario's quote with contract 5.15's queue example { place: 2, aheadUsdc: 1200000000, etaAt: clock + 40 min }",
+    "recordedAt": "2026-10-29",
+    "replacedBy": "plan 4 Task 5",
+    "note": "plan 3 Task 6 WithdrawQueueScreen"
   }
 ]

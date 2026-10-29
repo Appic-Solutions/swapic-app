@@ -1,4 +1,7 @@
 // Which fixture answers which path, per scenario. Real answers wherever one exists (plan rule 2).
+import { readFileSync } from 'node:fs';
+import { getAddress, hashTypedData } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 const real = (p) => `tests/fixtures/real/${p}`;
 const contract = (p) => `tests/fixtures/contract/${p}`;
 const PAYER = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC';
@@ -25,6 +28,63 @@ const stakeQuote = (_u, req) => {
     owner: b.owner, quotedAt: 1792336073, expiresAt: 1792336113, unavailable: [],
     gasless: { allowed: false, whyNot: 'gaslessOff', routes: [] }, userPays: { allowed: true, routes: [route] },
   } };
+};
+
+// A withdraw quote built from the request, in the shape of plan 3 Task 1's test helper answer(): the backend's fixed example
+// record (pool_eip712 tests fixed()) with that staker and recipient, that usdc, maxShares = maxSharesFor at the contract 5.3
+// price, deadlineNs and expiresAt 6 hours after the scenario clock (contract 5.15), tokenOut the chain's USDC from the derived
+// get_config, a fresh random nonce, and the digest from viem (no real withdraw quote exists for a key the test holds); derived, manifest
+const CFG = JSON.parse(readFileSync(new URL('../fixtures/derived/swapic-config.json', import.meta.url), 'utf8'));
+const WITHDRAWAL_TYPES = {
+  Withdrawal: [
+    { name: 'staker', type: 'address' }, { name: 'usdc', type: 'uint256' }, { name: 'maxShares', type: 'uint256' },
+    { name: 'rebalanceShare', type: 'uint256' }, { name: 'networkFee', type: 'uint256' }, { name: 'dstChain', type: 'uint64' },
+    { name: 'recipient', type: 'address' }, { name: 'tokenOut', type: 'address' }, { name: 'minOut', type: 'uint256' },
+    { name: 'deadline', type: 'uint64' }, { name: 'nonce', type: 'uint64' },
+  ],
+};
+const POOL_A = 8_420_550_000n;
+const POOL_S = 8_346_065_000_000_000_000_000n;
+const ceilDiv = (a, b) => (a === 0n ? 0n : (a - 1n) / b + 1n);
+const POOL_CLOCK = 1793408400; // contract 5.3 snapshotAt: the 5.5 account's queued withdrawal is 40 minutes out
+const withdrawQuote = (queued) => (_u, req) => {
+  const b = req.postDataJSON();
+  const usdc = BigInt(b.usdc);
+  const burn = ceilDiv(usdc * POOL_S, POOL_A);
+  const maxShares = burn + ceilDiv(burn * 5n, 1000n);
+  const networkFee = 50_000n;
+  const rebalanceShare = 1_000n;
+  const expectedOut = usdc - networkFee - rebalanceShare;
+  const until = POOL_CLOCK + 6 * 3600;
+  const dst = Number(b.dstChain.split(':')[1]);
+  const record = {
+    staker: b.staker, usdc: b.usdc, maxShares: String(maxShares), rebalanceShare: String(rebalanceShare), networkFee: String(networkFee),
+    payout: { dstChain: dst, recipient: b.recipient, tokenOut: CFG.chains[String(dst)].usdc, minOut: String(expectedOut), deadlineNs: `${until}000000000` },
+    nonce: String(1 + Math.floor(Math.random() * 2 ** 52)),
+  };
+  const swapic = getAddress(CFG.chains[String(CFG.poolChain)].swapic);
+  const typedData = {
+    domain: { name: 'Swapic Pool', version: '1', chainId: CFG.poolChain, verifyingContract: swapic }, types: WITHDRAWAL_TYPES, primaryType: 'Withdrawal',
+    message: {
+      staker: getAddress(record.staker), usdc, maxShares, rebalanceShare, networkFee, dstChain: BigInt(dst), recipient: getAddress(record.payout.recipient),
+      tokenOut: getAddress(record.payout.tokenOut), minOut: expectedOut, deadline: BigInt(until), nonce: BigInt(record.nonce),
+    },
+  };
+  const json = (o) => JSON.parse(JSON.stringify(o, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
+  return { status: 200, json: {
+    withdrawal: record, typedData: json(typedData), digest: hashTypedData(typedData), verifyingContract: swapic,
+    fees: { networkFee: String(networkFee), rebalanceShare: String(rebalanceShare), moveCost: '0', networkLines: [] },
+    payout: { route: 'cctp', amount: String(expectedOut), expectedOut: String(expectedOut), minOut: String(expectedOut) },
+    shares: { burn: String(burn), maxShares: String(maxShares), label: 'estimated' }, etaSeconds: 20, quotedAt: POOL_CLOCK, expiresAt: until,
+    queue: queued ? { place: 2, aheadUsdc: '1200000000', etaAt: POOL_CLOCK + 2400 } : null,
+  } };
+};
+/** A throwaway key made in memory for the run: the e2e signer signs for real, so every withdraw signature rule runs. */
+const withKey = () => { const key = generatePrivateKey(); return { evm: privateKeyToAccount(key).address, icp: '3yfhk-v3nwx-2xo3k-pjyl5-ugvqk-ywkpy-qaq7m-aocl5-iz5re-kxxtc-2qe', evmKey: key }; };
+/** The 5.5 example account answered for whichever EVM address asks. */
+const accountFor = (u) => {
+  const a = JSON.parse(readFileSync(new URL('../fixtures/contract/account.json', import.meta.url), 'utf8'));
+  return { status: 200, json: { ...a, account: decodeURIComponent(u.pathname.split('/').pop()).toLowerCase() } };
 };
 
 const common = {
@@ -63,5 +123,9 @@ export const SCENARIOS = {
   pasted: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/tokens': (u) => (u.searchParams.get('q')?.toLowerCase() === WOOF
     ? { status: 200, json: { chain: u.searchParams.get('chain'), tokens: [{ address: WOOF, symbol: 'WOOF', name: 'Woof Token', decimals: 18, verified: false, class: 'unlisted' }] } }
     : common['/v2/tokens'](u)) }, clockAt: 1792336073 },
+  // plan 3 Task 9: withdraw with a key made for the run; the quote built from the request (derived, manifest)
+  withdraw: { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': accountFor, 'POST /v2/withdraw/quote': withdrawQuote(false) }, clockAt: POOL_CLOCK },
+  // the same, with the Base side short: the quote says it waits in line (contract 5.15's example); derived, manifest
+  'withdraw-queued': { wallets: withKey, routes: { ...common, '/v2/pool/accounts/*': accountFor, 'POST /v2/withdraw/quote': withdrawQuote(true) }, clockAt: POOL_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };
