@@ -16,7 +16,7 @@ import { useNavTab } from '@/lib/nav-tab';
 import { orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
-import { OrderDetail } from '@/features/scanner/OrderDetail';
+import { ORDER_FRAME, OrderDetail } from '@/features/scanner/OrderDetail';
 import { OrderRow } from '@/components/orders/OrderRow';
 import { OrderRowSkeleton } from '@/components/orders/OrderRowSkeleton';
 import { getSteps, type ActivityRow } from '@/lib/api';
@@ -64,7 +64,6 @@ function OrderInPlace({ raw, onBack }: { raw: ActivityRow; onBack: () => void })
 // The History panel's size and layout as the in place frame's (motion part 2); the order page's size when a row opens it.
 const HISTORY_FRAME = 'md:h-fit md:max-h-[760px] md:w-full md:max-w-[537px] md:overflow-y-hidden';
 const HISTORY_VIEW = 'justify-start gap-y-6 md:max-h-[760px]';
-const ORDER_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px] overflow-x-hidden';
 
 export function HistoryPanel() {
   const [orderId, setOrderId] = React.useState<string | null>(null);

@@ -1,6 +1,9 @@
+'use client';
 // Moved from the design's scanner-screens.tsx SearchBox: the search field in the live RHFInput look; wallets turn into chips.
 import * as React from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '@/components/ui/avatar';
+import { T, tw } from '@/lib/motion';
 import { CloseIcon, ManageSearchIcon } from '@/components/icons';
 import { config } from '@/config';
 import { short } from '@/lib/copy/format';
@@ -12,15 +15,26 @@ export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: 
   return (
     <div className="flex min-h-[42px] w-full flex-wrap items-center gap-1.5 rounded-lg bg-white/30 px-3 py-1.5 text-white transition-shadow duration-200 focus-within:ring-2 focus-within:ring-white/40 md:max-w-[560px]">
       <ManageSearchIcon width={20} height={20} className="shrink-0 text-white/70" />
+      {/* A wallet becomes a chip: it grows in; removed, it shrinks out and the rest close up (motion row 61). */}
+      <AnimatePresence initial={false} mode="popLayout">
       {chips.map((c) => (
-        <span key={c.value} className="flex animate-slide-in-from-top items-center gap-x-1.5 rounded-full bg-black/40 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold">
+        <motion.span
+          key={c.value}
+          layout="position"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1, transition: T.enter }}
+          exit={{ opacity: 0, scale: 0.9, transition: T.exit }}
+          transition={{ layout: T.enter }}
+          className="flex items-center gap-x-1.5 rounded-full bg-black/40 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold"
+        >
           <Avatar src={c.kind === 'icp' ? chainLogo(config.icpChain) : chainLogo('eip155:1')} className="h-5 w-5" />
           <span className="font-mono">{short(c.value)}</span>
-          <span onClick={() => onRemove(c)} className="cursor-pointer rounded-full p-0.5 text-white/60 transition-colors hover:bg-white/10 hover:text-white">
+          <span onClick={() => onRemove(c)} className={'cursor-pointer rounded-full p-0.5 text-white/60 hover:bg-white/10 hover:text-white ' + tw.quick + ' ' + tw.pressIcon}>
             <CloseIcon width={12} height={12} />
           </span>
-        </span>
+        </motion.span>
       ))}
+      </AnimatePresence>
       <input
         value={text}
         onChange={(e) => onText(e.target.value)}

@@ -24,6 +24,9 @@ import { flyNames } from '@/components/orders/OrderRow';
 import { T, fade, tw, useMounted } from '@/lib/motion';
 import type { OrderView } from '@/features/activity/rows';
 
+/** The order page's size, also the in place frame's when History or Scanner opens an order (motion part 2). */
+export const ORDER_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px] overflow-x-hidden';
+
 /** "29 Oct 2026" (display only). */
 const fullDay = (sec: number) => { const d = new Date(sec * 1000); return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })} ${d.getFullYear()}`; };
 const clock = (sec: number) => { const d = new Date(sec * 1000); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`; };

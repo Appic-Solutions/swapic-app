@@ -37,6 +37,40 @@ test.describe('Scanner', () => {
     await expect(page).toHaveURL(/\/scanner\?order=0xc5ba/);
     await expect(page.getByText('Timeline')).toBeVisible();
   });
+  test('a row opens its order in place; Back returns to the same chips', async ({ page }) => {
+    await open(page, '/scanner', 'scanner');
+    const box = page.getByPlaceholder(PLACEHOLDER);
+    await box.fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
+    await box.press('Enter');
+    await expect(page.getByText('Orders for 1 wallet')).toBeVisible();
+    const rows = page.locator('[data-testid=scanner-row], [data-testid=scanner-card]').filter({ visible: true });
+    await expect(rows).toHaveCount(4);
+    // the panel turns into the order page (motion row 63): the link changes so it can be shared
+    await rows.first().click();
+    await expect(page).toHaveURL(/\/scanner\?order=/);
+    await expect(page.getByText('Timeline')).toBeVisible();
+    await expect(page.getByText('Orders for 1 wallet')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Back', includeHidden: true }).filter({ visible: true }).click();
+    await expect(page).toHaveURL(/\?q=0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac$/);
+    await expect(page.getByText('Orders for 1 wallet')).toBeVisible();
+    await expect(rows).toHaveCount(4);
+    // a chip shrinks away when removed and the feed comes back
+    await page.getByText('Clear').click();
+    await expect(page.getByText('Latest transactions')).toBeVisible();
+    await expect(page).toHaveURL(/\/scanner$/);
+  });
+  test('reduce motion: one view after each change', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, '/scanner', 'scanner');
+    const rows = page.locator('[data-testid=scanner-row], [data-testid=scanner-card]').filter({ visible: true });
+    await expect(rows).toHaveCount(4);
+    await rows.nth(1).click();
+    await expect(page.locator('p').filter({ hasText: /^Order$/ })).toHaveCount(1);
+    await expect(page.getByText('Latest transactions')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Back', includeHidden: true }).filter({ visible: true }).click();
+    await expect(page.getByText('Latest transactions')).toHaveCount(1);
+    await expect(page.locator('p').filter({ hasText: /^Order$/ })).toHaveCount(0);
+  });
   test('desktop: the order page columns end at the same height', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop');
     await open(page, '/scanner?order=0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227', 'scanner');

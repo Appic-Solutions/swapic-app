@@ -4,7 +4,7 @@ import { short } from '@/lib/copy/format';
 
 export function NotFound({ query }: { query: string }) {
   return (
-    <div className="flex w-full animate-fade flex-col items-center justify-center gap-y-4 rounded-2xl bg-[#272727] px-6 py-12 text-center text-white">
+    <div className="flex w-full flex-col items-center justify-center gap-y-4 rounded-2xl bg-[#272727] px-6 py-12 text-center text-white">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/images/empty.png" alt="" width={90} height={90} />
       <p className="text-xl font-bold">Nothing found for <span className="font-mono">{short(query)}</span></p>

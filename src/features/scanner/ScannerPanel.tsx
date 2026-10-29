@@ -4,12 +4,17 @@
 // GET /v2/orders call for all chips, every 30 s, contract 5.13 and 1.6), by order id or transaction hash (GET
 // /v2/scanner/search, one row opens its order page), and "Nothing found" without any call for a text that is none of the
 // four forms. The URL keeps the chips (`?q=a,b`) so a search can be shared.
+// Motion (approved 2026-10-29, part 2): tiles lift on hover, chips pop in and out, the heading and the results or "Nothing
+// found" cross fade, rows glide and a new one slides into the top; a row opens its order in place (ScannerPage's frame).
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import Box from '@/components/ui/box';
+import { AnimatePresence, motion } from 'motion/react';
+import { PanelBox } from '@/components/motion/parts';
 import { ManageSearchIcon } from '@/components/icons';
-import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage } from '@/lib/api';
+import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
+import { T, fade, tw } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 import { mergeRows, orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { LiveDot } from './LiveDot';
@@ -33,7 +38,14 @@ export function chipsOf(q: string | null): Chip[] {
   return out;
 }
 
-export function ScannerPanel({ initialQ }: { initialQ: string | null }) {
+// The Scanner panel's size and layout outside an in place frame.
+const SCANNER_BOX = 'gap-y-6 md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden md:pb-5';
+
+/**
+ * `onOpen` opens one order (a row, or the one an id or hash search found); `onLink` hears the chips the panel writes into
+ * the link, so the page keeps this panel (and its chip motion) instead of starting it again.
+ */
+export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | null; onOpen: (row: ActivityRow) => void; onLink: (q: string) => void }) {
   const router = useRouter();
   const logo = useLogoFor();
   const [chips, setChips] = React.useState<Chip[]>(() => chipsOf(initialQ));
@@ -76,7 +88,9 @@ export function ScannerPanel({ initialQ }: { initialQ: string | null }) {
   const setChipsAndLink = (next: Chip[]) => {
     setChips(next);
     setNotFound(null);
-    router.replace(next.length ? `/scanner?q=${next.map((c) => c.value).join(',')}` : '/scanner');
+    const q = next.map((c) => c.value).join(',');
+    onLink(q);
+    router.replace(q ? `/scanner?q=${q}` : '/scanner');
   };
   const onSubmit = async () => {
     const c = classify(text);
@@ -91,7 +105,7 @@ export function ScannerPanel({ initialQ }: { initialQ: string | null }) {
       const a = await searchScanner(c.value);
       const row = a.items[0];
       if (a.match === 'none' || !row) { setNotFound(a.q || c.value); return; }
-      router.push(`/scanner?order=${encodeURIComponent(row.id)}`);
+      onOpen(row);
     } catch (e) {
       if (e instanceof ApiError && e.code === 'badRequest') setNotFound(c.value);
       else setError(userMessage(e));
@@ -108,32 +122,45 @@ export function ScannerPanel({ initialQ }: { initialQ: string | null }) {
   const orders = raw.map((r) => orderView(r, now, logo));
   const loading = searching ? wallets.isLoading : feed.isLoading;
   return (
-    <Box className="gap-y-6 md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden md:pb-5">
-      <Tiles tiles={stats.data ? scannerTiles(stats.data) : null} />
-      <section className="flex w-full flex-col gap-y-3 md:gap-y-4">
+    <PanelBox className={SCANNER_BOX}>
+      <motion.div variants={fade} className="w-full"><Tiles tiles={stats.data ? scannerTiles(stats.data) : null} /></motion.div>
+      <motion.section variants={fade} className="flex w-full flex-col gap-y-3 md:gap-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-x-2 text-lg font-medium text-white md:text-xl">
             <ManageSearchIcon width={24} height={24} />
-            {searching ? (
-              <>
-                Orders for {chips.length === 1 ? '1 wallet' : `${chips.length} wallets`}
-                <span className="text-sm text-[#898989]">{orders.length} found</span>
-                <a onClick={() => setChipsAndLink([])} className="cursor-pointer text-sm text-[#898989] underline-offset-2 transition-colors hover:text-white hover:underline">Clear</a>
-              </>
-            ) : (
-              <>Latest transactions <LiveDot /></>
-            )}
+            <AnimatePresence initial={false} mode="wait">
+              <motion.div key={searching ? 'search' : 'live'} className="flex items-center gap-x-2" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }} exit={{ opacity: 0, transition: T.exit }}>
+                {searching ? (
+                  <>
+                    Orders for {chips.length === 1 ? '1 wallet' : `${chips.length} wallets`}
+                    <span className="text-sm text-[#898989]">{orders.length} found</span>
+                    <a onClick={() => setChipsAndLink([])} className="cursor-pointer text-sm text-[#898989] underline-offset-2 transition-colors hover:text-white hover:underline">Clear</a>
+                  </>
+                ) : (
+                  <>Latest transactions <LiveDot /></>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
           <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={() => void onSubmit()} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
         </div>
         {error && <p className="text-xs text-yellow-600">{error}</p>}
-        {notFound !== null ? <NotFound query={notFound} /> : <Results orders={orders} loading={loading} onOpen={(o) => router.push(`/scanner?order=${encodeURIComponent(o.id)}`)} freshId={freshId} />}
+        {/* Results and "Nothing found" cross fade (out 180 ms, then in 250 ms). */}
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div key={notFound !== null ? 'none' : 'results'} className="w-full" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }} exit={{ opacity: 0, transition: T.exit }}>
+            {notFound !== null ? (
+              <NotFound query={notFound} />
+            ) : (
+              <Results orders={orders} loading={loading} freshId={freshId} onOpen={(o) => { const r = raw.find((x) => x.id === o.id); if (r) onOpen(r); }} />
+            )}
+          </motion.div>
+        </AnimatePresence>
         {notFound === null && !searching && feed.hasNextPage && (
-          <button onClick={() => void feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className="mx-auto mb-1 flex items-center gap-x-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/20 active:scale-95">
+          <button onClick={() => void feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className={cn('mx-auto mb-1 flex items-center gap-x-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/20', tw.quick, tw.press)}>
             Show older
           </button>
         )}
-      </section>
-    </Box>
+      </motion.section>
+    </PanelBox>
   );
 }
