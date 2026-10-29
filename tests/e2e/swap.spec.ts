@@ -117,3 +117,63 @@ test.describe('Swap, the shareable link', () => {
     await expect(page.getByPlaceholder('Search token')).toHaveValue('0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
   });
 });
+
+test.describe('Swap, signing (the panel changes in place)', () => {
+  // the panel titles (BoxHeader draws them as a paragraph; the Swap panel's button also reads Review swap)
+  const title = (page: Page, text: string) => page.locator('p').filter({ hasText: new RegExp(`^${text}$`) });
+  const reviewTitle = (page: Page) => title(page, 'Review swap');
+  test('review, sign, delivered', async ({ page }) => {
+    await open(page, 'default');
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await expect(page.getByText('You get at least')).toBeVisible();
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    await expect(page.getByText('Delivered', { exact: true }).first()).toBeVisible();
+  });
+  test('a "no" in the wallet keeps the review as it was', async ({ page }) => {
+    await open(page, 'default');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.rejectNext = true; });
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
+    await expect(button(page, 'Sign and swap')).toBeEnabled();
+    await expect(reviewTitle(page)).toHaveCount(1);
+  });
+  test('the recorded watcher refusal shows a plain sentence', async ({ page }) => {
+    await open(page, 'submit-reverts');
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText('This swap would fail right now. Get a new quote and try again.')).toBeVisible();
+  });
+  test('refunded: the calm end says where the USDC went', async ({ page }) => {
+    await open(page, 'refunded');
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'refunded', { timeout: 15_000 });
+    await expect(page.getByText('Refunded 119.80 USDC to 0xf00e…89ac on Polygon').first()).toBeVisible();
+  });
+  test('reduce motion: exactly one view after each change', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, 'default');
+    await pickTokens(page);
+    const swapTitle = page.getByRole('heading', { name: 'Swap', exact: true, includeHidden: true });
+    const statusTitle = title(page, 'Your swap');
+    await button(page, 'Review swap').click();
+    await expect(reviewTitle(page)).toHaveCount(1);
+    await expect(swapTitle).toHaveCount(0);
+    await button(page, 'Back').click();
+    await expect(swapTitle).toHaveCount(1);
+    await expect(reviewTitle(page)).toHaveCount(0);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    await expect(statusTitle).toHaveCount(1, { timeout: 15_000 });
+    await expect(reviewTitle(page)).toHaveCount(0);
+    await button(page, 'Make another swap').click();
+    await expect(swapTitle).toHaveCount(1);
+    await expect(statusTitle).toHaveCount(0);
+  });
+});
