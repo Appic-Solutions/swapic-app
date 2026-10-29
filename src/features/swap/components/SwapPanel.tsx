@@ -67,13 +67,14 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const sameChainNoUsdc = quote ? isSameChainNoUsdc(quote, fromChain?.usdc.address) : false;
   const views = from && to && amount !== null ? options.map((o) => routeView(o, { from, to, amountIn: amount!, sameChainNoUsdc, native })) : [];
 
-  // the To side has no wallet and no address yet: open Send To Wallet so the button asks for one
+  // the From side can pay but the To side has no wallet and no address yet: open Send To Wallet so the button asks for
+  // one. With no From wallet, "Connect wallet" comes first (spec 5.1; plan 2 Task 12's no wallet test).
   const ownRecipient = to ? (to.chain_type === 'ICP' ? !!icp : !!evm) : true;
   React.useEffect(() => {
-    if (to && !ownRecipient && !recipient.show && !recipient.address) {
+    if (fromWallet && to && !ownRecipient && !recipient.show && !recipient.address) {
       f.set({ recipient: { show: true, address: '', error: recipientError(to, '') } });
     }
-  }, [to, ownRecipient, recipient.show, recipient.address, f]);
+  }, [fromWallet, to, ownRecipient, recipient.show, recipient.address, f]);
 
   const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' ? error ?? undefined : undefined;
   const button = swapButton({
