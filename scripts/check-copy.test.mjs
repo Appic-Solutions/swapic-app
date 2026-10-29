@@ -14,6 +14,10 @@ describe('check-copy', () => {
     expect(problems(visibleTexts(`const swap = (k: object) => 'IcpSwap' in k;`))).toEqual([]);
     expect(problems(visibleTexts(`export const C = () => <p>{'IcpSwap'}</p>;`)).length).toBe(1);
   });
+  it('ignores a typed data or ABI field name ({ name, type }), but not a name shown elsewhere', () => {
+    expect(problems(visibleTexts(`const T = [{ name: 'rebalanceShare', type: 'uint256' }];`))).toEqual([]);
+    expect(problems(visibleTexts(`const C = { name: 'rebalancing share' };`)).length).toBeGreaterThan(0);
+  });
   it('ignores class names, object keys and identifiers', () => {
     const src = `const maxShares = 1; const o = { 'shares': 1 }; export const B = () => <p className="text-muted">Withdraw anytime</p>;`;
     expect(problems(visibleTexts(src))).toEqual([]);

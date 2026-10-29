@@ -24,10 +24,14 @@ export function visibleTexts(source, fileName = 'x.tsx') {
     else if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       const parent = node.parent;
       const isKey = parent && ts.isPropertyAssignment(parent) && parent.name === node;
+      // `{ name: 'field', type: 'uint256' }`: an EIP-712 or ABI field definition; its name is a protocol identifier
+      const isFieldName = parent && ts.isPropertyAssignment(parent) && parent.name.getText() === 'name' && parent.initializer === node
+        && ts.isObjectLiteralExpression(parent.parent)
+        && parent.parent.properties.some((p) => ts.isPropertyAssignment(p) && p.name.getText() === 'type' && ts.isStringLiteral(p.initializer));
       // `'Variant' in value`: a key name tested, never shown (candid variants are objects keyed by their name)
       const isInKey = parent && ts.isBinaryExpression(parent) && parent.operatorToken.kind === ts.SyntaxKind.InKeyword && parent.left === node;
       const isClass = parent && ts.isJsxAttribute(parent) && parent.name.getText() === 'className';
-      if (!isKey && !isClass && !isInKey) out.push(node.text);
+      if (!isKey && !isClass && !isInKey && !isFieldName) out.push(node.text);
     } else if (ts.isTemplateExpression(node)) {
       out.push(node.head.text, ...node.templateSpans.map((s) => s.literal.text));
     }
