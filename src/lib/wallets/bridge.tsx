@@ -38,16 +38,18 @@ export function WalletBridge() {
     let live = true;
     void (async () => {
       const connectorId = getAccount(wagmiConfig).connector?.id;
-      let code: string | undefined;
+      // null: the code could not be read (unknown); read again on the next connect or chain switch (this effect)
+      let code: string | null = null;
       if (connectorId !== BASE_ACCOUNT_CONNECTOR_ID && chain !== null) {
         try {
-          code = await getBytecode(wagmiConfig, { address: wallet, chainId: chain as ChainId });
+          code = (await getBytecode(wagmiConfig, { address: wallet, chainId: chain as ChainId })) ?? '0x';
         } catch {
-          code = undefined; // unread: the quoter's payerIsContract refusal is the backstop
+          code = null;
         }
       }
       if (!live) return;
-      setEvm({ address: wallet, chainId: chain, smartWallet: judgeEvmWallet(connectorId, code) === 'smart' });
+      const kind = judgeEvmWallet(connectorId, code);
+      setEvm({ address: wallet, chainId: chain, smartWallet: kind === 'unknown' ? null : kind === 'smart' });
     })();
     return () => {
       live = false;

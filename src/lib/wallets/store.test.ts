@@ -19,4 +19,12 @@ describe('wallet store', () => {
     useWallets.getState().setEvm({ address: '0xF00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC' as `0x${string}`, chainId: 1 });
     expect(useWallets.getState().evm?.address).toBe('0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac');
   });
+  it('keeps a smart wallet flag, and an unknown one as unknown (null, never read as regular)', () => {
+    useWallets.getState().setEvm({ address: '0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac', chainId: 8453, smartWallet: null });
+    expect(useWallets.getState().evm?.smartWallet).toBeNull();
+    useWallets.getState().setEvm({ address: '0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac', chainId: 8453, smartWallet: true });
+    expect(useWallets.getState().evm?.smartWallet).toBe(true);
+    useWallets.getState().setEvm({ address: '0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac', chainId: 8453 });
+    expect(useWallets.getState().evm?.smartWallet).toBe(false);
+  });
 });

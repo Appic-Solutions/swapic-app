@@ -41,25 +41,33 @@ describe('quoteQueryOf', () => {
   });
 });
 
-describe('a smart wallet types the recipient on another EVM chain (plan 2 Smart wallets, Jeff 2026-10-29)', () => {
+describe('a smart wallet is the recipient only on its connected chain (plan 2 Smart wallets, lead 2026-10-29)', () => {
   const usdcPol = t('eip155:137', '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', 6, 'EVM');
   const ethArb = t('eip155:42161', '0x0000000000000000000000000000000000000000', 18, 'EVM');
+  // the wallet is connected on Arbitrum (42161), where its code was read
   const smart = { ...wallets, evm: { ...wallets.evm, smartWallet: true } };
+  const unknown = { ...wallets, evm: { ...wallets.evm, smartWallet: null } };
   const typed = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC';
-  it('applies only to a smart wallet, an EVM destination, and another chain', () => {
+  it('prefills only when the destination is the connected chain, from any source', () => {
     expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, smart)).toBe(true);
     expect(smartWalletTypesRecipient({ from: usdcArb, to: ethArb }, smart)).toBe(false);
+    expect(smartWalletTypesRecipient({ from: ckbtc, to: ethArb }, smart)).toBe(false);
+    expect(smartWalletTypesRecipient({ from: ckbtc, to: usdcPol }, smart)).toBe(true);
     expect(smartWalletTypesRecipient({ from: usdcArb, to: ckbtc }, smart)).toBe(false);
     expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, wallets)).toBe(false);
-    // from ICP to an EVM chain: the destination differs from the source, so a smart EVM wallet types it too (the rule, read literally)
-    expect(smartWalletTypesRecipient({ from: ckbtc, to: usdcArb }, smart)).toBe(true);
   });
-  it('never fills the connected address there; a typed address is the recipient', () => {
+  it('treats code that could not be read as a smart wallet here (fail closed)', () => {
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, unknown)).toBe(true);
+    expect(smartWalletTypesRecipient({ from: usdcArb, to: ethArb }, unknown)).toBe(false);
+  });
+  it('never fills the connected address on another chain; a typed address is the recipient', () => {
     expect(quoteQueryOf({ ...form, to: usdcPol }, smart)?.recipient).toBeUndefined();
+    expect(quoteQueryOf({ ...form, from: ckbtc, to: usdcPol }, smart)?.recipient).toBeUndefined();
     expect(quoteQueryOf({ ...form, to: usdcPol, recipient: { show: true, address: typed, error: '' } }, smart)?.recipient).toBe(typed);
   });
-  it('leaves same chain swaps and swaps to ICP as they were', () => {
+  it('fills it on the connected chain (ICP source too), and leaves swaps to ICP as they were', () => {
     expect(quoteQueryOf({ ...form, to: ethArb }, smart)?.recipient).toBe(wallets.evm.address);
+    expect(quoteQueryOf({ ...form, from: ckbtc, to: ethArb }, smart)?.recipient).toBe(wallets.evm.address);
     expect(quoteQueryOf(form, smart)?.recipient).toBe(wallets.icp.principal);
   });
 });

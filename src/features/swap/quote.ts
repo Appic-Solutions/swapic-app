@@ -13,10 +13,14 @@ import { useSwapForm, type SwapFormState } from './form';
 
 type Wallets = { evm: EvmWallet | null; icp: IcpWallet | null };
 
-/** A smart wallet's address may not be the person's on another EVM chain (plan 2 Smart wallets, Jeff 2026-10-29): there the
- *  recipient is never the connected address, it is typed. Same chain swaps and swaps to ICP are unchanged. */
+/** A smart wallet's address is known to be the person's only on the chain it is connected on, where its code was read
+ *  (plan 2 Smart wallets, lead 2026-10-29): the connected address is the recipient only when the destination is that chain
+ *  (any source, ICP included); elsewhere it is typed. Code that could not be read (smartWallet null) counts as smart here
+ *  (fail closed). Swaps to ICP are unchanged. */
 export function smartWalletTypesRecipient(f: Pick<SwapFormState, 'from' | 'to'>, w: Wallets): boolean {
-  return !!w.evm?.smartWallet && !!f.from && !!f.to && f.to.chain_type === 'EVM' && f.from.chain !== f.to.chain;
+  const evm = w.evm;
+  if (!evm || evm.smartWallet === false || evm.smartWallet === undefined || !f.to || f.to.chain_type !== 'EVM') return false;
+  return evm.chainId === null || f.to.chain !== `eip155:${evm.chainId}`;
 }
 
 export function quoteQueryOf(f: Pick<SwapFormState, 'from' | 'to' | 'amountText' | 'recipient'>, w: Wallets): QuoteQuery | null {

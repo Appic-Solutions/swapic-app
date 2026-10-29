@@ -7,7 +7,6 @@ describe('judgeEvmWallet (smart wallets are flagged, never disconnected: Jeff, 2
   it('flags the Base Account connector whatever the code says', () => {
     expect(BASE_ACCOUNT_CONNECTOR_ID).toBe('baseAccount');
     expect(judgeEvmWallet('baseAccount', '0x')).toBe('smart');
-    expect(judgeEvmWallet('baseAccount', undefined)).toBe('smart');
   });
   it('flags an address with contract code on the connected chain', () => {
     expect(judgeEvmWallet('injected', '0x6080604052348015600f57600080fd5b50')).toBe('smart');
@@ -17,9 +16,12 @@ describe('judgeEvmWallet (smart wallets are flagged, never disconnected: Jeff, 2
     // the designator prefix with the wrong length is not a delegation
     expect(judgeEvmWallet('io.metamask', `0xef0100${DELEGATE}00`)).toBe('smart');
   });
-  it('reads an address with no code as regular, and an unread one too (the quoter backstops: payerIsContract)', () => {
+  it('reads an address with no code as regular, and code that could not be read as unknown (lead, 2026-10-29)', () => {
     expect(judgeEvmWallet('walletConnect', '0x')).toBe('regular');
-    expect(judgeEvmWallet('walletConnect', undefined)).toBe('regular');
-    expect(judgeEvmWallet(undefined, null)).toBe('regular');
+    expect(judgeEvmWallet('walletConnect', '')).toBe('regular');
+    expect(judgeEvmWallet('walletConnect', null)).toBe('unknown');
+    expect(judgeEvmWallet(undefined, null)).toBe('unknown');
+    // the Base Account connector is smart even when its code could not be read
+    expect(judgeEvmWallet('baseAccount', null)).toBe('smart');
   });
 });
