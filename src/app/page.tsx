@@ -1,3 +1,10 @@
+import { Shell } from '@/components/layout/Shell';
+
+/** The Swap tab (plan 2 replaces the body). */
 export default function Home() {
-  return <main>Swapic</main>;
+  return (
+    <Shell tab="Swap">
+      <div />
+    </Shell>
+  );
 }
