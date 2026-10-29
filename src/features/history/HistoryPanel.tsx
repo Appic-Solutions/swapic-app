@@ -12,7 +12,7 @@ import { motion } from 'motion/react';
 import { MorphFrame } from '@/components/motion/parts';
 import { cn } from '@/lib/cn';
 import { arriveTop, listItem, tw, useMounted } from '@/lib/motion';
-import { useNavTab } from '@/lib/nav-tab';
+import { useNavReset, useNavTab } from '@/lib/nav-tab';
 import { orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
@@ -73,6 +73,8 @@ export function HistoryPanel() {
   // the order page shows the Scanner's page: the nav highlight moves there while it shows (motion row 58)
   React.useEffect(() => { setNav(raw ? 'Scanner' : null); }, [raw, setNav]);
   React.useEffect(() => () => setNav(null), [setNav]);
+  // a click on the History tab while the order page shows goes back to the list
+  useNavReset('History', () => setOrderId(null));
   return (
     <MorphFrame view={raw ? `order-${raw.id}` : 'list'} frameClass={raw ? ORDER_FRAME : HISTORY_FRAME} viewClass={raw ? undefined : HISTORY_VIEW}>
       {(v) => (v !== 'list' && raw ? <OrderInPlace raw={raw} onBack={() => setOrderId(null)} /> : <HistoryList h={h} onOpenScanner={setOrderId} />)}

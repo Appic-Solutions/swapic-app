@@ -17,6 +17,7 @@ import { useActivity } from '@/features/activity/track';
 import { NotFound } from './NotFound';
 import { ORDER_FRAME, OrderDetail } from './OrderDetail';
 import { ScannerPanel } from './ScannerPanel';
+import { useNavReset } from '@/lib/nav-tab';
 
 // The Scanner panel's size and layout as the in place frame's (motion part 2).
 const SCANNER_FRAME = 'md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden';
@@ -70,6 +71,10 @@ export function ScannerPage() {
   if (!order && q !== written.current) { written.current = q; panelQ.current = q; }
   // while an order shows, the list is gone: it comes back as a new panel with the chips it had
   if (order) panelQ.current = written.current = listQ.current;
+  // a click on the Scanner tab starts the list afresh (the link it opens drops the order and the chips; this also clears a
+  // typed search or "Nothing found" on a link that did not change)
+  const [fresh, setFresh] = React.useState(0);
+  useNavReset('Scanner', () => setFresh((n) => n + 1));
   const open = (row: ActivityRow) => {
     // the row the list just showed is the order's row: the order page draws it at once (its tokens and pill can fly
     // there) instead of a skeleton while the same row is asked again
@@ -83,7 +88,7 @@ export function ScannerPage() {
         order ? (
           <OrderPage key={order} id={order} onBack={back} />
         ) : (
-          <ScannerPanel key={panelQ.current} initialQ={panelQ.current || null} onOpen={open} onLink={(next) => { written.current = next; }} />
+          <ScannerPanel key={`${panelQ.current}#${fresh}`} initialQ={panelQ.current || null} onOpen={open} onLink={(next) => { written.current = next; }} />
         )
       }
     </MorphFrame>

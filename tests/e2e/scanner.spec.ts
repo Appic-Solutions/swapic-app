@@ -59,6 +59,24 @@ test.describe('Scanner', () => {
     await expect(page.getByText('Latest transactions')).toBeVisible();
     await expect(page).toHaveURL(/\/scanner$/);
   });
+  test('a click on the Scanner tab goes back to the list', async ({ page }) => {
+    await open(page, '/scanner', 'scanner');
+    const rows = page.locator('[data-testid=scanner-row], [data-testid=scanner-card]').filter({ visible: true });
+    await rows.first().click();
+    await expect(page.getByText('Timeline')).toBeVisible();
+    await page.getByTestId('tab-nav').locator('a[href="/scanner"]').click();
+    await expect(page.getByText('Latest transactions')).toBeVisible();
+    await expect(page).toHaveURL(/\/scanner$/);
+    // on a link that does not change, a typed search and its "Nothing found" go too
+    const box = page.getByPlaceholder(PLACEHOLDER);
+    await box.fill('0x12ab9f00c3');
+    await box.press('Enter');
+    await expect(page.getByText(/Nothing found for/)).toBeVisible();
+    await page.getByTestId('tab-nav').locator('a[href="/scanner"]').click();
+    await expect(page.getByText(/Nothing found for/)).toHaveCount(0);
+    await expect(rows).toHaveCount(4);
+    await expect(box).toHaveValue('');
+  });
   test('reduce motion: one view after each change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await open(page, '/scanner', 'scanner');
@@ -75,8 +93,11 @@ test.describe('Scanner', () => {
     test.skip(info.project.name !== 'desktop');
     await open(page, '/scanner?order=0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227', 'scanner');
     await expect(page.getByText('Delivered 0.002403 ckBTC')).toBeVisible();
-    const l = await page.getByTestId('col-left').boundingBox();
-    const r = await page.getByTestId('col-right').boundingBox();
-    expect(Math.abs(l!.y + l!.height - (r!.y + r!.height))).toBeLessThanOrEqual(1);
+    // measured once the timeline has come in and its steps have opened (they arrive after the order's row)
+    await expect.poll(async () => {
+      const l = await page.getByTestId('col-left').boundingBox();
+      const r = await page.getByTestId('col-right').boundingBox();
+      return Math.abs(l!.y + l!.height - (r!.y + r!.height));
+    }).toBeLessThanOrEqual(1);
   });
 });

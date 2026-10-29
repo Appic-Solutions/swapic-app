@@ -26,6 +26,13 @@ test.describe('History', () => {
     await expect(page).toHaveURL(/\/history$/);
     await page.getByRole('button', { name: 'Back', includeHidden: true }).filter({ visible: true }).click();
     await expect(page.getByTestId('order-row')).toHaveCount(3);
+    // a click on the History tab while the order page shows goes back to the list
+    await page.getByText('View Details').first().click();
+    await page.getByTestId('open-scanner').filter({ visible: true }).first().click();
+    await expect(page.getByText('Timeline')).toBeVisible();
+    await page.getByTestId('tab-nav').locator('a[href="/history"]').click();
+    await expect(page.getByTestId('order-row')).toHaveCount(3);
+    await expect(page.getByText('Timeline')).toHaveCount(0);
   });
   test('reduce motion: one view after each change, and the filter still works', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });

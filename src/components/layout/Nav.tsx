@@ -24,6 +24,7 @@ const MotionLink = motion.create(Link);
 export function Nav({ active: own }: { active: Tab }) {
   // a page showing another tab's page in place moves the highlight there (useNavTab)
   const override = useNavTab((s) => s.override);
+  const reset = useNavTab((s) => s.reset);
   const active = override ?? own;
   const mounted = useMounted();
   const phone = usePhone();
@@ -45,6 +46,8 @@ export function Nav({ active: own }: { active: Tab }) {
               )}
               <MotionLink
                 href={href}
+                // a click on the page's own tab takes its panel back to its first view (useNavReset)
+                onClick={label === own ? () => reset(label) : undefined}
                 layout="position"
                 layoutDependency={active}
                 transition={{ default: T.hover, layout: T.big }}
