@@ -4,6 +4,7 @@ import '@/style/scrollbar.css';
 import '@/style/globals.css';
 import { Providers } from '@/lib/wallets';
 import { HostRedirect } from '@/components/layout/HostRedirect';
+import { SentryInit } from '@/components/layout/SentryInit';
 
 export const metadata: Metadata = {
   title: 'Swapic',
@@ -15,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="font-rethink-sans relative bg-[#060607] md:h-full" data-scroll-behavior="smooth">
       <body>
+        <SentryInit />
         <Providers>
           <HostRedirect />
           {children}
