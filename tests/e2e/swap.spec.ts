@@ -177,3 +177,55 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await expect(statusTitle).toHaveCount(0);
   });
 });
+
+test.describe('Swap, approve then confirm (you pay gas)', () => {
+  // the derived get_config's Swapic on Arbitrum and its USDC (tests/fixtures/derived/swapic-config.json), the amount typed
+  const SWAPIC = '0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406';
+  const USDC = '0xaf88d065e77c8cc2239327c5edb3a432268e5831';
+  const word = (data: string, k: number) => data.slice(10 + 64 * k, 10 + 64 * (k + 1));
+  const steps = (page: Page) => page.locator('[data-step-state]').filter({ visible: true });
+  async function toReview(page: Page) {
+    await pickTokens(page);
+    await page.getByText('Fastest', { exact: true }).filter({ visible: true }).first().click();
+    await button(page, 'Review swap').click();
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await expect(page.getByText('Confirm swap (you pay gas)')).toBeVisible();
+  }
+  test('a "no" on the approval keeps the review and sends nothing', async ({ page }) => {
+    await open(page, 'approve');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.rejectNext = true; });
+    await toReview(page);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'todo');
+    expect(await page.evaluate(() => window.__SWAPIC_E2E__!.sent ?? [])).toEqual([]);
+  });
+  test('the approval then the swap, each step lighting up in turn, to Delivered; the approval is exactly what the review shows', async ({ page }) => {
+    await open(page, 'approve');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.delayMs = 1200; });
+    await toReview(page);
+    await expect(page.getByText('5.00 USDC', { exact: true }).first()).toBeVisible();
+    await button(page, 'Approve and swap').click();
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'wait');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'todo');
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'done');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'wait');
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    const sent = await page.evaluate(() => window.__SWAPIC_E2E__!.sent ?? []);
+    expect(sent).toHaveLength(2);
+    // the approval: approve(spender, amount) on USDC, spender the Swapic of get_config, amount the 5.00 USDC on screen
+    expect(sent[0]!.to.toLowerCase()).toBe(USDC);
+    expect(sent[0]!.data.slice(0, 10)).toBe('0x095ea7b3');
+    expect(`0x${word(sent[0]!.data, 0).slice(24)}`).toBe(SWAPIC);
+    expect(BigInt(`0x${word(sent[0]!.data, 1)}`)).toBe(5_000_000n);
+    // the swap itself goes to that same Swapic
+    expect(sent[1]!.to.toLowerCase()).toBe(SWAPIC);
+  });
+  test('an approval to anyone else is never offered (the guard)', async ({ page }) => {
+    await open(page, 'approve-attacker');
+    await pickTokens(page);
+    await expect(page.getByText('Gasless', { exact: true })).toBeVisible();
+    await expect(page.getByText('You pay gas')).toHaveCount(0);
+  });
+});

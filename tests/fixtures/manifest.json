@@ -422,5 +422,13 @@
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "plan 2 Task 9 TooManyTriesScreen look"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#approve-attacker",
+    "kind": "derived",
+    "source": "the real arb-usdc-to-pol-wbtc quote with its you pay gas approval spender replaced by 0x...dEaD",
+    "recordedAt": "2026-10-29",
+    "replacedBy": null,
+    "note": "the guard (approvalSpender) must keep that route off the screen"
   }
 ]

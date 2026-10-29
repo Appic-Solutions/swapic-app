@@ -241,5 +241,14 @@ export const SCENARIOS = {
   refunded: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsRefunded, '/v2/orders/*': swapRefunded }, clockAt: SWAP_CLOCK },
   // too many tries: the watcher's rate limit answer to the submit (contract 1.4 shape); derived, manifest
   'too-many': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 429, json: { code: 'rateLimited', message: 'too many requests' } } }, clockAt: SWAP_CLOCK },
+  // approve then confirm (you pay gas): the recorded quote's cctpFast you pay gas route already carries the USDC approval
+  // (the allowance was short when it was recorded), then the delivered tracking answers
+  approve: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json') }, clockAt: SWAP_CLOCK },
+  // the same quote with the approval's spender swapped for another address: the guard must not offer that route; derived, manifest
+  'approve-attacker': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': () => {
+    const q = JSON.parse(readFileSync(new URL('../fixtures/real/quote/arb-usdc-to-pol-wbtc.json', import.meta.url), 'utf8'));
+    for (const r of q.userPays.routes) if (r.approval) r.approval.spender = '0x000000000000000000000000000000000000dEaD';
+    return { status: 200, json: q };
+  } }, clockAt: SWAP_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

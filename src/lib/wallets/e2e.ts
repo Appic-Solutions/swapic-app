@@ -9,7 +9,13 @@ import type { IcpCaller } from '@/lib/icp';
 import type { EvmSigner, SignableTypedData } from './evm-signer';
 
 export const E2E_MARKER = 'E2E-FAKE-MARKER';
-export interface E2eWallets { evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean }
+export interface E2eWallets {
+  evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean;
+  /** the wallet takes this long to answer a send (a click-through watches each wallet step light up in turn) */
+  delayMs?: number;
+  /** every transaction the fake wallet sent, in order (a click-through reads what was really signed) */
+  sent?: { chainId: number; to: string; data: string; value: string }[];
+}
 declare global { interface Window { __SWAPIC_E2E__?: E2eWallets } }
 
 export const e2eWallets = (): E2eWallets => {
@@ -35,7 +41,14 @@ export function e2eEvmSigner(address: `0x${string}`): EvmSigner {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return key ? privateKeyToAccount(key).signTypedData(td as any) : FAKE_SIG;
     },
-    sendTransaction: async () => { maybeReject(); txn++; return `0x${txn.toString(16).padStart(64, '0')}` as `0x${string}`; },
+    sendTransaction: async (tx) => {
+      const w = e2eWallets();
+      if (w.delayMs) await new Promise((r) => setTimeout(r, w.delayMs));
+      maybeReject();
+      (w.sent ??= []).push({ chainId: tx.chainId, to: tx.to, data: tx.data, value: tx.value.toString() });
+      txn++;
+      return `0x${txn.toString(16).padStart(64, '0')}` as `0x${string}`;
+    },
     waitForReceipt: async () => 'success',
     maxFeePerGas: async () => 2_000_000_000n,
   };
