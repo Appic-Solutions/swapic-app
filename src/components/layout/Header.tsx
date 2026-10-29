@@ -17,6 +17,8 @@ export default function Header() {
       className={cn(
         'relative flex min-w-fit items-center justify-evenly gap-2 lg:h-[42px]',
         'rounded-full border border-[#ECE6F5] bg-[#faf7fd]/50 md:col-span-2 md:justify-self-end',
+        // the approved motion: brighter on hover, sinks a little when pressed (design Shell.tsx PILL)
+        'transition duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#faf7fd]/60 active:scale-[0.97] motion-reduce:active:scale-100',
         (evm || icp) && 'px-3',
         '*:rounded-full',
       )}

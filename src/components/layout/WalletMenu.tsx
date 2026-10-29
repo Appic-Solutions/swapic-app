@@ -18,6 +18,8 @@ import {
   useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
 import { useWalletMenu } from '@/lib/wallets/menu';
+import { AnimatePresence, motion } from 'motion/react';
+import { menu, tw } from '@/lib/motion';
 
 type IcpWallet = 'OISY' | 'NFID' | 'Internet Identity';
 const ICP_WALLETS: [IcpWallet, string, IcpSignerId][] = [
@@ -64,7 +66,7 @@ function Connected({ logo, name, address, onDisconnect }: { logo: string; name: 
           </button>
         </div>
       </div>
-      <button onClick={onDisconnect} className="shrink-0 rounded-[10px] px-3 py-2 text-sm font-semibold text-fail duration-200 hover:bg-fail hover:text-white">
+      <button onClick={onDisconnect} className={'shrink-0 rounded-[10px] px-3 py-2 text-sm font-semibold text-fail hover:bg-fail hover:text-white ' + tw.quick + ' ' + tw.press}>
         Disconnect
       </button>
     </div>
@@ -140,6 +142,9 @@ function usePhone(): boolean {
 // The menu opens under the header's wallet pill (desktop) or as a sheet (phone); the pill is its trigger.
 function Menu({ title, open, onOpenChange, trigger, children }: { title: string; open: boolean; onOpenChange: (o: boolean) => void; trigger: React.ReactElement; children: React.ReactNode }) {
   const phone = usePhone();
+  // The popover stays open while its content plays the exit, then closes.
+  const [shown, setShown] = React.useState(open);
+  React.useEffect(() => { if (open) setShown(true); }, [open]);
   if (phone) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
@@ -152,17 +157,24 @@ function Menu({ title, open, onOpenChange, trigger, children }: { title: string;
     );
   }
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open || shown} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="flex w-[360px] translate-y-4 flex-col gap-y-4" align="end" onOpenAutoFocus={(e) => e.preventDefault()}>
-        <div className="flex items-center justify-center font-medium text-white">
-          <PopoverClose className="absolute right-4 top-4">
-            <CloseIcon width={20} height={20} />
-          </PopoverClose>
-          {title}
-        </div>
-        {children}
-      </PopoverContent>
+      <AnimatePresence initial={false} onExitComplete={() => setShown(false)}>
+        {open && (
+          // Grows out of the pill (scale from the corner by the pill) and shrinks back into it.
+          <PopoverContent asChild className="flex w-[360px] flex-col gap-y-4" align="end" sideOffset={20} onOpenAutoFocus={(e) => e.preventDefault()}>
+            <motion.div variants={menu} initial="hidden" animate="shown" exit="gone" style={{ transformOrigin: 'var(--radix-popover-content-transform-origin)' }}>
+              <div className="flex items-center justify-center font-medium text-white">
+                <PopoverClose className={'absolute right-4 top-4 hover:opacity-70 ' + tw.quick + ' ' + tw.pressIcon}>
+                  <CloseIcon width={20} height={20} />
+                </PopoverClose>
+                {title}
+              </div>
+              {children}
+            </motion.div>
+          </PopoverContent>
+        )}
+      </AnimatePresence>
     </Popover>
   );
 }
