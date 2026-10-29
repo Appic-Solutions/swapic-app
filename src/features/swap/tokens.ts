@@ -87,7 +87,9 @@ export function useBalance(token: UiToken | null) {
     queryKey: ['balance', token?.key, token?.chain_type === 'ICP' ? icp?.principal : evm?.address],
     queryFn: async () => {
       if (token!.chain_type === 'ICP') return icpClient().balance(token!.address, Principal.fromText(icp!.principal));
-      const b = await getBalances(evm!.address, token!.chain, token!.verified ? [] : [token!.address]);
+      // contract 5.1: a verified token ranked below 200 is answered only when named, so the picked token is always named
+      // (the coin is always answered); a named token missing from the answer is 0
+      const b = await getBalances(evm!.address, token!.chain, token!.address === '0x0000000000000000000000000000000000000000' ? [] : [token!.address]);
       const row = b.chain === token!.chain ? b.balances.find((x) => x.token.toLowerCase() === token!.address) : undefined;
       return row ? BigInt(row.balance) : 0n;
     },

@@ -51,6 +51,8 @@ describe('a smart wallet types the recipient on another EVM chain (plan 2 Smart 
     expect(smartWalletTypesRecipient({ from: usdcArb, to: ethArb }, smart)).toBe(false);
     expect(smartWalletTypesRecipient({ from: usdcArb, to: ckbtc }, smart)).toBe(false);
     expect(smartWalletTypesRecipient({ from: usdcArb, to: usdcPol }, wallets)).toBe(false);
+    // from ICP to an EVM chain: the destination differs from the source, so a smart EVM wallet types it too (the rule, read literally)
+    expect(smartWalletTypesRecipient({ from: ckbtc, to: usdcArb }, smart)).toBe(true);
   });
   it('never fills the connected address there; a typed address is the recipient', () => {
     expect(quoteQueryOf({ ...form, to: usdcPol }, smart)?.recipient).toBeUndefined();
