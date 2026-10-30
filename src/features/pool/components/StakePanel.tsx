@@ -119,7 +119,8 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   const quoteError = fromIcp ? null : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
 
   const message = overBalance && from ? `Not enough ${from.symbol} in your wallet` : amountError ?? quoteError ?? undefined;
-  const ready = amount !== null && amount > 0n && !capped && !closed && !smart && !overBalance && !!view && !amountError
+  // from an EVM chain, only on the quote for the amount on screen (never the one before it while the new one loads)
+  const ready = amount !== null && amount > 0n && !capped && !closed && !smart && !overBalance && !!view && !amountError && !loading
     && (fromIcp ? !!caller : guardReady && !!signer);
   const label = amount === null || amount === 0n
     ? 'Set token amount to continue'

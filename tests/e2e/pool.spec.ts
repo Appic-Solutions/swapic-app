@@ -125,6 +125,8 @@ test.describe('Pool', () => {
     await expect(page.getByText('Approved ckUSDC')).toBeVisible();
     await expect(page.getByText('Staked 100.00 USDC')).toBeVisible();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered');
+    // the fake account never grows: the new total is never named from an old read
+    await expect(page.getByText(/Your stake is now/)).toHaveCount(0);
     await expect(page).toHaveURL(/\/pool\/stake/);
     await button(page, 'Back to pool').click();
     await expect(page.getByText('How it works')).toBeVisible();

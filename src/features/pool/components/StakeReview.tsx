@@ -7,6 +7,7 @@
 // reads "Confirm in your wallet" with the soft glow and the step checks in as the wallet answers; a "no" brings the button
 // back with "You cancelled in your wallet.". Once it has gone in, a short hold, then Your stake.
 import * as React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { AlertTriangle } from 'lucide-react';
 import { MotionCard, ConfirmButton } from '@/components/motion/parts';
@@ -16,7 +17,7 @@ import { TwoColumn } from '@/components/design/TwoColumn';
 import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
 import type { StepView } from '@/components/orders/types';
 import type { UiToken } from '@/components/ui/token-types';
-import { getOrders, getQuote, postStakeQuote, submitGasless, type StakeQuote } from '@/lib/api';
+import { getAccount, getOrders, getQuote, postStakeQuote, submitGasless, type StakeQuote } from '@/lib/api';
 import { chainLogo } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { MS, fade } from '@/lib/motion';
@@ -42,11 +43,14 @@ export interface StakeStart {
   apyLine: string;
 }
 
-/** What Your stake follows once it has started. From ICP: when Confirm was pressed and when each call returned. */
-export type StakeStarted =
+/** What Your stake follows once it has started. `accountBefore`: the account's shares read right before signing (null
+ *  when that read failed), so "Your stake is now" shows only once a later read has more. From ICP: when Confirm was
+ *  pressed and when each call returned; after a lost pull, the canister's shares right before the call. */
+export type StakeStarted = { accountBefore: bigint | null } & (
   | { kind: 'evm'; orderId: string }
   | { kind: 'icp'; staked: true; signedAt: number; approvedAt: number | null; stakedAt: number | null }
-  | { kind: 'icp'; staked: false; sharesBefore: bigint | null; signedAt: number; approvedAt: number | null };
+  | { kind: 'icp'; staked: false; sharesBefore: bigint | null; signedAt: number; approvedAt: number | null }
+);
 
 export function StakeNote({ icp }: { icp: boolean }) {
   return icp ? (
@@ -72,6 +76,8 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
   const [resume, setResume] = React.useState<(() => Promise<ExecOutcome>) | null>(null);
   // from ICP: when Confirm was pressed and when each wallet step's call returned (Your stake's step times)
   const times = React.useRef<{ signedAt: number; done: (number | null)[] }>({ signedAt: 0, done: [] });
+  const qc = useQueryClient();
+  const accountBefore = React.useRef<bigint | null>(null);
 
   const after = (out: ExecOutcome | StakeLanding) => {
     setBusy(false);
@@ -80,8 +86,10 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
       // it has gone in (or is on its way): a short hold for the last check to draw, then Your stake (nothing waits on this)
       setBusy(true);
       const t = times.current;
-      const s: StakeStarted = out.kind === 'landing' ? { kind: 'icp', staked: false, sharesBefore: out.sharesBefore, signedAt: t.signedAt, approvedAt: t.done[0] ?? null }
-        : icp ? { kind: 'icp', staked: true, signedAt: t.signedAt, approvedAt: t.done[0] ?? null, stakedAt: t.done[1] ?? null } : { kind: 'evm', orderId: out.activityId };
+      const before = accountBefore.current;
+      const s: StakeStarted = out.kind === 'landing' ? { kind: 'icp', staked: false, sharesBefore: out.sharesBefore, signedAt: t.signedAt, approvedAt: t.done[0] ?? null, accountBefore: before }
+        : icp ? { kind: 'icp', staked: true, signedAt: t.signedAt, approvedAt: t.done[0] ?? null, stakedAt: t.done[1] ?? null, accountBefore: before }
+          : { kind: 'evm', orderId: out.activityId, accountBefore: before };
       setTimeout(() => onStarted(s, review), MS.hold);
       return;
     }
@@ -121,6 +129,9 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
     if (resume) { after(await resume()); return; }
     setWasAdded(null);
     setStates(review.steps.map(() => 'todo'));
+    // the account's shares, read fresh right before signing (Your stake's new total waits for a read with more)
+    accountBefore.current = await qc.fetchQuery({ queryKey: ['account', start.owner], queryFn: () => getAccount(start.owner), staleTime: 0 })
+      .then((a) => BigInt(a.shares)).catch(() => null);
     times.current = { signedAt: Date.now(), done: [] };
     const onStep = (i: number, st: 'wait' | 'done' | 'fail') => {
       if (st === 'done') times.current.done[i] = Date.now();

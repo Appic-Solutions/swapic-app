@@ -7,7 +7,8 @@
 //   statusView), and it is Staked only when the order's status says delivered;
 // - from ICP: "Approved ckUSDC" checked once the approval returned, "Staked" once stake_icp returned; a stake whose pull
 //   answer was lost (landing) shows as on its way until pool_account shows more shares than right before the call.
-// "Your stake is now …" shows only once the account was read again after the stake went in.
+// "Your stake is now …" shows only once the account, read again after the stake went in, holds more shares than right
+// before signing (shares, not value: value moves with the pool's price).
 import * as React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@icp-sdk/core/principal';
@@ -17,7 +18,7 @@ import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { CopyButton, useCopied } from '@/components/orders/CopyButton';
 import { CheckIcon, ClockIcon, PlusIcon } from '@/components/icons';
 import { ICP_CHAIN } from '@/config';
-import type { OrderStatusAnswer } from '@/lib/api';
+import { getAccount, type OrderStatusAnswer } from '@/lib/api';
 import { clockText, dayText, short, tookText } from '@/lib/copy/format';
 import { chainLogo } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
@@ -93,14 +94,22 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
     };
   }
 
-  // once it is in, the account is read again: the pool page and the line below show the new total (only once that read
-  // has come back)
+  // once it is in, the account (and its history, the pool page's chart) is read again, every 5 s until it holds more shares
+  // than right before signing; only then the line below names the new total
+  const before = started.accountBefore;
+  const after = useQuery({
+    queryKey: ['account', start.owner],
+    queryFn: () => getAccount(start.owner),
+    enabled: !!staked,
+    refetchInterval: (q) => (before !== null && q.state.data && BigInt(q.state.data.shares) > before ? false : 5_000),
+  });
+  const fresh = !!staked && before !== null && !!after.data && BigInt(after.data.shares) > before;
   const asked = React.useRef(false);
-  const [fresh, setFresh] = React.useState(false);
   React.useEffect(() => {
     if (!staked || asked.current) return;
     asked.current = true;
-    void qc.invalidateQueries({ queryKey: ['account', start.owner] }).then(() => setFresh(true));
+    void qc.invalidateQueries({ queryKey: ['account', start.owner] });
+    void qc.invalidateQueries({ queryKey: ['account-history', start.owner] });
   }, [staked, qc, start.owner]);
   const { stakes } = useMyStakes();
   const total = combine(stakes).valueUsdc;

@@ -125,8 +125,14 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const [stakeStarted, setStakeStarted] = React.useState<{ s: StakeStarted; review: StakeReviewData } | null>(null);
   const [withdrawStart, setWithdrawStart] = React.useState<WithdrawStart | null>(null);
   const qc = useQueryClient();
-  // leaving Your stake: the stake counts in Your stake (the account read again)
-  const leaveStatus = (v: PoolView) => { if (stakeStart) void qc.invalidateQueries({ queryKey: ['account', stakeStart.owner] }); go(v); };
+  // leaving Your stake: the stake counts in Your stake and the chart (the account and its history read again)
+  const leaveStatus = (v: PoolView) => {
+    if (stakeStart) {
+      void qc.invalidateQueries({ queryKey: ['account', stakeStart.owner] });
+      void qc.invalidateQueries({ queryKey: ['account-history', stakeStart.owner] });
+    }
+    go(v);
+  };
   const apy = pool.data ? tiles(pool.data).apy : null;
   const stake = both ? live.find((s) => s.kind === kind) : live[0] ?? stakes.find((s) => s.kind === 'evm');
   const icpStake = stake?.kind === 'icp';
