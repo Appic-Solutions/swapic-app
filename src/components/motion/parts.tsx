@@ -85,6 +85,8 @@ export interface MorphFrameProps {
   viewClass?: string;
   /** Renders a view's content (its panels use PanelBox). */
   children: (view: string) => React.ReactNode;
+  /** This change is a calm fade: the whole old view fades out, the whole new one fades in, the panel eases to its size; nothing flies. */
+  calm?: boolean;
 }
 
 /**
@@ -93,7 +95,7 @@ export interface MorphFrameProps {
  * fades out on top while the new one fades in, and cards with the same
  * layoutId glide from the old spot to the new one.
  */
-export function MorphFrame({ view, wide, frameClass, viewClass, children }: MorphFrameProps) {
+export function MorphFrame({ view, wide, frameClass, viewClass, children, calm }: MorphFrameProps) {
   const frame = React.useRef<HTMLDivElement>(null);
   const inner = React.useRef<HTMLDivElement>(null);
   const height = useMotionValue<number | 'auto'>('auto');
@@ -143,7 +145,7 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children }: Morp
     before.current = view;
     if (was === view) return;
     if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
-    if (reduced || !frame.current || !inner.current) return;
+    if (reduced || calm || !frame.current || !inner.current) return;
     const pick = (v: string) => [...inner.current!.children].find((el) => (el as HTMLElement).dataset.view === v);
     const from = pick(was), to = pick(view);
     if (from && to) return flyMatching(from, to, frame.current);
@@ -156,8 +158,9 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children }: Morp
         className={cn(BOX, frameClass ?? cn(SWAP_FRAME, wide && 'lg:max-w-[1060px]'), 'md:p-0', 'transition-[max-width]', tw.big, moving && 'overflow-hidden')}
       >
         <div ref={inner} className="w-full">
-          <AnimatePresence mode="popLayout">
-            <Enter key={view} data-view={view} skip={first} className={cn(VIEW, viewClass)} variants={viewVariants}>
+          {/* custom: the leaving view also takes the latest calm, so it fades out whole. */}
+          <AnimatePresence mode="popLayout" custom={calm}>
+            <Enter key={view} data-view={view} skip={first} custom={calm} className={cn(VIEW, viewClass)} variants={viewVariants}>
               {children(view)}
             </Enter>
           </AnimatePresence>

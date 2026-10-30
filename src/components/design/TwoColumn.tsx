@@ -18,11 +18,12 @@ const BACK = '[&_button]:transition [&_button]:duration-150 [&_button:hover]:opa
 // inPlace (the Swap panel's Review swap and Your swap, approved motion 2026-10-29): inside a MorphFrame its Box is the
 // frame's and its parts fade in place; the back link and the button answer hover and press. Without it the layout is the
 // static one (the Pool's motion is not approved yet).
-export function TwoColumn({ title, onBack, left, right, action, inPlace }: { title: string; onBack?: () => void; left: React.ReactNode; right: React.ReactNode; action: React.ReactNode; inPlace?: boolean }) {
+// longTitle (Review withdrawal): the title one size smaller on phones, so it clears Back.
+export function TwoColumn({ title, onBack, left, right, action, inPlace, longTitle }: { title: string; onBack?: () => void; left: React.ReactNode; right: React.ReactNode; action: React.ReactNode; inPlace?: boolean; longTitle?: boolean }) {
   if (inPlace) {
     return (
       <PanelBox className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
-        <motion.div variants={fade} className={BACK}><BoxHeader title={title} onBack={onBack} /></motion.div>
+        <motion.div variants={fade} className={cn(BACK, longTitle && 'max-md:[&_p]:text-xl')}><BoxHeader title={title} onBack={onBack} /></motion.div>
         <div className="flex w-full flex-col gap-x-4 gap-y-4 lg:flex-row lg:items-stretch">
           <div data-testid="col-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
             {left}

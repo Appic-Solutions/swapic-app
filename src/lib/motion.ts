@@ -52,6 +52,8 @@ export const MS = {
   copied: 1000,
   /** Pause after the last wallet check draws, before Your swap. */
   hold: 400,
+  /** A swap or stake in progress moves on one step this often (prototypes). */
+  tick: 2500,
 };
 
 /** Cubic bezier curves. */
@@ -93,11 +95,17 @@ export const page: Variants = {
   shown: { opacity: 1, x: 0, transition: T.enter },
   gone: { opacity: 0, x: 16, transition: T.exit },
 };
-/** A view inside the in place panel: its fading parts come in together, just after the old ones start leaving. */
+/**
+ * A view inside the in place panel (custom: calm). Usually its fading parts
+ * come in together, just after the old ones start leaving. Calm (Jeff's pick
+ * for the Stake and Withdraw reviews and status pages): the whole old view
+ * fades out (180 ms), then the whole new one fades in (250 ms), so both
+ * columns change together and the two never show at once; nothing flies.
+ */
 export const view: Variants = {
-  hidden: {},
-  shown: { transition: { delayChildren: DUR.lead } },
-  gone: {},
+  hidden: (calm?: boolean) => (calm ? { opacity: 0 } : {}),
+  shown: (calm?: boolean) => (calm ? { opacity: 1, transition: { ...T.enter, delay: DUR.exit } } : { transition: { delayChildren: DUR.lead } }),
+  gone: (calm?: boolean) => (calm ? { opacity: 0, transition: T.exit } : {}),
 };
 /** Menus: grow out of the button that opened them (set transformOrigin there). */
 export const menu: Variants = {
