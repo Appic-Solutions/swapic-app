@@ -65,7 +65,8 @@ import type { EvmSigner } from '@/lib/wallets';
 import { isUserRejection } from '@/lib/wallets/rejection';
 import { sendCheckedEvm, type ExecDeps, type ExecOutcome } from '@/features/swap/execute';
 import { verifyEvmRoute } from '@/features/swap/guards/evm';
-import { loadGuardContext } from '@/features/swap/guards/context';
+import { loadGuardContext, type GuardContext } from '@/features/swap/guards/context';
+import type { CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import type { PickedOption } from '@/features/swap/options';
 import { etaText, sumFees } from '@/features/swap/view';
@@ -100,11 +101,27 @@ export function stakeView(o: PickedOption): { added: bigint; addedText: string; 
   return { added, addedText: formatUsd(added).slice(1), feeText: formatUsd(sumFees(o.route.fees)), readyText: etaText(o.route.etaSeconds) };
 }
 
+/**
+ * The stake route read as the canister reads it (verifyEvmRoute's stake branch, the owner and the payer the connected
+ * address): Review stake draws its numbers and wallet steps from this, and executeStakeEvm signs only what it returns.
+ * Throws GuardError.
+ */
+export function checkStakeRoute(i: { quote: StakeQuote; option: PickedOption; from: UiToken; amount: bigint; owner: `0x${string}`; guard: GuardContext | undefined; nowSec: number }): CheckedEvmRoute {
+  return verifyEvmRoute({
+    quote: asQuote(i.quote), route: i.option.route, mode: i.option.mode as 'gasless' | 'userPays', payer: i.owner, recipient: i.owner,
+    fromToken: i.from.address, toToken: CKUSDC, amountIn: i.amount, guard: i.guard, nowSec: i.nowSec, stakeOwner: i.owner,
+  });
+}
+
 /** The stake answer has no toChain/toToken (always into the pool, ckUSDC on ICP: api/mod.rs:563-564); the check reads them. */
 const asQuote = (q: StakeQuote): Quote => ({ ...q, toChain: ICP_CHAIN, toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } });
 
 export async function executeStakeEvm(
-  i: { from: UiToken; amount: bigint; evm: EvmSigner; shownAdded: bigint; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  i: {
+    from: UiToken; amount: bigint; evm: EvmSigner; shownAdded: bigint; onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
+    /** Review stake showed an approval step (or not): a fresh route that differs comes back as new terms, never signed. */
+    shownApproval?: boolean;
+  },
   d: ExecDeps & { postStakeQuote: typeof postStakeQuote },
 ): Promise<ExecOutcome> {
   let q: StakeQuote;
@@ -119,11 +136,9 @@ export async function executeStakeEvm(
   try {
     // the canister's anchors, fresh (get_config, Eco's prover, its EVM address); every step read as the canister reads it
     const guard = await loadGuardContext(d.icp);
-    const checked = verifyEvmRoute({
-      quote: asQuote(q), route: option.route, mode: option.mode as 'gasless' | 'userPays', payer: i.evm.address, recipient: i.evm.address,
-      fromToken: i.from.address, toToken: CKUSDC, amountIn: i.amount,
-      guard, nowSec: Math.floor(d.nowMs() / 1000), stakeOwner: i.evm.address,
-    });
+    const checked = checkStakeRoute({ quote: q, option, from: i.from, amount: i.amount, owner: i.evm.address, guard, nowSec: Math.floor(d.nowMs() / 1000) });
+    // the wallet steps on screen must be the ones the wallet will be asked for
+    if (i.shownApproval !== undefined && !!checked.approval !== i.shownApproval) return { kind: 'newPrice', quote: asQuote(q), option };
     return await sendCheckedEvm(checked, i.evm, d, i);
   } catch (e) {
     if (e instanceof GuardError) { captureFailure(e, `guard:${e.rule}`); return { kind: 'failed', message: GUARD_MESSAGE }; }
@@ -135,7 +150,7 @@ export async function executeStakeIcp(
   i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
   icp: IcpClient,
   clock: Clock = realClock,
-): Promise<ExecOutcome | { kind: 'landing' }> {
+): Promise<ExecOutcome | StakeLanding> {
   const [pool, fee] = await Promise.all([icp.poolState(), icp.ledgerFee(CKUSDC)]);
   if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
   const room = pool.tvlCap > pool.totalAssets ? pool.tvlCap - pool.totalAssets : 0n;
@@ -154,7 +169,11 @@ export async function executeStakeIcp(
   return callStake(i, icp, approveAmount, clock);
 }
 
-async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void }, icp: IcpClient, approveAmount: bigint, clock: Clock): Promise<ExecOutcome | { kind: 'landing' }> {
+/** A stake whose pull answer was lost on the canister's side: it is on its way; `sharesBefore` is the owner's shares read
+ *  right before the call (null when that read failed), so the screen checks it in only once pool_account shows more. */
+export interface StakeLanding { kind: 'landing'; sharesBefore: bigint | null }
+
+async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void }, icp: IcpClient, approveAmount: bigint, clock: Clock): Promise<ExecOutcome | StakeLanding> {
   // the records before the call: the canister's shares for this owner, the ledger's balance (a pull takes amount + fee)
   const owner = { Icp: { owner: i.caller.principal, subaccount: [] as [] } };
   const [sharesBefore, balanceBefore] = await Promise.all([
@@ -169,7 +188,7 @@ async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: n
   } catch (e) {
     if (isUserRejection(e)) return { kind: 'rejected' };
     if (e instanceof PoolErrorFailure) {
-      if ('Unavailable' in e.err) return { kind: 'landing' };
+      if ('Unavailable' in e.err) return { kind: 'landing', sharesBefore };
       i.onStep(1, 'fail');
       if ('AboveTvlCap' in e.err) return { kind: 'failed', message: `You can stake up to ${formatUsdWhole(roomAfterCap(e.err.AboveTvlCap, i.amount))} right now` };
       return { kind: 'failed', message: poolErrorMessage(e.err) };
@@ -182,7 +201,7 @@ async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: n
       if (shares > sharesBefore || balance + i.amount <= balanceBefore) return 'done';
       return shares === sharesBefore && balance === balanceBefore ? 'nothing' : 'unclear';
     }, clock, clock.nowMs());
-    if (seen === 'done') return { kind: 'landing' };
+    if (seen === 'done') return { kind: 'landing', sharesBefore };
     if (seen === 'unclear') return cannotTell;
     const left = await icp.allowance(CKUSDC, i.caller.principal).catch(() => null);
     if (left === approveAmount) return { kind: 'unknown', message: 'Nothing was taken. Try again.', resume: () => callStake(i, icp, approveAmount, clock) as Promise<ExecOutcome> };
@@ -234,11 +253,18 @@ export async function executeWithdrawIcp(
 
 type WithdrawDeps = { icp: IcpClient; postWithdrawQuote: typeof postWithdrawQuoteFn; postWithdraw: typeof postWithdrawFn; nowMs(): number; used: typeof usedNonces };
 
+/** The fresh record pays less than Review withdrawal showed: nothing was signed; the review shows these terms instead. */
+export interface WithdrawNewTerms { kind: 'newTerms'; checked: CheckedWithdraw }
+
 export async function executeWithdrawEvm(
-  i: { usdc: bigint; dstChain: string; evm: EvmSigner; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  i: {
+    usdc: bigint; dstChain: string; evm: EvmSigner; onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
+    /** The least the review showed (the checked record's minOut): a fresh record under it is never signed. */
+    shownMinOut?: bigint;
+  },
   d: WithdrawDeps,
   retried = false,
-): Promise<ExecOutcome> {
+): Promise<ExecOutcome | WithdrawNewTerms> {
   const [pool, cfg] = await Promise.all([d.icp.poolState(), d.icp.getConfig()]);
   if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
   let checked: CheckedWithdraw;
@@ -256,6 +282,7 @@ export async function executeWithdrawEvm(
     if (e instanceof GuardError) { captureFailure(e, `guard:${e.rule}`); return { kind: 'failed', message: GUARD_MESSAGE }; }
     return { kind: 'failed', message: userMessage(e) };
   }
+  if (i.shownMinOut !== undefined && checked.minOut < i.shownMinOut) return { kind: 'newTerms', checked };
   let signature: Uint8Array;
   try {
     i.onStep(0, 'wait');

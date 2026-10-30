@@ -47,13 +47,14 @@ describe('executeStakeIcp', () => {
     const capped = client({ balance: async () => 2_000_000_000n, stakeIcp: vi.fn(async () => { throw new PoolErrorFailure({ AboveTvlCap: { cap: 10_000_000_000n, would_be: 10_500_000_000n } }); }) });
     expect(await executeStakeIcp({ amount: 1_000_000_000n, caller, onStep: () => {} }, capped)).toEqual({ kind: 'failed', message: 'You can stake up to $500 right now' });
     const landing = client({ stakeIcp: vi.fn(async () => { throw new PoolErrorFailure({ Unavailable: 'pull answer lost' }); }) });
-    expect(await executeStakeIcp({ amount: 1_000_000n, caller, onStep: () => {} }, landing)).toEqual({ kind: 'landing' });
+    // it carries the shares read right before the call, so Your stake checks it in only once they grew
+    expect(await executeStakeIcp({ amount: 1_000_000n, caller, onStep: () => {} }, landing)).toEqual({ kind: 'landing', sharesBefore: 0n });
   });
   it('a lost answer is judged from the shares and the balance, never the allowance alone (plan check M4)', async () => {
     const lost = vi.fn(async () => { throw new TypeError('fetch failed'); });
     // the shares grew: the stake went in
     const grew = client({ stakeIcp: lost, poolAccount: vi.fn().mockResolvedValueOnce({ shares: 0n, valueUsdc: 0n }).mockResolvedValue({ shares: 5n, valueUsdc: 5n }) });
-    expect(await executeStakeIcp({ amount: 1_000_000n, caller, onStep: () => {} }, grew, clockAt(0))).toEqual({ kind: 'landing' });
+    expect(await executeStakeIcp({ amount: 1_000_000n, caller, onStep: () => {} }, grew, clockAt(0))).toEqual({ kind: 'landing', sharesBefore: 0n });
     // an approval that ran out reads 0, and nothing moved: nothing was taken, said only after 6 minutes, no retry without a new approval
     const clock = clockAt(0);
     const expired = client({ stakeIcp: lost, allowance: async () => 0n });
@@ -158,6 +159,18 @@ describe('executeWithdrawEvm', () => {
     const other = deps({ getConfig: async () => ({ ...(await deps().icp.getConfig()), chains: new Map([[8453, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: '0x', runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }]]) }) });
     expect(await run(other)).toEqual({ kind: 'failed', message: 'This quote could not be checked. Get a new quote and try again.' });
     expect(other.icp.withdrawEvm).not.toHaveBeenCalled();
+  });
+  it('a fresh record paying less than the review showed is never signed: it comes back as new terms', async () => {
+    const d = deps();
+    const signed = vi.spyOn(evm, 'signTypedData');
+    const out = await executeWithdrawEvm({ usdc: 5_000_000n, dstChain: 'eip155:42161', evm: evm as never, onStep: () => {}, shownMinOut: 4_949_001n }, d);
+    expect(out.kind).toBe('newTerms');
+    expect(out.kind === 'newTerms' && out.checked.minOut).toBe(4_949_000n);
+    expect(signed).not.toHaveBeenCalled();
+    expect(d.icp.withdrawEvm).not.toHaveBeenCalled();
+    // the same floor (or a better one) is signed as before
+    expect(await executeWithdrawEvm({ usdc: 5_000_000n, dstChain: 'eip155:42161', evm: evm as never, onStep: () => {}, shownMinOut: 4_949_000n }, deps())).toEqual({ kind: 'started', activityId: 'payout-41' });
+    signed.mockRestore();
   });
   it('refuses while the pool is closed, before any quote', async () => {
     const d = deps({ poolState: async () => ({ open: false, totalAssets: 1n, totalShares: 1n, tvlCap: 1n }) });

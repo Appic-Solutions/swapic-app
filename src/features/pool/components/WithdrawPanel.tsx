@@ -34,7 +34,7 @@ import type { ExecOutcome } from '@/features/swap/execute';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { usePool, type MyStake } from '../data';
-import { CKUSDC, executeWithdrawEvm, executeWithdrawIcp, POOL_PAUSED } from '../flows';
+import { CKUSDC, executeWithdrawEvm, executeWithdrawIcp, POOL_PAUSED, type WithdrawNewTerms } from '../flows';
 import { USDC_LOGO } from '../usdc';
 import { usedNonces } from '../used-nonces';
 import { checkWithdrawQuote, type CheckedWithdraw } from '../withdraw-sig';
@@ -143,7 +143,7 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
   const label = amount === null || amount === 0n ? 'Set token amount to continue' : !wallet ? 'Connect wallet' : busy ? undefined : fromIcp ? 'Withdraw' : 'Sign withdrawal';
   const enabled = busy || (!wallet && amount !== null && amount > 0n) || ready;
 
-  const after = (out: ExecOutcome) => {
+  const after = (out: ExecOutcome | WithdrawNewTerms) => {
     setBusy(false);
     setAsking(false);
     if (out.kind === 'started') {
