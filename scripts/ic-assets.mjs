@@ -9,10 +9,14 @@
 // name. tests/e2e/csp.spec.ts serves the built out/ with these exact headers, opens every tab and both wallet menus, and
 // fails on any violation and on any API request carrying sentry-trace or baggage. scripts/check-build.mjs fails when out/
 // holds E2E-FAKE-MARKER; it is first shown to fail on the e2e build. Tests: scripts/ic-assets.test.mjs.
+// Deep links with a trailing slash (staging 2026-10-31: /pool/ showed the Swap page). The asset canister serves /pool from
+// pool.html, but /pool/ only from pool/index.html, and answers index.html (Swap) when that is missing. slashAliases writes
+// <route>/index.html beside every <route>.html the export made, the same bytes, so both forms open the right page; the URL
+// style of the app (no trailing slash) does not change. Tests: scripts/ic-assets.test.mjs.
 // Usage: node scripts/ic-assets.mjs test|prod   (after `next build`, writes out/.ic-assets.json5 and out/.well-known/ic-domains)
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const WALLETCONNECT = [
@@ -53,6 +57,23 @@ function* htmlFiles(dir) {
   }
 }
 
+const NOT_ROUTES = new Set(['index.html', '404.html', '_not-found.html']);
+/** For every <route>.html of the export (not index, 404 or _not-found, nothing under _next), <route>/index.html with the same
+ *  bytes, unless one is there already. Returns the files written, relative to outDir. */
+export function slashAliases(outDir) {
+  const written = [];
+  for (const f of htmlFiles(outDir)) {
+    const rel = relative(outDir, f);
+    if (NOT_ROUTES.has(basename(f)) || rel.startsWith('_next')) continue;
+    const target = join(dirname(f), basename(f, '.html'), 'index.html');
+    if (existsSync(target)) continue;
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(f, target);
+    written.push(relative(outDir, target));
+  }
+  return written.sort();
+}
+
 /** sha256 of every inline <script> body the build wrote, deduplicated. */
 export function inlineScriptHashes(outDir) {
   const set = new Set();
@@ -71,6 +92,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const out = join(root, 'out');
   const { configFor } = await import(new URL('./config-json.mjs', import.meta.url));
   const cfg = configFor(env);
+  const aliases = slashAliases(out);
   const csp = cspFor(cfg, inlineScriptHashes(out));
   const headers = {
     'Content-Security-Policy': csp,
@@ -89,5 +111,5 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(join(out, '.ic-assets.json5'), JSON.stringify(assets, null, 2) + '\n');
   mkdirSync(join(out, '.well-known'), { recursive: true });
   writeFileSync(join(out, '.well-known', 'ic-domains'), DOMAINS[env] + '\n');
-  console.log(`headers for ${env}: ${inlineScriptHashes(out).length} inline script hashes; ic-domains ${DOMAINS[env]}`);
+  console.log(`headers for ${env}: ${inlineScriptHashes(out).length} inline script hashes; ic-domains ${DOMAINS[env]}; ${aliases.length} trailing slash pages`);
 }
