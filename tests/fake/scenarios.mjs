@@ -212,6 +212,12 @@ export const SCENARIOS = {
   pool: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': evmStakeOnly }, clockAt: POOL_CLOCK },
   // no stake in either wallet (plan 3 Task 3): the 5.5 shape with zeros; derived, manifest
   'no-stake': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': emptyAccount }, clockAt: POOL_CLOCK },
+  // a brand new pool, as staging answered on 2026-10-31 (no shares yet: every sharePrice null, no APY, no activity); real
+  'empty-pool': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common,
+    '/v2/pool': real('staging/pool.json'),
+    '/v2/pool/history': (u) => ({ status: 200, file: real(u.searchParams.get('range') === '7d' ? 'staging/pool-history-7d.json' : 'staging/pool-history-30d.json') }),
+    '/v2/pool/activity': real('staging/pool-activity.json'),
+    '/v2/pool/accounts/*': emptyAccount }, clockAt: POOL_CLOCK },
   // both wallets hold a stake (plan 3 Task 8, provisional): the EVM address the 5.5 example, the ICP principal the 5.5 shape
   // with its own account and nothing waiting (an ICP withdrawal pays at once); derived, manifest
   'both-stakes': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/pool/accounts/*': (u) => {

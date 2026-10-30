@@ -28,6 +28,25 @@ test.describe('Pool', () => {
     await expect(page.getByText(/in line, about/).first()).toBeVisible();
   });
 
+  test('a brand new pool loads (real staging answers: no share price, no APY, no activity yet)', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await open(page, '/pool', 'empty-pool');
+    await expect(page.getByText('Swapic Pool')).toBeVisible();
+    await expect(page.getByText('Total staked')).toBeVisible();
+    await expect(page.getByText('$0', { exact: true })).toBeVisible();
+    // no rate yet: the APY tile and line are left out, and the chart names no made up worth or gain
+    await expect(page.getByText('APY, 7 days')).toHaveCount(0);
+    await expect(page.getByText('what $1,000 staked at launch is worth')).toBeVisible();
+    await expect(page.getByText('No stake yet')).toBeVisible();
+    // every timeframe, and the earnings chart, on the same empty answers
+    for (const tf of ['1D', '1W', '1Y', '1M']) await page.getByText(tf, { exact: true }).click();
+    await expect(page.getByText("This page couldn't load")).toHaveCount(0);
+    expect(errors).toEqual([]);
+    await page.getByRole('link', { name: 'Stake', exact: true, includeHidden: true }).click();
+    await expect(page.getByText('Added to your stake')).toBeVisible();
+  });
+
   test('stake above the room says how much fits, before any wallet step', async ({ page }) => {
     await open(page, '/pool/stake');
     await page.locator('input[type=number]').fill('2500');

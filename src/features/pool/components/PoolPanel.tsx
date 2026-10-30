@@ -79,10 +79,12 @@ export function PoolPanel({ onStake, onWithdraw, freshPayout }: { onStake: () =>
         <div className="flex flex-col gap-y-2">
           <p className="text-xl font-bold text-white md:text-2xl">How it works</p>
           <div className={statCard}>
-            <div>
-              <p className={statLabel}>APY</p>
-              <p className={statValue}>{t.apy} {apy && <span className="text-sm font-medium text-[#898989]">{apy30 ? `7 days · ${apy30} 30 days` : '7 days'}</span>}</p>
-            </div>
+            {apy && (
+              <div>
+                <p className={statLabel}>APY</p>
+                <p className={statValue}>{apy} <span className="text-sm font-medium text-[#898989]">{apy30 ? `7 days · ${apy30} 30 days` : '7 days'}</span></p>
+              </div>
+            )}
             <div>
               <p className={statLabel}>How you earn</p>
               <p className="text-sm text-white">Swaps that use the pool pay a small fee, and all of it goes to stakers. Your stake grows as those fees come in.</p>

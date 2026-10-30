@@ -58,16 +58,33 @@ export function stakeSeries(hs: AccountHistory[], tf: Timeframe) {
   return [...by.entries()].sort(([a], [b]) => a - b).map(([t, v]) => ({ date: label(t, tf), value: dollars(v) }));
 }
 
-export function launchSeries(h: PoolHistory, tf: Timeframe) {
-  const first = h.points[0] ? BigInt(h.points[0].sharePrice) : 0n;
-  if (first === 0n) return [];
-  return h.points.map((p) => ({ date: label(p.t, tf), value: dollars((1_000_000_000n * BigInt(p.sharePrice)) / first) }));
+/** The points with a share price: none exists while the pool has no shares (null before the first stake); a zero price
+ *  is no price either. The chart draws through the points left out, as through a missing snapshot (contract 5.2). */
+function priced(h: PoolHistory): { t: number; price: bigint }[] {
+  return h.points.flatMap((p) => (p.sharePrice === null || p.sharePrice === undefined || BigInt(p.sharePrice) === 0n ? [] : [{ t: p.t, price: BigInt(p.sharePrice) }]));
 }
 
+/** What $1,000 staked at the first priced point is worth at each one; empty with no price yet. */
+export function launchSeries(h: PoolHistory, tf: Timeframe) {
+  const ps = priced(h);
+  const first = ps[0]?.price;
+  if (first === undefined) return [];
+  return ps.map((p) => ({ date: label(p.t, tf), value: dollars((1_000_000_000n * p.price) / first) }));
+}
+
+/** What $1,000 staked at the first priced point is worth at the last one (micro USDC); null with no price yet. */
+export function launchWorth(h: PoolHistory): bigint | null {
+  const ps = priced(h);
+  const a = ps[0], b = ps.at(-1);
+  return a && b ? (1_000_000_000n * b.price) / a.price : null;
+}
+
+/** The share price's growth from the first priced point to the last (basis points); null with no price yet. */
 export function launchGainBps(h: PoolHistory): number | null {
-  const a = h.points[0], b = h.points[h.points.length - 1];
-  if (!a || !b || BigInt(a.sharePrice) === 0n) return null;
-  return Number(((BigInt(b.sharePrice) - BigInt(a.sharePrice)) * 10_000n) / BigInt(a.sharePrice));
+  const ps = priced(h);
+  const a = ps[0], b = ps.at(-1);
+  if (!a || !b) return null;
+  return Number(((b.price - a.price) * 10_000n) / a.price);
 }
 
 export function earningsSeries(h: PoolHistory, tf: Timeframe) {

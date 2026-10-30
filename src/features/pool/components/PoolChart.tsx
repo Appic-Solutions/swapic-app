@@ -11,7 +11,7 @@ import { formatBps, formatUsd } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { tw } from '@/lib/motion';
 import { SlidingPill } from './parts';
-import { combine, earningsSeries, launchGainBps, launchSeries, stakeSeries, usePoolHistory, useMyHistory, type MyStake, type Timeframe } from '../data';
+import { combine, earningsSeries, launchGainBps, launchSeries, launchWorth, stakeSeries, usePoolHistory, useMyHistory, type MyStake, type Timeframe } from '../data';
 
 const TFS: Timeframe[] = ['1D', '1W', '1M', '1Y'];
 const drawn = (v: number) => formatUsd(BigInt(Math.round(v * 1e6)));
@@ -38,14 +38,14 @@ export function PoolChart({ stakes, nowSec }: { stakes: MyStake[]; nowSec: numbe
     const lastT = Math.max(...histories.flatMap((h) => h.points.map((p) => p.t)), 0);
     last = histories.length ? histories.reduce((a, h) => a + BigInt(h.points.find((p) => p.t === lastT)?.valueUsdc ?? '0'), 0n) : null;
   } else if (history) {
+    // a new pool has no share price yet (null before the first stake): no line and no number, never a crash
     series = launchSeries(history, tf);
-    const first = history.points[0] ? BigInt(history.points[0].sharePrice) : 0n;
-    const end = history.points.at(-1);
-    last = first > 0n && end ? (1_000_000_000n * BigInt(end.sharePrice)) / first : null;
+    last = launchWorth(history);
   }
   React.useEffect(() => setHover(null), [tf, metric, has]);
   const onHover = (v: number) => setHover(v === series.at(-1)?.value ? null : v);
-  const headline = hover !== null ? drawn(hover) : last !== null ? formatUsd(last) : '$0.00';
+  // no number yet (a new pool before its first stake): the words alone, never a made up $0.00
+  const headline = hover !== null ? drawn(hover) : last !== null ? formatUsd(last) : null;
   const gain = history ? launchGainBps(history) : null;
   const green = metric !== 'stake' ? null
     : has ? (mine.earned !== null && mine.since !== null ? `${mine.earned >= 0n ? '+' : ''}${formatUsd(mine.earned)} since ${dayText(mine.since * 1000, nowSec * 1000)}` : null)
@@ -55,7 +55,7 @@ export function PoolChart({ stakes, nowSec }: { stakes: MyStake[]; nowSec: numbe
     <div className="flex w-full flex-col gap-y-4">
       <p className="text-2xl font-semibold text-white md:text-3xl">
         {headline}
-        <span className="ml-2 text-sm font-medium text-[#898989]">{metric === 'earnings' ? 'earned by stakers' : has ? 'your stake' : 'what $1,000 staked at launch is worth'}</span>
+        <span className={cn('text-sm font-medium text-[#898989]', headline !== null && 'ml-2')}>{metric === 'earnings' ? 'earned by stakers' : has ? 'your stake' : 'what $1,000 staked at launch is worth'}</span>
         {green && <span className="ml-2 text-sm font-medium text-[#12b76a]">{green}</span>}
       </p>
       <div className="flex w-full flex-col justify-between gap-y-8">

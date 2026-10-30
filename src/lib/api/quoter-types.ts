@@ -154,13 +154,15 @@ export interface Pocket { free: string; reserved: string; inFlight: string }
 export interface PoolStats { apy7dBps: number | null; apy30dBps: number | null; earned24h: string; snapshotAt: number }
 export interface PoolAnswer {
   open: boolean; closedReason?: string; openForSwaps: boolean; base: Pocket; icp: Pocket;
-  totalAssets: string; totalShares: string; sharePrice?: string; tvlCap: string; perSwapCap: string;
+  /** `sharePrice` is left out or null while no shares exist (a new, empty pool: staging 2026-10-31). */
+  totalAssets: string; totalShares: string; sharePrice?: string | null; tvlCap: string; perSwapCap: string;
   premiumBps: number; ckusdcLedger: string; icpTokens: { ledger: string; icpswapPool: string }[];
   stats?: PoolStats | null;
 }
-/** contract 5.2 */
+/** contract 5.2. `points[].sharePrice` is null while no shares exist (before the first stake; staging answers so, recorded
+ *  in tests/fixtures/real/staging/pool-history-30d.json). */
 export type PoolRange = '1d' | '7d' | '30d' | '90d' | 'all';
-export interface PoolHistory { range: PoolRange; stepSeconds: number; points: { t: number; sharePrice: string; totalAssets: string; earned: string }[] }
+export interface PoolHistory { range: PoolRange; stepSeconds: number; points: { t: number; sharePrice: string | null; totalAssets: string; earned: string }[] }
 /** contract 5.4 */
 export interface PoolActivityItem {
   id: string; kind: 'stake' | 'withdraw' | 'swap'; at: number; usdc: string; earned: string | null;

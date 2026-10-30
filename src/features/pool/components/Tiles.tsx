@@ -6,8 +6,9 @@ import { tiles } from '../data';
 
 export function Tiles({ pool }: { pool: PoolAnswer }) {
   const t = tiles(pool);
+  // no rate yet (contract 5.3: null until the snapshots span 7 days): the APY tile is left out, never "0%"
   const rows: [string, string, string | null][] = [
-    ['APY, 7 days', t.apy, t.apySub],
+    ...(t.apy === 'Not yet' ? [] : [['APY, 7 days', t.apy, t.apySub] as [string, string, string | null]]),
     ['Total staked', t.staked, 'by all stakers'],
     ['Earned, 24H', t.earned24h, 'paid to stakers from swaps'],
   ];

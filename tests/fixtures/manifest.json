@@ -274,7 +274,7 @@
   {
     "path": "tests/fixtures/derived/balances-42161.json",
     "kind": "derived",
-    "source": "contract 5.1 example (/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md) moved to Arbitrum: chain, Arbitrum USDC 0xaf88\u20265831",
+    "source": "contract 5.1 example (/Users/jeff/appic/docs/superpowers/plans/2026-10-28-frontend-api-contract.md) moved to Arbitrum: chain, Arbitrum USDC 0xaf88…5831",
     "recordedAt": "2026-10-29",
     "replacedBy": "plan 4 Task 5",
     "note": "the Swap click-through pays from USDC on Arbitrum; the contract example is Base only"
@@ -430,5 +430,45 @@
     "recordedAt": "2026-10-29",
     "replacedBy": null,
     "note": "the guard (approvalSpender) must keep that route off the screen"
+  },
+  {
+    "path": "tests/fixtures/real/staging/pool.json",
+    "kind": "real",
+    "source": "https://api-test.swapic.xyz/v2/pool",
+    "recordedAt": "2026-10-30T22:25:51Z",
+    "replacedBy": null,
+    "note": "real (staging, 2026-10-31): the brand new, empty pool (no shares yet: sharePrice null, no APY, no activity)"
+  },
+  {
+    "path": "tests/fixtures/real/staging/pool-history-30d.json",
+    "kind": "real",
+    "source": "https://api-test.swapic.xyz/v2/pool/history?range=30d",
+    "recordedAt": "2026-10-30T22:25:51Z",
+    "replacedBy": null,
+    "note": "real (staging, 2026-10-31): the brand new, empty pool (no shares yet: sharePrice null, no APY, no activity)"
+  },
+  {
+    "path": "tests/fixtures/real/staging/pool-history-7d.json",
+    "kind": "real",
+    "source": "https://api-test.swapic.xyz/v2/pool/history?range=7d",
+    "recordedAt": "2026-10-30T22:25:51Z",
+    "replacedBy": null,
+    "note": "real (staging, 2026-10-31): the brand new, empty pool (no shares yet: sharePrice null, no APY, no activity)"
+  },
+  {
+    "path": "tests/fixtures/real/staging/pool-activity.json",
+    "kind": "real",
+    "source": "https://api-test.swapic.xyz/v2/pool/activity",
+    "recordedAt": "2026-10-30T22:25:52Z",
+    "replacedBy": null,
+    "note": "real (staging, 2026-10-31): the brand new, empty pool (no shares yet: sharePrice null, no APY, no activity)"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#empty-pool",
+    "kind": "real",
+    "source": "tests/fixtures/real/staging/pool*.json (staging 2026-10-31); accounts: the 5.5 shape with zeros",
+    "recordedAt": "2026-10-31",
+    "replacedBy": null,
+    "note": "the Pool page on a brand new pool must load (it crashed on sharePrice null)"
   }
 ]

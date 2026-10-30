@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { activityRows, combine, launchGainBps, RANGE, stakeSeries, tiles, waitingLine, type MyStake } from './data';
+import { activityRows, combine, earningsSeries, launchGainBps, launchSeries, launchWorth, RANGE, stakeSeries, tiles, waitingLine, type MyStake } from './data';
+import { stakeRoom } from './flows';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 
@@ -41,4 +42,37 @@ describe('pool numbers', () => {
   it('reads the $1,000 at launch gain from the share price history', () => {
     expect(launchGainBps(c('pool-history-7d.json'))).toBe(0);
   });
+});
+
+// A brand new pool, as staging answered on 2026-10-31 (tests/fixtures/real/staging, with .meta.json): no shares yet, so
+// every history point's sharePrice is null, stats carry no rate, and the activity is empty. Nothing may throw.
+const staging = (f: string) => JSON.parse(readFileSync(`tests/fixtures/real/staging/${f}`, 'utf8'));
+describe('an empty pool (real staging answers)', () => {
+  it('fills the tiles without a rate: the APY is "Not yet" (its tile is left out), nothing staked or earned', () => {
+    expect(tiles(staging('pool.json'))).toEqual({ apy: 'Not yet', apySub: null, staked: '$0', earned24h: '$0.00' });
+  });
+  it('has the whole cap as room for the first stake', () => expect(stakeRoom(staging('pool.json'))).toBe(10_000_000_000n));
+  it('draws no launch line and names no worth or gain while no share price exists', () => {
+    for (const f of ['pool-history-30d.json', 'pool-history-7d.json']) {
+      const h = staging(f);
+      expect(h.points.length).toBeGreaterThan(0);
+      expect(h.points.every((p: { sharePrice: string | null }) => p.sharePrice === null)).toBe(true);
+      expect(launchSeries(h, '1M')).toEqual([]);
+      expect(launchWorth(h)).toBeNull();
+      expect(launchGainBps(h)).toBeNull();
+      expect(earningsSeries(h, '1M').every((p) => p.value === 0)).toBe(true);
+    }
+  });
+  it('starts the launch line at the first point with a price, drawing through the ones without', () => {
+    const h = { range: '30d' as const, stepSeconds: 14400, points: [
+      { t: 1, sharePrice: null, totalAssets: '0', earned: '0' },
+      { t: 2, sharePrice: '1000000', totalAssets: '5000000', earned: '0' },
+      { t: 3, sharePrice: null, totalAssets: '5000000', earned: '0' },
+      { t: 4, sharePrice: '1010000', totalAssets: '5050000', earned: '50000' },
+    ] };
+    expect(launchSeries(h, '1M').map((p) => p.value)).toEqual([1000, 1010]);
+    expect(launchWorth(h)).toBe(1_010_000_000n);
+    expect(launchGainBps(h)).toBe(100);
+  });
+  it('lists no activity', () => expect(activityRows(staging('pool-activity.json').items, 1_793_400_000)).toEqual([]));
 });
