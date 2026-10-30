@@ -1,7 +1,29 @@
 {
   "canisters": {
-    "swapic_test": { "type": "assets", "source": ["out"], "frontend": { "entrypoint": "out/index.html" } },
-    "swapic_prod": { "type": "assets", "source": ["out"], "frontend": { "entrypoint": "out/index.html" } }
+    "swapic_test": {
+      "type": "assets",
+      "source": [
+        "out"
+      ],
+      "frontend": {
+        "entrypoint": "out/index.html"
+      },
+      "build": [
+        "node scripts/check-build.mjs"
+      ]
+    },
+    "swapic_prod": {
+      "type": "assets",
+      "source": [
+        "out"
+      ],
+      "frontend": {
+        "entrypoint": "out/index.html"
+      },
+      "build": [
+        "node scripts/check-build.mjs"
+      ]
+    }
   },
   "version": 1
 }
