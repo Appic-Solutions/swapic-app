@@ -7,10 +7,10 @@
 // page. The ICP stake: ckUSDC on ICP less one ledger fee, then withdraw_icp (executeWithdrawIcp) and back to the pool.
 // It reads `amount` from the link once (PoolFlow).
 // Motion (approved 2026-10-29, part 2): a view of the Pool's in place panel (PoolFlow). The stake card flies into the
-// amount card; the percent chips' light pill slides to the one picked; while the wallet asks, the button reads "Confirm in
-// your wallet" with a soft glow, and a "no" in the wallet brings it back with "You cancelled in your wallet.".
+// amount card; the percent chips' light pill slides to the one picked. Review withdrawal (approved 2026-10-30): the button
+// opens the review, built from the record checkWithdrawQuote accepted; the signing runs there (WithdrawReview).
 import * as React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { TokenCard } from '@/components/ui/token-card';
 import { Avatar } from '@/components/ui/avatar';
@@ -22,19 +22,20 @@ import { ConfirmButton } from '@/components/motion/parts';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { CheckIcon, ClockIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
-import { postWithdraw, postWithdrawQuote, userMessage, type WithdrawRequest } from '@/lib/api';
+import { postWithdrawQuote, userMessage, type WithdrawRequest } from '@/lib/api';
 import { short, tokenAmountText } from '@/lib/copy/format';
 import { chainNumber } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
-import { MS, fade, tw } from '@/lib/motion';
+import { fade, tw } from '@/lib/motion';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
-import type { ExecOutcome } from '@/features/swap/execute';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { usePool, type MyStake } from '../data';
-import { CKUSDC, executeWithdrawEvm, executeWithdrawIcp, POOL_PAUSED, type WithdrawNewTerms } from '../flows';
+import { CKUSDC, POOL_PAUSED } from '../flows';
+import { evmWithdrawReview, icpWithdrawReview } from '../review';
+import type { WithdrawStart } from './WithdrawReview';
 import { USDC_LOGO } from '../usdc';
 import { usedNonces } from '../used-nonces';
 import { checkWithdrawQuote, type CheckedWithdraw } from '../withdraw-sig';
@@ -56,12 +57,11 @@ function useDebounced<T>(value: T, ms: number): T {
 
 const minutes = (etaAt: number, nowSec: number) => Math.max(1, Math.round((etaAt - nowSec) / 60));
 
-/** Withdraw from one stake: `amountText` is the flow's (it outlives Receive on); `onStarted` hears the started payout. */
-export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBack, onPickTo, onStarted }: {
+/** Withdraw from one stake: `amountText` is the flow's (it outlives Receive on and the review); `onReview` opens Review withdrawal. */
+export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBack, onPickTo, onReview }: {
   stake: MyStake | undefined; named: boolean; to: UiToken | null; amountText: string; onAmountText: (t: string) => void;
-  onBack: () => void; onPickTo: () => void; onStarted: (activityId: string) => void;
+  onBack: () => void; onPickTo: () => void; onReview: (s: WithdrawStart) => void;
 }) {
-  const qc = useQueryClient();
   const { evm, icp: icpWallet } = useWallets();
   const signer = useEvmSigner();
   const caller = useIcpCaller();
@@ -73,11 +73,6 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
   const wallet = fromIcp ? !!icpWallet : !!evm;
   const total = stake?.valueUsdc ?? 0n;
   const setAmountText = onAmountText;
-  const [busy, setBusy] = React.useState(false);
-  const [note, setNote] = React.useState<string | null>(null);
-  // the wallet is asking right now (a flow step waits on it): the button glows; a "no" there shows the cancelled line
-  const [asking, setAsking] = React.useState(false);
-  const [cancelled, setCancelled] = React.useState(false);
 
   let amount: bigint | null = null;
   let amountError: string | null = null;
@@ -140,37 +135,20 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
     ? checked.queueEtaAt === null ? 'In line' : `In line, about ${minutes(checked.queueEtaAt, nowSec)} min`
     : checked.etaSeconds < 90 ? 'Right away' : `About ${Math.round(checked.etaSeconds / 60)} min`;
   const ready = (fromIcp ? !!icpView && !!caller : !!checked && !loading && !!signer) && !closed && !overStake && !amountError;
-  const label = amount === null || amount === 0n ? 'Set token amount to continue' : !wallet ? 'Connect wallet' : busy ? undefined : fromIcp ? 'Withdraw' : 'Sign withdrawal';
-  const enabled = busy || (!wallet && amount !== null && amount > 0n) || ready;
+  const label = amount === null || amount === 0n ? 'Set token amount to continue' : !wallet ? 'Connect wallet' : 'Review withdrawal';
+  const enabled = (!wallet && amount !== null && amount > 0n) || ready;
 
-  const after = (out: ExecOutcome | WithdrawNewTerms) => {
-    setBusy(false);
-    setAsking(false);
-    if (out.kind === 'started') {
-      void qc.invalidateQueries({ queryKey: ['account', stake?.owner] });
-      // the withdrawal has started: a short hold (as Swap's), then the next view (nothing waits on this)
-      setBusy(true);
-      const id = out.activityId;
-      setTimeout(() => onStarted(id), MS.hold);
-    } else if (out.kind === 'rejected') setCancelled(true);
-    else if (out.kind === 'failed' || out.kind === 'unknown') setNote(out.message);
-  };
-  const onSign = async () => {
-    if (busy) return;
+  /** Review withdrawal: from the record checkWithdrawQuote accepted (EVM), or the amount less the ledger fee (ICP). */
+  const onReviewClick = () => {
     if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
-    setCancelled(false);
-    if (!ready || !to || amount === null) return;
-    setBusy(true);
-    setNote(null);
-    const onStep = (_: number, st: 'wait' | 'done' | 'fail') => setAsking(st === 'wait');
+    if (!ready || !to || amount === null || !stake) return;
     if (fromIcp) {
-      after(await executeWithdrawIcp({ wanted: amount, caller: caller!, onStep }, icpClient()));
+      if (fee === undefined) return;
+      onReview({ stake, to, amount, review: icpWithdrawReview(amount, fee) });
       return;
     }
-    after(await executeWithdrawEvm(
-      { usdc: amount, dstChain: to.chain, evm: signer!, onStep },
-      { icp: icpClient(), postWithdrawQuote, postWithdraw, nowMs: () => Date.now(), used: usedNonces },
-    ));
+    if (!checked) return;
+    onReview({ stake, to, amount, review: evmWithdrawReview(checked, Math.floor(Date.now() / 1000)) });
   };
 
   const where = to?.chainName ?? '';
@@ -191,7 +169,7 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
             label={named && stake ? `Withdraw from ${short(stake.owner)}` : 'Withdraw from your stake'}
             token={{ logo: USDC_LOGO, chainLogo: SWAPIC_LOGO }}
             amountText={amountText}
-            onAmountText={(t) => { setAmountText(t); setNote(null); setCancelled(false); }}
+            onAmountText={(t) => setAmountText(t)}
             usdText={amount === null ? null : formatUsd(amount)}
             balanceText={stake ? tokenAmountText(total, 6, 'USDC') : undefined}
             onMax={() => setAmountText(formatUnits(total, 6).replace(/,/g, ''))}
@@ -204,7 +182,7 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
               return (
                 <span
                   key={p}
-                  onClick={() => { setAmountText(formatUnits(v, 6).replace(/,/g, '')); setNote(null); setCancelled(false); }}
+                  onClick={() => setAmountText(formatUnits(v, 6).replace(/,/g, ''))}
                   className={cn(
                     'relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs',
                     tw.quick,
@@ -222,7 +200,6 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
           <div className="mt-4">
             <TokenCard token={to ?? undefined} customOnClick={onPickTo} label="Receive on" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
           </div>
-          {note && <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">{note}</p>}
         </motion.div>
       }
       right={
@@ -259,7 +236,7 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
           )}
         </motion.div>
       }
-      action={<ConfirmButton label={label} waiting={asking} cancelled={cancelled} disabled={!enabled} onClick={() => void onSign()} />}
+      action={<ConfirmButton label={label} disabled={!enabled} onClick={onReviewClick} />}
     />
   );
 }

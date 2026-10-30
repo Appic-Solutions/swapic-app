@@ -11,7 +11,15 @@ async function open(page: Page, path: string, scenario = 'default') {
 
 // IdentityKit keeps its Radix dialog open and hides it with a class, so the page is aria-hidden: role queries need
 // includeHidden. The panels draw their action button twice (desktop and phone layouts, one hidden by CSS): the shown one.
-const button = (page: Page, name: string) => page.getByRole('button', { name, includeHidden: true }).filter({ visible: true });
+const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true, includeHidden: true }).filter({ visible: true });
+/** 25% of the stake, once the stake has answered (before that the chips are of nothing). */
+const pick25 = async (page: Page) => {
+  await expect(page.getByText('max', { exact: true }).filter({ visible: true })).toBeVisible();
+  await page.getByText('25%', { exact: true }).click();
+  await expect(page.locator('input[type=number]')).not.toHaveValue(/^0?$/);
+};
+/** Back once the view that is leaving has faded out (the calm fade keeps it a moment: two Backs until then). */
+const back = async (page: Page) => { await expect(button(page, 'Back')).toHaveCount(1); await button(page, 'Back').click(); };
 
 test.describe('Pool', () => {
   test('the pool page shows the tiles and both wallets\' stake added into one', async ({ page }) => {
@@ -36,12 +44,12 @@ test.describe('Pool', () => {
   test('a smart wallet cannot stake from an EVM chain', async ({ page }) => {
     await open(page, '/pool/stake?amount=100', 'smart-wallet');
     await expect(page.getByText('The pool needs a regular wallet for now.')).toBeVisible();
-    await expect(button(page, 'Stake 100 USDC')).toBeDisabled();
+    await expect(button(page, 'Review stake')).toBeDisabled();
   });
 
   test('desktop: stake and withdraw columns end at the same height', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop');
-    for (const [path, ready] of [['/pool/stake?amount=100', 'Stake 100 USDC'], ['/pool/withdraw?amount=100', 'Sign withdrawal']]) {
+    for (const [path, ready] of [['/pool/stake?amount=100', 'Review stake'], ['/pool/withdraw?amount=100', 'Review withdrawal']]) {
       await open(page, path!, 'pool');
       await expect(button(page, ready!)).toBeVisible();
       const l = await page.getByTestId('col-left').boundingBox();
@@ -50,10 +58,21 @@ test.describe('Pool', () => {
     }
   });
 
-  test('withdraw 25% to an EVM chain: one signature, then the status page, then the pool page in place', async ({ page }) => {
+  test('withdraw 25% to an EVM chain: Review withdrawal (Back keeps the amount), one signature, the steps, the pool page', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
-    await page.getByText('25%', { exact: true }).click();
-    await expect(button(page, 'Sign withdrawal')).toBeEnabled();
+    await pick25(page);
+    const amount = await page.locator('input[type=number]').inputValue();
+    await expect(button(page, 'Review withdrawal')).toBeEnabled();
+    await button(page, 'Review withdrawal').click();
+    // the review: the least paid out from the checked record, the wallet it is paid to, one wallet step
+    await expect(page.getByText('You get at least')).toBeVisible();
+    await expect(page.getByText('Paid to')).toBeVisible();
+    await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible();
+    await expect(page).toHaveURL(/\/pool\/withdraw$/);
+    await back(page);
+    await expect(page.locator('input[type=number]')).toHaveValue(amount);
+    await expect(page.getByText('You get at least')).toHaveCount(0);
+    await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('Withdrawal signed')).toBeVisible({ timeout: 15_000 });
     // a step shows a check only when the payout record says it is done
@@ -68,20 +87,60 @@ test.describe('Pool', () => {
   test('while the wallet asks, the button says so (its glow); then the status page', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { delayMs?: number } }).__SWAPIC_E2E__.delayMs = 1500; });
-    await page.getByText('25%', { exact: true }).click();
+    await pick25(page);
+    await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('Confirm in your wallet').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Check your wallet')).toBeVisible();
     await expect(page.getByText('Withdrawal signed')).toBeVisible({ timeout: 15_000 });
   });
 
   test('a "no" in the wallet brings the button back with the cancelled line', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { rejectNext?: boolean } }).__SWAPIC_E2E__.rejectNext = true; });
-    await page.getByText('25%', { exact: true }).click();
+    await pick25(page);
+    await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
     await expect(button(page, 'Sign withdrawal')).toBeEnabled();
     await expect(page.getByText('Withdrawal signed')).toHaveCount(0);
+  });
+
+  test('a stake from ICP: Review stake with its two wallet steps, then Your stake checking both in, then the pool page', async ({ page }) => {
+    const ckusdc = encodeURIComponent('icp:737ba355e855bd4b61279056603e0550|xevnm-gaaaa-aaaar-qafnq-cai');
+    await open(page, `/pool/stake?amount=100&from=${ckusdc}`, 'pool');
+    await expect(button(page, 'Review stake')).toBeEnabled();
+    await button(page, 'Review stake').click();
+    await expect(page.getByText('Approve ckUSDC')).toBeVisible();
+    await expect(page.getByText('Confirm stake', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByText('Staked from')).toBeVisible();
+    await expect(page.getByText('2 steps')).toBeVisible();
+    // Back keeps the amount
+    await back(page);
+    await expect(page.locator('input[type=number]')).toHaveValue('100');
+    await button(page, 'Review stake').click();
+    await button(page, 'Confirm stake').click();
+    // Your stake: each step checked only once its call returned
+    await expect(page.getByText('Your stake', { exact: true }).filter({ visible: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Approved ckUSDC')).toBeVisible();
+    await expect(page.getByText('Staked 100.00 USDC')).toBeVisible();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered');
+    await expect(page).toHaveURL(/\/pool\/stake/);
+    await button(page, 'Back to pool').click();
+    await expect(page.getByText('How it works')).toBeVisible();
+    await expect(page.getByText('Approved ckUSDC')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pool$/);
+  });
+
+  test('withdraw from the ICP stake: one confirm, it pays out on ICP', async ({ page }) => {
+    await open(page, '/pool/withdraw', 'both-stakes');
+    await page.getByText('3yfhk…2qe').first().click();
+    await button(page, 'Continue').click();
+    await button(page, 'Review withdrawal').click();
+    await expect(page.getByText('Confirm withdrawal')).toBeVisible();
+    await expect(page.getByText('Paid to')).toBeVisible();
+    await button(page, 'Withdraw').click();
+    await expect(page.getByText('Swapic Pool')).toBeVisible({ timeout: 15_000 });
   });
 
   test('Stake and Stake From open in the same panel; the link follows; Back returns', async ({ page }) => {
@@ -98,11 +157,11 @@ test.describe('Pool', () => {
     await expect(page).toHaveURL(/\/pool\/stake$/);
     // the leaving view fades out (one Back once it has gone)
     await expect(page.getByText('Added to your stake')).toHaveCount(0);
-    await button(page, 'Back').click();
+    await back(page);
     // the amount typed outlives the picker
     await expect(page.locator('input[type=number]')).toHaveValue('100');
     await expect(page.getByText('Stake From')).toHaveCount(0);
-    await button(page, 'Back').click();
+    await back(page);
     await expect(page.getByText('Swapic Pool')).toBeVisible();
     await expect(page.getByText('Added to your stake')).toHaveCount(0);
     await expect(page).toHaveURL(/\/pool$/);
@@ -135,6 +194,18 @@ test.describe('Pool', () => {
     await expect(page).toHaveURL(/\/pool$/);
   });
 
+  test('reduce motion: the reviews change in one step too', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, '/pool/withdraw', 'withdraw');
+    await pick25(page);
+    await button(page, 'Review withdrawal').click();
+    await expect(page.getByText('You get at least')).toHaveCount(1);
+    await expect(page.getByText('Withdraw from your stake')).toHaveCount(0);
+    await back(page);
+    await expect(page.getByText('Withdraw from your stake')).toHaveCount(1);
+    await expect(page.getByText('You get at least')).toHaveCount(0);
+  });
+
   test('reduce motion: one view after each change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await open(page, '/pool', 'pool');
@@ -142,7 +213,7 @@ test.describe('Pool', () => {
     await page.getByRole('link', { name: 'Withdraw', exact: true, includeHidden: true }).click();
     await expect(page.getByText('You receive')).toHaveCount(1);
     await expect(page.getByText('Swapic Pool')).toHaveCount(0);
-    await button(page, 'Back').click();
+    await back(page);
     await expect(page.getByText('Swapic Pool')).toHaveCount(1);
     await expect(page.getByText('You receive')).toHaveCount(0);
   });
