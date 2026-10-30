@@ -12,12 +12,6 @@ async function open(page: Page, path: string, scenario = 'default') {
 // IdentityKit keeps its Radix dialog open and hides it with a class, so the page is aria-hidden: role queries need
 // includeHidden. The panels draw their action button twice (desktop and phone layouts, one hidden by CSS): the shown one.
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true, includeHidden: true }).filter({ visible: true });
-/** 25% of the stake, once the stake has answered (before that the chips are of nothing). */
-const pick25 = async (page: Page) => {
-  await expect(page.getByText('max', { exact: true }).filter({ visible: true })).toBeVisible();
-  await page.getByText('25%', { exact: true }).click();
-  await expect(page.locator('input[type=number]')).not.toHaveValue(/^0?$/);
-};
 /** Back once the view that is leaving has faded out (the calm fade keeps it a moment: two Backs until then). */
 const back = async (page: Page) => { await expect(button(page, 'Back')).toHaveCount(1); await button(page, 'Back').click(); };
 
@@ -60,7 +54,7 @@ test.describe('Pool', () => {
 
   test('withdraw 25% to an EVM chain: Review withdrawal (Back keeps the amount), one signature, the steps, the pool page', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
-    await pick25(page);
+    await button(page, '25%').click();
     const amount = await page.locator('input[type=number]').inputValue();
     await expect(button(page, 'Review withdrawal')).toBeEnabled();
     await button(page, 'Review withdrawal').click();
@@ -84,10 +78,25 @@ test.describe('Pool', () => {
     await expect(page).toHaveURL(/\/pool$/);
   });
 
+  test('Withdraw waits for the stake: the amount, the chips and the button stay off until it has answered', async ({ page }) => {
+    const { installFakeBackend, setE2eWallets } = await import('../fake/backend.mjs');
+    await installFakeBackend(page, 'withdraw');
+    // the stake answers late (registered last, this route runs first, then hands the request to the fake backend)
+    await page.route('**/v2/pool/accounts/**', async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.fallback(); });
+    await setE2eWallets(page, 'withdraw');
+    await page.goto('/pool/withdraw');
+    await expect(button(page, '25%')).toBeDisabled();
+    await expect(page.locator('input[type=number]')).toBeDisabled();
+    await expect(page.locator('input[type=number]')).toHaveValue('');
+    await expect(button(page, '25%')).toBeEnabled({ timeout: 10_000 });
+    await button(page, '25%').click();
+    await expect(page.locator('input[type=number]')).not.toHaveValue(/^0?$/);
+  });
+
   test('while the wallet asks, the button says so (its glow); then the status page', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { delayMs?: number } }).__SWAPIC_E2E__.delayMs = 1500; });
-    await pick25(page);
+    await button(page, '25%').click();
     await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('Confirm in your wallet').filter({ visible: true })).toBeVisible();
@@ -98,7 +107,7 @@ test.describe('Pool', () => {
   test('a "no" in the wallet brings the button back with the cancelled line', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await page.evaluate(() => { (window as unknown as { __SWAPIC_E2E__: { rejectNext?: boolean } }).__SWAPIC_E2E__.rejectNext = true; });
-    await pick25(page);
+    await button(page, '25%').click();
     await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
     await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
@@ -199,7 +208,7 @@ test.describe('Pool', () => {
   test('reduce motion: the reviews change in one step too', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await open(page, '/pool/withdraw', 'withdraw');
-    await pick25(page);
+    await button(page, '25%').click();
     await button(page, 'Review withdrawal').click();
     await expect(page.getByText('You get at least')).toHaveCount(1);
     await expect(page.getByText('Withdraw from your stake')).toHaveCount(0);

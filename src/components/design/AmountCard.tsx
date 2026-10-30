@@ -28,9 +28,11 @@ export interface AmountCardProps {
   label?: string;
   /** Name for an in place change: a card with the same data-fly name in the leaving view flies into this one. */
   fly?: string;
+  /** The amount cannot be typed yet (Withdraw while the stake loads). */
+  disabled?: boolean;
 }
 
-export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', fly }: AmountCardProps) {
+export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', fly, disabled }: AmountCardProps) {
   return (
     <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className="mt-4 max-h-[133px] cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0 md:max-h-[155px]">
       <p className="text-sm font-semibold">{label}</p>
@@ -45,6 +47,7 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               type="number"
               placeholder="0"
               value={amountText}
+              disabled={disabled}
               onChange={(e) => { if (e.target.value.length <= 15) onAmountText?.(e.target.value); }}
               className="w-full rounded-md border-[#000000] bg-transparent py-2 text-primary outline-none placeholder:text-primary/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />

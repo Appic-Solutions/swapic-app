@@ -115,7 +115,8 @@ export function useMyStakes() {
     earned: q.data.earned === undefined || q.data.earned === null ? null : parseSigned(q.data.earned),
     since: q.data.since ?? null, waiting: q.data.waiting ?? [],
   }] : []));
-  return { stakes, loading: qs.some((q) => q.isLoading) };
+  // known: every connected wallet's account has answered (or failed) at least once; with no wallet, nothing is known yet
+  return { stakes, loading: qs.some((q) => q.isLoading), known: owners.length > 0 && qs.every((q) => q.isSuccess || q.isError) };
 }
 
 export function useMyHistory(tf: Timeframe, owners: string[]) {

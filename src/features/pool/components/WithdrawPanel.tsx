@@ -57,9 +57,14 @@ function useDebounced<T>(value: T, ms: number): T {
 
 const minutes = (etaAt: number, nowSec: number) => Math.max(1, Math.round((etaAt - nowSec) / 60));
 
-/** Withdraw from one stake: `amountText` is the flow's (it outlives Receive on and the review); `onReview` opens Review withdrawal. */
-export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBack, onPickTo, onReview }: {
-  stake: MyStake | undefined; named: boolean; to: UiToken | null; amountText: string; onAmountText: (t: string) => void;
+/**
+ * Withdraw from one stake: `amountText` is the flow's (it outlives Receive on and the review); `onReview` opens Review
+ * withdrawal. `stakeKnown`: every connected wallet's account has answered; until then (and while this stake is unknown) the
+ * panel is in its loading state, as the design's skeletons: the amount, the chips and the button off, so no amount is ever
+ * set from a stake of zero or one wallet's half.
+ */
+export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmountText, onBack, onPickTo, onReview }: {
+  stake: MyStake | undefined; stakeKnown: boolean; named: boolean; to: UiToken | null; amountText: string; onAmountText: (t: string) => void;
   onBack: () => void; onPickTo: () => void; onReview: (s: WithdrawStart) => void;
 }) {
   const { evm, icp: icpWallet } = useWallets();
@@ -134,7 +139,8 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
   const arrives = icpView ? 'Right away' : !checked ? '' : checked.queued
     ? checked.queueEtaAt === null ? 'In line' : `In line, about ${minutes(checked.queueEtaAt, nowSec)} min`
     : checked.etaSeconds < 90 ? 'Right away' : `About ${Math.round(checked.etaSeconds / 60)} min`;
-  const ready = (fromIcp ? !!icpView && !!caller : !!checked && !loading && !!signer) && !closed && !overStake && !amountError;
+  const stakeReady = stakeKnown && !!stake;
+  const ready = stakeReady && (fromIcp ? !!icpView && !!caller : !!checked && !loading && !!signer) && !closed && !overStake && !amountError;
   const label = amount === null || amount === 0n ? 'Set token amount to continue' : !wallet ? 'Connect wallet' : 'Review withdrawal';
   const enabled = (!wallet && amount !== null && amount > 0n) || ready;
 
@@ -171,29 +177,33 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
             amountText={amountText}
             onAmountText={(t) => setAmountText(t)}
             usdText={amount === null ? null : formatUsd(amount)}
-            balanceText={stake ? tokenAmountText(total, 6, 'USDC') : undefined}
-            onMax={() => setAmountText(formatUnits(total, 6).replace(/,/g, ''))}
+            balanceText={stakeReady ? tokenAmountText(total, 6, 'USDC') : undefined}
+            onMax={() => { if (stakeReady) setAmountText(formatUnits(total, 6).replace(/,/g, '')); }}
+            balanceLoading={wallet && !stakeReady}
+            disabled={wallet && !stakeReady}
             message={message}
           />
           <div className="mt-3 flex items-center gap-2.5">
             {PCTS.map((p) => {
               const v = percentOf(total, p);
-              const on = amount !== null && v === amount && total > 0n;
+              const on = stakeReady && amount !== null && v === amount && total > 0n;
               return (
-                <span
+                <button
                   key={p}
+                  type="button"
+                  disabled={!stakeReady}
                   onClick={() => setAmountText(formatUnits(v, 6).replace(/,/g, ''))}
                   className={cn(
-                    'relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs',
+                    'relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50',
                     tw.quick,
-                    tw.press,
-                    on ? 'font-semibold text-[#0A0A0B]' : 'bg-[#565656] text-white/70 hover:bg-[#6a6a6a]',
+                    stakeReady && tw.press,
+                    on ? 'font-semibold text-[#0A0A0B]' : cn('bg-[#565656] text-white/70', stakeReady && 'hover:bg-[#6a6a6a]'),
                   )}
                 >
                   {/* the light pill slides to the chip picked */}
                   {on && <SlidingPill id="withdraw-percent" />}
                   <span className="relative">{p === 100 ? 'Max' : `${p}%`}</span>
-                </span>
+                </button>
               );
             })}
           </div>
@@ -206,7 +216,7 @@ export function WithdrawPanel({ stake, named, to, amountText, onAmountText, onBa
         <motion.div variants={fade} className="flex w-full flex-col gap-y-4 lg:flex-1">
           <ResultCard
             label="You receive"
-            loading={loading}
+            loading={loading || (wallet && !stakeReady)}
             avatar={<Avatar src={USDC_LOGO} className="h-12 w-12" />}
             big={fromIcp
               ? `~${icpView ? tokenAmountText(icpView.receive, 6, 'USDC') : '0.00'} ckUSDC on ICP`

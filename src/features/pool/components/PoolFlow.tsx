@@ -73,7 +73,7 @@ const payoutIdOf = (id: string) => (/^payout-\d+$/.test(id) ? Number(id.slice(7)
 export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const link = useQueryOnce();
   const pool = usePool();
-  const { stakes, loading } = useMyStakes();
+  const { stakes, loading, known } = useMyStakes();
   const [view, setView] = React.useState<PoolView>(start === 'withdraw' ? 'withdrawPick' : start);
   const [statusId, setStatusId] = React.useState<string | null>(null);
   // back from a signed withdrawal: that withdrawal's waiting line (by its payout id) opens calmly in Your stake
@@ -209,7 +209,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
         return (
           <WithdrawPanel
             key={stake?.kind ?? 'none'}
-            stake={stake} named={both || icpStake} to={toToken} amountText={withdrawAmount} onAmountText={setWithdrawAmount}
+            stake={stake} stakeKnown={known} named={both || icpStake} to={toToken} amountText={withdrawAmount} onAmountText={setWithdrawAmount}
             onBack={() => go(both ? 'withdrawPick' : 'pool')}
             onPickTo={() => go('receiveOn')}
             onReview={(st) => { setWithdrawStart(st); go('withdrawReview'); }}
