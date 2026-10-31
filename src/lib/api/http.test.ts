@@ -17,6 +17,20 @@ describe('http', () => {
     vi.stubGlobal('fetch', answer(422, '{"code":"reverts","message":"runFor reverts: CallFailed"}'));
     await expect(postJson('/v2/orders', {})).rejects.toMatchObject({ status: 422, code: 'reverts' });
   });
+  it('reads the cap refusal\'s two optional fields (quoter f626a60), and other errors carry neither', async () => {
+    vi.stubGlobal('fetch', answer(422, '{"code":"no_route","message":"... above the 100 cap","reasonCode":"aboveSwapCap","maxUsd":"100"}'));
+    await expect(getJson('/v2/quote')).rejects.toMatchObject({ status: 422, code: 'no_route', message: '... above the 100 cap', reasonCode: 'aboveSwapCap', maxUsd: '100' });
+    vi.stubGlobal('fetch', answer(422, '{"code":"no_route","message":"no route could carry this swap: eco did not answer"}'));
+    const other = await getJson('/v2/quote').catch((x: ApiError) => x);
+    expect(other).toBeInstanceOf(ApiError);
+    expect('reasonCode' in (other as ApiError)).toBe(false);
+    expect('maxUsd' in (other as ApiError)).toBe(false);
+    // fields of another type are not read as these
+    vi.stubGlobal('fetch', answer(422, '{"code":"no_route","message":"x","reasonCode":7,"maxUsd":100}'));
+    const odd = await getJson('/v2/quote').catch((x: ApiError) => x);
+    expect((odd as ApiError).reasonCode).toBeUndefined();
+    expect((odd as ApiError).maxUsd).toBeUndefined();
+  });
   it('turns an nginx HTML 502 into edgeUnavailable, never a parse crash', async () => {
     vi.stubGlobal('fetch', answer(502, '<html><body>Bad Gateway</body></html>', 'text/html'));
     await expect(getJson('/v2/pool')).rejects.toMatchObject({ status: 502, code: 'edgeUnavailable' });

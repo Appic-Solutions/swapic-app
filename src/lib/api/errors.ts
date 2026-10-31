@@ -1,4 +1,5 @@
 import { ApiError } from './http';
+import { dollarsToMicro, formatUsdWhole } from '@/lib/money';
 
 export const FALLBACK_MESSAGE = 'Something went wrong, try again';
 
@@ -48,9 +49,26 @@ export function routeReasonMessage(reason: string): string | null {
   return ROUTE_REASONS[reason] ?? null;
 }
 
+/**
+ * A swap or stake over the canister's per swap cap (422 no_route, reasonCode aboveSwapCap): the cap in micro USD from
+ * `maxUsd`; null for any other error, or a `maxUsd` that is not a dollar amount.
+ */
+export function swapCapOf(e: unknown): bigint | null {
+  if (!(e instanceof ApiError) || e.code !== 'no_route' || e.reasonCode !== 'aboveSwapCap' || e.maxUsd === undefined) return null;
+  try {
+    const cap = dollarsToMicro(e.maxUsd);
+    return cap > 0n ? cap : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The plain sentence for any error; never the backend's own words. */
 export function userMessage(e: unknown): string {
   if (e instanceof ApiError) {
+    // PROVISIONAL copy (Jeff's copy batch)
+    const cap = swapCapOf(e);
+    if (cap !== null) return `Swaps are limited to ${formatUsdWhole(cap)} for now. Try a smaller amount.`;
     if (e.code === 'no_route') {
       for (const [reason, sentence] of Object.entries(ROUTE_REASONS)) if (e.message.includes(reason)) return sentence;
       if (/cap\b|above the per swap/i.test(e.message)) return 'The pool cannot take this swap now, try a smaller amount';

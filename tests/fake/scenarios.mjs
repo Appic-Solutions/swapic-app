@@ -195,6 +195,8 @@ export const SCENARIOS = {
   'permit2': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/pol-wbtc-to-arb-usdc.json'), 'POST /v2/orders': real('submit/accepted.json') } },
   // a quote no route can carry (the quoter's 422 no_route, contract 1.4); derived, manifest
   'no-route': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: 'no route could carry this swap: eco did not answer' } } }, clockAt: 1792336073 },
+  // a swap over the canister's per swap cap: the quoter's 422 (services f626a60, staging 2026-10-31), exactly as it answers
+  'swap-cap': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: '... above the 100 cap', reasonCode: 'aboveSwapCap', maxUsd: '100' } } }, clockAt: 1792336073 },
   // swaps from ICP held while a withdrawal waits in line (contract 5.15): today's quoter refusal; derived, manifest
   'icp-paused': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: "no route could carry this swap: poolShort: the pool's Base pocket holds 0.00 USDC, below the payout" } } }, clockAt: 1792336073 },
   // the system halted: the quoter answers no route, naming the halt (errors.ts reads it as paused); derived, manifest

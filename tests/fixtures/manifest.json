@@ -470,5 +470,13 @@
     "recordedAt": "2026-10-31",
     "replacedBy": null,
     "note": "the Pool page on a brand new pool must load (it crashed on sharePrice null)"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#swap-cap",
+    "kind": "derived",
+    "source": "the quoter's 422 for a swap over the canister cap (services f626a60), body as the lead gave it",
+    "recordedAt": "2026-10-31",
+    "replacedBy": null,
+    "note": "Swap shows the cap line and 'Up to $100 right now'"
   }
 ]

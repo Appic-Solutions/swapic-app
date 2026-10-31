@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, getQuote, userMessage, type Quote, type QuoteQuery } from '@/lib/api';
+import { ApiError, getQuote, swapCapOf, userMessage, type Quote, type QuoteQuery } from '@/lib/api';
 import { parseUnits } from '@/lib/money';
 import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
 import type { QuoteState } from './button';
@@ -84,8 +84,10 @@ export function useSwapQuote() {
   const options = q.data ? pickOptions(q.data, { indicative, accept: (r, mode) => routeOffered(q.data!, r, mode, { payer: query?.payer, recipient: query?.recipient, guard }) }) : [];
   const error = q.error ? userMessage(q.error) : null;
   const icpPaused = icpSwapsPaused(f.from?.chain_type === 'ICP', q.data, q.error);
+  // over the canister's per swap cap (422 no_route, reasonCode aboveSwapCap): its own line and button, with the cap
+  const cap = swapCapOf(q.error);
   const state: QuoteState = !query ? 'none' : q.isFetching && !q.data && !q.error ? 'loading' : icpPaused ? 'icpPaused' : error === PAUSED ? 'paused'
-    : q.error instanceof ApiError && q.error.code === 'no_route' ? 'empty' : q.error ? 'error' : options.length ? 'ready' : 'empty';
+    : cap !== null ? 'capped' : q.error instanceof ApiError && q.error.code === 'no_route' ? 'empty' : q.error ? 'error' : options.length ? 'ready' : 'empty';
   const picked = findByTag(options, f.tag) ?? options[0];
-  return { query, quote: q.data as Quote | undefined, state, options, picked, error, indicative };
+  return { query, quote: q.data as Quote | undefined, state, options, picked, error, indicative, cap };
 }

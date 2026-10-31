@@ -42,7 +42,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
   const openIcp = useIcpConnect();
-  const { query, quote, state, options, picked, error } = useSwapQuote();
+  const { query, quote, state, options, picked, error, cap } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
   const column = both && state !== 'none';
@@ -92,10 +92,10 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
     }
   }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
-  const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' ? error ?? undefined : undefined;
+  const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : undefined;
   const button = swapButton({
     from: !!from, to: !!to, amount, amountError, overBalance, quote: state, hasOptions: options.length > 0,
-    recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient,
+    recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient, cap,
   });
 
   const onMax = async () => {

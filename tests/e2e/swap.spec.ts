@@ -84,6 +84,15 @@ test.describe('Swap', () => {
     await expect(button(page, 'Paused for now')).toBeDisabled();
   });
 
+  test('over the canister\'s per swap cap: the line says the limit and the button how much fits', async ({ page }) => {
+    await open(page, 'swap-cap');
+    await pickTokens(page);
+    // the quote answers after the 600 ms pause in typing
+    await expect(page.getByText('Swaps are limited to $100 for now. Try a smaller amount.')).toBeVisible({ timeout: 15_000 });
+    await expect(button(page, 'Up to $100 right now')).toBeDisabled();
+    await expect(button(page, 'No route found')).toHaveCount(0);
+  });
+
   test('no route: the empty card and the button say so', async ({ page }) => {
     await open(page, 'no-route');
     await pickTokens(page);

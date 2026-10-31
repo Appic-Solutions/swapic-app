@@ -22,7 +22,7 @@ import { motion } from 'motion/react';
 import { fade } from '@/lib/motion';
 import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
-import { ApiError, postStakeQuote, userMessage, type StakeRequest } from '@/lib/api';
+import { ApiError, postStakeQuote, swapCapOf, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, parseUnits } from '@/lib/money';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
@@ -116,7 +116,9 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   // skeletons from the moment an amount that will be quoted is typed until its quote answers (the design's loading card)
   const asks = !fromIcp && !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
-  const quoteError = fromIcp ? null : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
+  // over the canister's per swap cap (the stake quote's 422 aboveSwapCap): the cap's own line and button
+  const swapCap = fromIcp ? null : swapCapOf(q.error);
+  const quoteError = fromIcp ? null : swapCap !== null ? userMessage(q.error) : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
 
   const message = overBalance && from ? `Not enough ${from.symbol} in your wallet` : amountError ?? quoteError ?? undefined;
   // from an EVM chain, only on the quote for the amount on screen (never the one before it while the new one loads)
@@ -126,7 +128,9 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
     ? 'Set token amount to continue'
     : capped && room !== null
       ? `Up to ${formatUsdWhole(room)} right now`
-      : !wallet
+      : swapCap !== null
+        ? `Up to ${formatUsdWhole(swapCap)} right now`
+        : !wallet
         ? 'Connect wallet'
         : 'Review stake';
 
