@@ -34,7 +34,9 @@ export interface AmountCardProps {
 
 export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', fly, disabled }: AmountCardProps) {
   return (
-    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className="mt-4 max-h-[133px] cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0 md:max-h-[155px]">
+    // With a message the card grows to fit it: the design's message sat absolutely under the dollar line, sized for one
+    // short line, so a longer one (the cap's) wrapped onto the dollar line (Jeff's screenshot, 2026-10-31).
+    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className={'mt-4 cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0' + (message ? '' : ' max-h-[133px] md:max-h-[155px]')}>
       <p className="text-sm font-semibold">{label}</p>
       <div className="flex w-full items-center gap-4">
         <div className="relative">
@@ -72,7 +74,7 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               balanceText !== undefined && <p className="text-nowrap text-center text-xs font-semibold text-muted md:text-sm">{balanceText}</p>
             )}
           </div>
-          {message && <p className="absolute -bottom-5 animate-slide-in-from-top text-xs text-yellow-600">{message}</p>}
+          {message && <p className="mt-1 animate-slide-in-from-top text-xs text-yellow-600">{message}</p>}
         </div>
       </div>
     </Card>

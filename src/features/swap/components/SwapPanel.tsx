@@ -16,7 +16,7 @@ import AmountCard from '@/components/design/AmountCard';
 import RouteOptionsList from '@/components/design/RouteOptionsList';
 import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon, WalletIcon } from '@/components/icons';
-import { formatAmount, formatUnits, formatUsd, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
+import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
 import { swapButton } from '../button';
@@ -138,7 +138,9 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
     </motion.div>
   );
 
-  const paused = state === 'paused' ? { emptyTitle: PAUSED, emptyText: PAUSED_TEXT } : state === 'icpPaused' ? { emptyTitle: 'Paused for now', emptyText: ICP_PAUSED } : {};
+  // the route column's empty card says why, in the same words as the amount card (PROVISIONAL copy for the cap)
+  const paused = state === 'paused' ? { emptyTitle: PAUSED, emptyText: PAUSED_TEXT } : state === 'icpPaused' ? { emptyTitle: 'Paused for now', emptyText: ICP_PAUSED }
+    : state === 'capped' && cap !== null ? { emptyTitle: `Swaps are limited to ${formatUsdWhole(cap)} for now`, emptyText: 'Try a smaller amount.' } : {};
 
   return (
     <PanelBox className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] md:h-fit md:w-full md:max-w-[537px] ' + tw.big + ' ' + (column ? 'lg:max-w-[1060px]' : '')}>

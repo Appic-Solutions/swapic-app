@@ -91,6 +91,33 @@ test.describe('Swap', () => {
     await expect(page.getByText('Swaps are limited to $100 for now. Try a smaller amount.')).toBeVisible({ timeout: 15_000 });
     await expect(button(page, 'Up to $100 right now')).toBeDisabled();
     await expect(button(page, 'No route found')).toHaveCount(0);
+    // the route column says the cap too, never "No routes found"
+    await expect(page.getByText('Swaps are limited to $100 for now', { exact: true })).toBeVisible();
+    await expect(page.getByText('No routes found')).toHaveCount(0);
+    // the message sits under the dollar line, never on it (Jeff's screenshot, 2026-10-31)
+    const line = await page.getByText('Swaps are limited to $100 for now. Try a smaller amount.').boundingBox();
+    // the dollar line's row also holds the wallet balance (250 USDC in the fake wallet)
+    const row = await page.getByText('250', { exact: true }).filter({ visible: true }).first().boundingBox();
+    expect(line!.y).toBeGreaterThanOrEqual(row!.y + row!.height);
+  });
+
+  test('the route cards start open on phones (both), the picked one on desktop; the chevron closes them', async ({ page }, info) => {
+    await open(page, 'default');
+    await pickTokens(page);
+    await expect(page.getByText('Fastest', { exact: true })).toBeVisible();
+    // each card's details block (the parent of its "Option Details:" title)
+    const details = page.getByText('Option Details:').locator('xpath=../..');
+    await expect(details).toHaveCount(2);
+    if (info.project.name === 'phone') {
+      await expect(details.nth(0)).toHaveCSS('opacity', '1');
+      await expect(details.nth(1)).toHaveCSS('opacity', '1');
+    } else {
+      await expect(details.nth(0)).toHaveCSS('opacity', '1');
+      await expect(details.nth(1)).toHaveCSS('opacity', '0');
+    }
+    // the chevron of the first card closes it
+    await page.locator('[data-testid=swap-routes] button').first().click();
+    await expect(details.nth(0)).toHaveCSS('opacity', '0');
   });
 
   test('no route: the empty card and the button say so', async ({ page }) => {

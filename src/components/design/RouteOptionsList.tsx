@@ -5,6 +5,8 @@
 // States: ready (route cards), loading (the live skeleton cards), empty.
 // Moved from the design's RouteOptionsList.tsx (sha e53b49171544): the caller owns the
 // selection (selectedKey, onSelect); only which card is open stays inside.
+// Phones (Jeff, 2026-10-31): every route card starts open (Option Details showing); desktop opens the picked one. The
+// chevron closes and opens each.
 // Motion (approved 2026-10-29, src/lib/motion.ts): skeletons shimmer; cards that arrive after a quote fade up one after
 // another; in the in place panel the cards not picked fade out on Review swap while the picked one glides there (shared
 // layoutId).
@@ -13,7 +15,7 @@ import { motion } from 'motion/react';
 import { Card } from '@/components/ui/card';
 import RouteOptionSkeleton from '@/components/ui/route-option-skeleton';
 import { routeLayoutId } from '@/components/motion/parts';
-import { fade, listItem, tw, useMounted } from '@/lib/motion';
+import { fade, listItem, tw, useMounted, usePhone } from '@/lib/motion';
 import RouteOption, { type RouteOptionView } from './RouteOption';
 
 export interface RouteOptionsListProps {
@@ -35,9 +37,19 @@ export interface RouteOptionsListProps {
 
 export default function RouteOptionsList({ options, toToken, state, selectedKey, onSelect, emptyTitle = 'No routes found', emptyText = 'No route can swap this amount right now. Try a smaller amount or another token.', enter, timer }: RouteOptionsListProps) {
   const first = options[0]?.key;
-  const [expanded, setExpanded] = React.useState<string | undefined>(selectedKey ?? first);
-  // New routes: the picked one starts open.
-  React.useEffect(() => { setExpanded(selectedKey ?? first); }, [first]); // eslint-disable-line react-hooks/exhaustive-deps
+  const phone = usePhone();
+  // which cards are open: on phones all of them, on desktop the picked one
+  const opened = (): Set<string> => new Set(phone ? options.map((o) => o.key) : [selectedKey ?? first].filter((k): k is string => !!k));
+  const [expanded, setExpanded] = React.useState<Set<string>>(opened);
+  // New routes: they start open as above.
+  React.useEffect(() => { setExpanded(opened()); }, [first]); // eslint-disable-line react-hooks/exhaustive-deps
+  // phones open and close each card on its own; desktop keeps one open at a time
+  const toggle = (key: string) => setExpanded((cur) => {
+    if (!phone) return cur.has(key) ? new Set() : new Set([key]);
+    const next = new Set(cur);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   // What shows after the first render (routes after loading) arrives with a stagger.
   const mounted = useMounted() || !!enter;
   const row = React.useRef<HTMLDivElement>(null);
@@ -82,9 +94,9 @@ export default function RouteOptionsList({ options, toToken, state, selectedKey,
                     isSelected={selectedKey === o.key}
                     timer={selectedKey === o.key ? timer : undefined}
                     arrive="rise"
-                    isExpanded={expanded === o.key}
+                    isExpanded={expanded.has(o.key)}
                     onSelect={onSelect}
-                    onExpand={(key) => setExpanded(expanded === key ? undefined : key)}
+                    onExpand={toggle}
                   />,
                   selectedKey === o.key,
                   options.length < 2,
