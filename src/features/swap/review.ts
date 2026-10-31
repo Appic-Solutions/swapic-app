@@ -8,8 +8,21 @@ import { walletSteps } from './execute';
 import type { PickedOption } from './options';
 import { routeView, isSameChainNoUsdc, type NativeCoin } from './view';
 
+/** The least the route pays out, as the checks bind it (an ICP sale's planned minimum, else amountOutMin). */
+export const minOutOf = (o: PickedOption): bigint => (o.route.icpSwap ? BigInt(o.route.icpSwap.planned.minOut) : BigInt(o.route.amountOutMin));
+
+/**
+ * Review swap's 20 s refresh (approved 2026-10-31): the fresh quote's option with the same tag against the least out on
+ * screen. The same or more out updates quietly; less out is a new price (the note and "Accept new price"); no such option
+ * leaves the review as it is.
+ */
+export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined): { kind: 'quiet' | 'newPrice'; option: PickedOption } | { kind: 'none' } {
+  if (!fresh) return { kind: 'none' };
+  return { kind: minOutOf(fresh) >= shownMin ? 'quiet' : 'newPrice', option: fresh };
+}
+
 export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToken; to: UiToken; amountIn: bigint; native: NativeCoin; recipient: { label: string; address: string; chain: string } }) {
-  const min = i.option.route.icpSwap ? BigInt(i.option.route.icpSwap.planned.minOut) : BigInt(i.option.route.amountOutMin);
+  const min = minOutOf(i.option);
   const usd = (v: bigint, t: UiToken) => { const m = usdMicro(v, t.decimals, t.priceUsd); return m === null ? null : formatUsd(m); };
   const steps = walletSteps(i.option, i.from, i.amountIn, i.native);
   return {

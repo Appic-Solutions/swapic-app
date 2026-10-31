@@ -34,7 +34,8 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 const FALLBACK_FEE_PER_GAS = 50_000_000_000n;
 
 /** What Review swap takes from the panel: the option on screen, its quote and the query that asked it. */
-export interface ReviewStart { option: PickedOption; quote: Quote; query: QuoteQuery; native: NativeCoin; amountIn: bigint }
+/** `quotedAt`: when that quote was fetched (ms), so Review swap's timer goes on from where the Swap panel's was. */
+export interface ReviewStart { option: PickedOption; quote: Quote; query: QuoteQuery; native: NativeCoin; amountIn: bigint; quotedAt: number }
 
 export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') => void; onReview: (start: ReviewStart) => void }) {
   const f = useSwapForm();
@@ -42,7 +43,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
   const openIcp = useIcpConnect();
-  const { query, quote, state, options, picked, error, cap } = useSwapQuote();
+  const { query, quote, state, options, picked, error, cap, updatedAt } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
   const pickedCard = 'py-5 md:rounded-3xl md:py-5 max-h-min md:max-h-min md:px-6';
@@ -117,7 +118,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
       else void openEvm();
       return;
     }
-    if (button.enabled && picked && quote && query && amount !== null) onReview({ option: picked, quote, query, native, amountIn: amount });
+    if (button.enabled && picked && quote && query && amount !== null) onReview({ option: picked, quote, query, native, amountIn: amount, quotedAt: updatedAt });
   };
 
   const actions = (cls: string, fades: boolean) => (
@@ -213,6 +214,8 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
                 options={views}
                 toToken={{ symbol: to!.symbol, logo: to!.logo }}
                 selectedKey={picked?.key ?? null}
+                // the quote timer: only while a price shows; it starts from the fetch and again with each 20 s refresh
+                timer={state === 'ready' && picked ? { startedAt: updatedAt } : undefined}
                 onSelect={(key) => {
                   const o = options.find((x) => x.key === key);
                   if (o) f.set({ tag: o.tags[0]! });

@@ -89,5 +89,6 @@ export function useSwapQuote() {
   const state: QuoteState = !query ? 'none' : q.isFetching && !q.data && !q.error ? 'loading' : icpPaused ? 'icpPaused' : error === PAUSED ? 'paused'
     : cap !== null ? 'capped' : q.error instanceof ApiError && q.error.code === 'no_route' ? 'empty' : q.error ? 'error' : options.length ? 'ready' : 'empty';
   const picked = findByTag(options, f.tag) ?? options[0];
-  return { query, quote: q.data as Quote | undefined, state, options, picked, error, indicative, cap };
+  // updatedAt: when the price on screen was fetched (the quote timer starts from it and starts again with every refresh)
+  return { query, quote: q.data as Quote | undefined, state, options, picked, error, indicative, cap, updatedAt: q.dataUpdatedAt };
 }

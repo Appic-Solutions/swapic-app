@@ -13,10 +13,13 @@
 // Motion (approved 2026-10-29, src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it
 // glides from the Swap list to Review swap and back; it lifts 2 px with a brighter edge on hover and sinks a little when
 // pressed.
+// Quote timer (approved 2026-10-31): the picked card shows the old site's ring beside the price (timer); it fills while the
+// price on screen ages and starts again when a fresh one lands.
 import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ChevronDownIcon, ClockIcon, FireIcon } from '@/components/icons';
 import { MotionCard } from '@/components/motion/parts';
+import { RadialCountDown, type RadialCountDownProps } from '@/components/ui/radial-count-down';
 import { T, tw, lift, pressCard, usePhone } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
@@ -54,9 +57,11 @@ export interface RouteOptionProps {
   layoutId?: string;
   /** The card's element (Your swap shrinks a copy of it into the status circle). */
   cardRef?: React.Ref<HTMLDivElement>;
+  /** The quote timer beside the price (the picked card while a price shows). */
+  timer?: RadialCountDownProps;
 }
 
-export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef }: RouteOptionProps) {
+export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef, timer }: RouteOptionProps) {
   const phone = usePhone();
   return (
     <MotionCard
@@ -111,6 +116,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
             <p className="text-base lg:text-xl">~ {option.amountOutText + ' ' + toToken.symbol}</p>
             <p className="text-xs font-normal text-[#898989]">{option.usdOutText ?? ''}</p>
           </div>
+          {timer && <div data-testid="quote-timer" className="shrink-0"><RadialCountDown {...timer} /></div>}
         </div>
         <div className="flex shrink-0 items-center gap-x-1 whitespace-nowrap rounded-xl bg-white px-2 py-1 md:rounded-2xl md:px-4">
           <span className="text-xs text-blue-600 lg:text-sm">via Swapic</span>

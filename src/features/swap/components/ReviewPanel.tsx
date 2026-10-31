@@ -21,6 +21,7 @@ import { chainLogo } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
 import { fade, rise } from '@/lib/motion';
 import type { reviewData } from '../review';
+import type { RadialCountDownProps } from '@/components/ui/radial-count-down';
 
 export type ReviewData = ReturnType<typeof reviewData>;
 
@@ -46,11 +47,13 @@ export interface ReviewPanelProps {
   cancelled?: boolean;
   /** The route card's element (Your swap shrinks a copy of it into the status circle). */
   routeRef?: React.Ref<HTMLDivElement>;
+  /** The quote timer on the route card (it holds while the wallet asks). */
+  timer?: RadialCountDownProps;
   onBack: () => void;
   onSign: () => void;
 }
 
-export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, cancelled, routeRef, onBack, onSign }: ReviewPanelProps) {
+export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, cancelled, routeRef, timer, onBack, onSign }: ReviewPanelProps) {
   const [copied, copy] = useCopied();
   const { recipient } = data;
   const steps: StepView[] = data.steps.map((s, i) => {
@@ -84,7 +87,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
       right={
         <>
           {/* The picked route: it glides here from the Swap list (and on to the status circle). */}
-          <RouteOption review layoutId={routeLayoutId(data.option.key)} cardRef={routeRef} option={data.option} toToken={toToken} isSelected isExpanded onSelect={() => {}} onExpand={() => {}} />
+          <RouteOption review layoutId={routeLayoutId(data.option.key)} cardRef={routeRef} option={data.option} toToken={toToken} isSelected isExpanded onSelect={() => {}} onExpand={() => {}} timer={timer} />
           <motion.div variants={rise} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xl font-bold text-white">In your wallet</p>

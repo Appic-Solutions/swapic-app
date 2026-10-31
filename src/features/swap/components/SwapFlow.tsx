@@ -6,6 +6,10 @@
 // the same frame turns into Your swap (the card shrinks into the status circle) and every step, the ring and the end
 // (Delivered or Refunded) follow the real tracking (useActivity). The motion never runs ahead of the data and never holds
 // a money action: a click acts at once, the animation is decoration.
+// Quote timer on Review swap (approved 2026-10-31): the ring on the route card fills over 20 s from when the price on
+// screen was fetched; full, the same query is asked again in place and the option with the same tag replaces the review:
+// the same or more out quietly, less out as a new price (reviewRefresh). While the wallet asks to sign the ring holds and
+// no fresh quote loads, so the price never changes under a signature; after a cancel it goes on. Quotes stay valid 45 s.
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
@@ -14,7 +18,7 @@ import { Note } from '@/components/design/Note';
 import { ClockIcon } from '@/components/icons';
 import { MorphFrame } from '@/components/motion/parts';
 import { AlertTriangle } from 'lucide-react';
-import { getOrders, getQuote, submitGasless, type OrderStatusAnswer, type PayoutAnswer } from '@/lib/api';
+import { getOrders, getQuote, submitGasless, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
 import { tokenAmountText } from '@/lib/copy/format';
 import { chainLogo, chainName } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
@@ -25,7 +29,10 @@ import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
 import { executeSwap, type ExecOutcome } from '../execute';
 import { useSwapForm } from '../form';
-import { reviewData } from '../review';
+import { routeOffered } from '../guards/evm';
+import { findByTag, pickOptions, type PickedOption } from '../options';
+import { useGuardContext } from '../quote';
+import { reviewData, reviewRefresh } from '../review';
 import { statusView, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
@@ -70,6 +77,13 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   const [run, setRun] = React.useState(0);
   // The review's route card: Your swap shrinks a copy of it into the status circle.
   const routeRef = React.useRef<HTMLDivElement>(null);
+  const guard = useGuardContext();
+  // when the price on Review swap was fetched (its ring starts there); a ref the refresh reads to drop a late answer
+  const [rvAt, setRvAt] = React.useState(0);
+  const signing = React.useRef(false);
+  const refreshing = React.useRef(false);
+  // the swap has started (the short hold before Your swap): its review never changes again
+  const [started, setStarted] = React.useState(false);
 
   // a "too many tries" pause: the button comes back after a minute
   React.useEffect(() => {
@@ -83,6 +97,8 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     const recipientLabel = f.recipient.show ? 'Wallet you entered' : f.to.chain_type === 'ICP' ? 'Your ICP wallet' : 'Your EVM wallet';
     const data = reviewData({ option: s.option, quote: s.quote, from: f.from, to: f.to, amountIn: s.amountIn, native: s.native, recipient: { label: recipientLabel, address: s.query.recipient, chain: f.to.chain } });
     setRv({ ...s, from: f.from, to: f.to, recipient: s.query.recipient, recipientLabel, shownMin: data.min, data });
+    setRvAt(s.quotedAt);
+    setStarted(false);
     setStates(undefined);
     setCancelled(false);
     setNote(null);
@@ -95,6 +111,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     setResume(null);
     if (out.kind === 'started') {
       // a short hold for the last check to draw, then Your swap (the swap has started: nothing waits on this)
+      setStarted(true);
       const id = out.activityId;
       setTimeout(() => {
         setActivity({ id, startedSec: Math.floor(Date.now() / 1000) });
@@ -110,10 +127,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
       return;
     }
     if (out.kind === 'newPrice' && rv) {
-      const data = reviewData({ option: out.option, quote: out.quote, from: rv.from, to: rv.to, amountIn: rv.amountIn, native: rv.native, recipient: rv.data.recipient });
-      setRv({ ...rv, option: out.option, quote: out.quote, data, wasMinText: rv.data.minText });
-      setStates(undefined);
-      setNote({ tone: 'yellow', text: `The price moved. You now get at least ${data.minText}${data.minUsd ? ` (${data.minUsd})` : ''}.` });
+      newPrice(rv, out.quote, out.option);
       return;
     }
     if (out.kind === 'failed') {
@@ -131,10 +145,49 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     }
   };
 
+  /** Less out than on screen: the struck through minimum, the yellow note and "Accept new price"; nothing signed. */
+  const newPrice = (cur: Review, quote: Quote, option: PickedOption) => {
+    const data = reviewData({ option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
+    setRv({ ...cur, option, quote, data, wasMinText: cur.data.minText });
+    setRvAt(Date.now());
+    setStates(undefined);
+    setNote({ tone: 'yellow', text: `The price moved. You now get at least ${data.minText}${data.minUsd ? ` (${data.minUsd})` : ''}.` });
+  };
+
+  /** The ring is full: the same query again, the option with the same tag, decided by reviewRefresh. */
+  const refresh = async () => {
+    const cur = rv;
+    if (!cur || signing.current || refreshing.current) return;
+    refreshing.current = true;
+    try {
+      const quote = await getQuote(cur.query);
+      // a signature started while it loaded: the price never changes under it
+      if (signing.current) return;
+      const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: cur.query.payer, recipient: cur.query.recipient, guard });
+      const out = reviewRefresh(cur.data.min, findByTag(pickOptions(quote, { indicative: false, accept }), cur.option.tags[0]!));
+      if (out.kind === 'quiet') {
+        const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
+        // the numbers on screen are what a signature binds (after a new price not yet accepted, the old minimum stays bound)
+        setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
+        setRvAt(Date.now());
+      } else if (out.kind === 'newPrice') {
+        newPrice(cur, quote, out.option);
+      } else {
+        setRvAt(Date.now());
+      }
+    } catch {
+      // no answer: the review stays as it is and the ring goes round again
+      setRvAt(Date.now());
+    } finally {
+      refreshing.current = false;
+    }
+  };
+
   const sign = async () => {
     if (!rv || busy || waitUntil !== null) return;
     setCancelled(false);
     setNote(null);
+    signing.current = true;
     setBusy(true);
     if (resume) { handle(await resume()); return; }
     // a new price accepted: the minimum on screen is the new one
@@ -174,6 +227,9 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   try { typed = !!f.from && !!f.to && parseUnits(f.amountText, f.from.decimals) > 0n; } catch { typed = false; }
   const wide = view !== 'swap' || typed;
   const waiting = busy && !!states?.some((s) => s === 'wait');
+  // the wallet is asking (or the steps run): the ring holds and no fresh quote loads
+  const holding = busy || started || !!states?.some((s) => s === 'wait');
+  signing.current = holding;
 
   return (
     <MorphFrame view={viewKey} wide={wide}>
@@ -191,6 +247,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
               <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
             ) : undefined}
             onBack={() => toSwap(false)}
+            timer={{ startedAt: rvAt, paused: holding, onFull: () => void refresh() }}
             onSign={() => void sign()}
           />
         ) : v.startsWith('status') && rv && activity ? (
