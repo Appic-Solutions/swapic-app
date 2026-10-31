@@ -45,7 +45,6 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const { query, quote, state, options, picked, error, cap } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
-  const column = both && state !== 'none';
   const pickedCard = 'py-5 md:rounded-3xl md:py-5 max-h-min md:max-h-min md:px-6';
   // Motion (approved 2026-10-29): token cards lift on hover with a brighter edge and sink when pressed; inside the in place
   // panel (MorphFrame) the parts fade in place; Send To Wallet opens and closes at panel speed; the route column's first
@@ -64,6 +63,9 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
       amountError = (e as Error).message;
     }
   }
+  // The route column goes the moment the amount is cleared, as the panel narrows (SwapFlow's wide reads the amount as
+  // typed); the quote's state alone changes 600 ms later, and the cards left in the narrowing panel showed at its edge.
+  const column = both && state !== 'none' && amount !== null && amount > 0n;
   const { balance, loading: balanceLoading } = useBalance(from);
   const overBalance = amount !== null && balance !== undefined && amount > balance;
   const fromWallet = from ? (from.chain_type === 'ICP' ? !!icp : !!evm) : false;
