@@ -6,10 +6,11 @@
 // the same frame turns into Your swap (the card shrinks into the status circle) and every step, the ring and the end
 // (Delivered or Refunded) follow the real tracking (useActivity). The motion never runs ahead of the data and never holds
 // a money action: a click acts at once, the animation is decoration.
-// Quote timer on Review swap (approved 2026-10-31): the ring on the route card fills over 20 s from when the price on
-// screen was fetched; full, the same query is asked again in place and the option with the same tag replaces the review:
-// the same or more out quietly, less out as a new price (reviewRefresh). While the wallet asks to sign the ring holds and
-// no fresh quote loads, so the price never changes under a signature; after a cancel it goes on. Quotes stay valid 45 s.
+// Quote timer on Review swap (approved 2026-10-31, the countdown label Jeff picked): the label on the route card counts
+// 20 s down from when the price on screen was fetched; at zero the same query is asked again in place ("Updating price")
+// and the option with the same tag replaces the review: the same or more out quietly, less out as a new price
+// (reviewRefresh). While the wallet asks to sign (or the steps run) the label is hidden and no fresh quote loads, so the
+// price never changes under a signature; after a cancel it comes back. Quotes stay valid 45 s.
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
@@ -33,6 +34,7 @@ import { routeOffered } from '../guards/evm';
 import { findByTag, pickOptions, type PickedOption } from '../options';
 import { useGuardContext } from '../quote';
 import { reviewData, reviewRefresh } from '../review';
+import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label';
 import { statusView, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
@@ -82,6 +84,8 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   const [rvAt, setRvAt] = React.useState(0);
   const signing = React.useRef(false);
   const refreshing = React.useRef(false);
+  // a fresh price is loading on Review swap ("Updating price")
+  const [updating, setUpdating] = React.useState(false);
   // the swap has started (the short hold before Your swap): its review never changes again
   const [started, setStarted] = React.useState(false);
 
@@ -159,6 +163,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     const cur = rv;
     if (!cur || signing.current || refreshing.current) return;
     refreshing.current = true;
+    setUpdating(true);
     try {
       const quote = await getQuote(cur.query);
       // a signature started while it loaded: the price never changes under it
@@ -180,6 +185,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
       setRvAt(Date.now());
     } finally {
       refreshing.current = false;
+      setUpdating(false);
     }
   };
 
@@ -230,6 +236,14 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   // the wallet is asking (or the steps run): the ring holds and no fresh quote loads
   const holding = busy || started || !!states?.some((s) => s === 'wait');
   signing.current = holding;
+  // at zero on Review swap: a fresh quote in place (never while the wallet asks; after a cancel, at once if it is due)
+  const refreshNow = React.useRef(refresh);
+  refreshNow.current = refresh;
+  React.useEffect(() => {
+    if (view !== 'review' || !rv || holding) return;
+    const t = setTimeout(() => void refreshNow.current(), Math.max(0, rvAt + QUOTE_CYCLE_MS - Date.now()));
+    return () => clearTimeout(t);
+  }, [view, rvAt, holding, !!rv]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <MorphFrame view={viewKey} wide={wide}>
@@ -247,7 +261,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
               <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
             ) : undefined}
             onBack={() => toSwap(false)}
-            timer={{ startedAt: rvAt, paused: holding, onFull: () => void refresh() }}
+            timer={holding ? undefined : <CountdownLabel startedAt={rvAt} fetching={updating} />}
             onSign={() => void sign()}
           />
         ) : v.startsWith('status') && rv && activity ? (

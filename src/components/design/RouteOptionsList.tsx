@@ -15,7 +15,6 @@ import RouteOptionSkeleton from '@/components/ui/route-option-skeleton';
 import { routeLayoutId } from '@/components/motion/parts';
 import { fade, listItem, tw, useMounted } from '@/lib/motion';
 import RouteOption, { type RouteOptionView } from './RouteOption';
-import type { RadialCountDownProps } from '@/components/ui/radial-count-down';
 
 export interface RouteOptionsListProps {
   options: RouteOptionView[];
@@ -31,7 +30,7 @@ export interface RouteOptionsListProps {
   /** The list itself just appeared in a panel already showing: its first cards fade up too. */
   enter?: boolean;
   /** The quote timer, on the picked card. */
-  timer?: RadialCountDownProps;
+  timer?: React.ReactNode;
 }
 
 export default function RouteOptionsList({ options, toToken, state, selectedKey, onSelect, emptyTitle = 'No routes found', emptyText = 'No route can swap this amount right now. Try a smaller amount or another token.', enter, timer }: RouteOptionsListProps) {
@@ -82,6 +81,7 @@ export default function RouteOptionsList({ options, toToken, state, selectedKey,
                     layoutId={routeLayoutId(o.key)}
                     isSelected={selectedKey === o.key}
                     timer={selectedKey === o.key ? timer : undefined}
+                    arrive="rise"
                     isExpanded={expanded === o.key}
                     onSelect={onSelect}
                     onExpand={(key) => setExpanded(expanded === key ? undefined : key)}

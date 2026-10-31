@@ -4,7 +4,7 @@
 // the picked route card glides in from the Swap list (shared layoutId) and later shrinks into the status circle; the
 // button breathes a soft glow while the wallet asks ("Confirm in your wallet"), and the waiting step lights up.
 import * as React from 'react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '@/components/ui/avatar';
 import RouteOption from '@/components/design/RouteOption';
 import { InfoRow } from '@/components/design/InfoRow';
@@ -21,7 +21,6 @@ import { chainLogo } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
 import { fade, rise } from '@/lib/motion';
 import type { reviewData } from '../review';
-import type { RadialCountDownProps } from '@/components/ui/radial-count-down';
 
 export type ReviewData = ReturnType<typeof reviewData>;
 
@@ -47,8 +46,8 @@ export interface ReviewPanelProps {
   cancelled?: boolean;
   /** The route card's element (Your swap shrinks a copy of it into the status circle). */
   routeRef?: React.Ref<HTMLDivElement>;
-  /** The quote timer on the route card (it holds while the wallet asks). */
-  timer?: RadialCountDownProps;
+  /** The quote timer on the route card (none while the wallet asks: nothing updates then). */
+  timer?: React.ReactNode;
   onBack: () => void;
   onSign: () => void;
 }
@@ -70,8 +69,13 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           <div className="flex w-full flex-1 flex-col justify-center gap-4">
             <SideBlock label="You pay" side={pay} amount={data.payText} />
             <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
-            <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-yellow-500' : undefined} />
-            {wasMinText && <p className="-mt-2 ml-16 text-sm font-normal text-[#898989]">was <span className="line-through">{wasMinText}</span></p>}
+            {/* a fresh price (the 20 s refresh): the old minimum fades out, the new one fades in (the design's quote timer) */}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={data.minText} variants={fade} initial="hidden" animate="shown" exit="gone">
+                <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-yellow-500' : undefined} />
+                {wasMinText && <p className="ml-16 mt-1 text-sm font-normal text-[#898989]">was <span className="line-through">{wasMinText}</span></p>}
+              </motion.div>
+            </AnimatePresence>
           </div>
           <div className="w-full space-y-2 border-t border-gray-700 pt-3">
             <InfoRow k="Send to">
@@ -87,7 +91,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
       right={
         <>
           {/* The picked route: it glides here from the Swap list (and on to the status circle). */}
-          <RouteOption review layoutId={routeLayoutId(data.option.key)} cardRef={routeRef} option={data.option} toToken={toToken} isSelected isExpanded onSelect={() => {}} onExpand={() => {}} timer={timer} />
+          <RouteOption review layoutId={routeLayoutId(data.option.key)} cardRef={routeRef} option={data.option} toToken={toToken} isSelected isExpanded onSelect={() => {}} onExpand={() => {}} timer={timer} arrive="rise" />
           <motion.div variants={rise} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xl font-bold text-white">In your wallet</p>

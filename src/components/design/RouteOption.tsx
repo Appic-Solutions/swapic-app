@@ -13,14 +13,15 @@
 // Motion (approved 2026-10-29, src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it
 // glides from the Swap list to Review swap and back; it lifts 2 px with a brighter edge on hover and sinks a little when
 // pressed.
-// Quote timer (approved 2026-10-31): the picked card shows the old site's ring beside the price (timer); it fills while the
-// price on screen ages and starts again when a fresh one lands.
+// Quote timer (Jeff's pick 2026-10-31, the design's quote-timer.tsx option B and its RouteOption slots): the picked card
+// shows the countdown label in its top row (timer); new numbers arrive in place: the old amount fades out, the new one
+// fades in rising 8 px (arrive, the design's rise).
 import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDownIcon, ClockIcon, FireIcon } from '@/components/icons';
 import { MotionCard } from '@/components/motion/parts';
-import { RadialCountDown, type RadialCountDownProps } from '@/components/ui/radial-count-down';
-import { T, tw, lift, pressCard, usePhone } from '@/lib/motion';
+import { T, fade, rise, tw, lift, pressCard, usePhone } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
 
@@ -57,12 +58,20 @@ export interface RouteOptionProps {
   layoutId?: string;
   /** The card's element (Your swap shrinks a copy of it into the status circle). */
   cardRef?: React.Ref<HTMLDivElement>;
-  /** The quote timer beside the price (the picked card while a price shows). */
-  timer?: RadialCountDownProps;
+  /** The quote timer in the top row (the picked card while a price shows). */
+  timer?: React.ReactNode;
+  /** New numbers arrive in place: the old ones fade out, then the new ones fade in ('fade') or fade in rising 8 px ('rise'). */
+  arrive?: 'fade' | 'rise';
 }
 
-export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef, timer }: RouteOptionProps) {
+export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef, timer, arrive }: RouteOptionProps) {
   const phone = usePhone();
+  const amount = (
+    <>
+      <p className="text-base lg:text-xl">~ {option.amountOutText + ' ' + toToken.symbol}</p>
+      <p className="text-xs font-normal text-[#898989]">{option.usdOutText ?? ''}</p>
+    </>
+  );
   return (
     <MotionCard
       ref={cardRef}
@@ -96,6 +105,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           ))}
           {!option.gasless && <span className="text-xs font-normal text-[#898989]">You pay gas</span>}
         </div>
+        {timer && <div className={cn('flex shrink-0 items-center', !review && 'mr-2')}>{timer}</div>}
         {!review && (
           <button
             onClick={(e) => { e.stopPropagation(); onExpand(option.key); }}
@@ -112,11 +122,16 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
               <img src={toToken.logo} alt="" className="absolute inset-0 h-full w-full rounded-full object-contain" />
             </div>
           </div>
-          <div className="flex flex-col">
-            <p className="text-base lg:text-xl">~ {option.amountOutText + ' ' + toToken.symbol}</p>
-            <p className="text-xs font-normal text-[#898989]">{option.usdOutText ?? ''}</p>
-          </div>
-          {timer && <div data-testid="quote-timer" className="shrink-0"><RadialCountDown {...timer} /></div>}
+          {arrive ? (
+            // A new price: the old numbers fade out, then the new ones come in.
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={option.amountOutText} className="flex flex-col" variants={arrive === 'rise' ? rise : fade} initial="hidden" animate="shown" exit="gone">
+                {amount}
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="flex flex-col">{amount}</div>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-x-1 whitespace-nowrap rounded-xl bg-white px-2 py-1 md:rounded-2xl md:px-4">
           <span className="text-xs text-blue-600 lg:text-sm">via Swapic</span>

@@ -14,6 +14,7 @@ import ActionButton from '@/components/ui/action-button';
 import WalletAddressInput from '@/components/ui/wallet-address-input';
 import AmountCard from '@/components/design/AmountCard';
 import RouteOptionsList from '@/components/design/RouteOptionsList';
+import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon, WalletIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
@@ -43,7 +44,7 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
   const openIcp = useIcpConnect();
-  const { query, quote, state, options, picked, error, cap, updatedAt } = useSwapQuote();
+  const { query, quote, state, options, picked, error, cap, updatedAt, fetching } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
   const pickedCard = 'py-5 md:rounded-3xl md:py-5 max-h-min md:max-h-min md:px-6';
@@ -214,8 +215,8 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
                 options={views}
                 toToken={{ symbol: to!.symbol, logo: to!.logo }}
                 selectedKey={picked?.key ?? null}
-                // the quote timer: only while a price shows; it starts from the fetch and again with each 20 s refresh
-                timer={state === 'ready' && picked ? { startedAt: updatedAt } : undefined}
+                // the quote timer: only while a price shows; it counts from the fetch and again with each 20 s refresh
+                timer={state === 'ready' && picked ? <CountdownLabel startedAt={updatedAt} fetching={fetching} /> : undefined}
                 onSelect={(key) => {
                   const o = options.find((x) => x.key === key);
                   if (o) f.set({ tag: o.tags[0]! });
