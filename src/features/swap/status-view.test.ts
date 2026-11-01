@@ -24,3 +24,18 @@ describe('statusView', () => {
     expect(v.reason).toBe('The swap ran out of time');
   });
 });
+
+describe('statusView, chain times (services d5e49ff)', () => {
+  it('Arrived in and the total come from tookS, not the steps\' own times', () => {
+    const status = { ...c('order-status-delivered.json'), startedAt: 1793407900, deliveredAt: 1793407922, tookS: 22 };
+    const v = statusView({ status, steps: c('steps-delivered.json'), pay: side, get: side, nowSec: 1793407940, feeText: '', gasText: 'None, Swapic paid it', toWallet: '', orderId: '', token });
+    expect(v.text).toBe('Arrived in 22 s');
+    expect(v.totalText).toBe('22 s total');
+  });
+  it('without chain times it reads the steps as before', () => {
+    const v = statusView({ status: c('order-status-delivered.json'), steps: c('steps-delivered.json'), pay: side, get: side, nowSec: 1793407940, feeText: '', gasText: 'None, Swapic paid it', toWallet: '', orderId: '', token });
+    expect(v.text).not.toBe('Arrived in 22 s');
+    expect(v.text).toMatch(/^Arrived in /);
+  });
+});
+

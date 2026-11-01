@@ -32,6 +32,8 @@ export interface OrderView {
   from: SideView; to: SideView; refund: (SideView & { toText: string }) | null; refundLine: string | null; reason: string | null;
   gas: 'Gasless' | 'You paid gas' | 'No gas'; feeText: string | null; payer: string | null; recipient: string | null;
   direction: 'sent' | 'received' | 'self' | null; createdAt: number; endedAt: number | null;
+  /** When it arrived, by the chain (unix s), or null (pending, or a row written before chain times). */
+  deliveredAt: number | null;
 }
 
 function agoText(createdAt: number, nowSec: number): string {
@@ -40,6 +42,17 @@ function agoText(createdAt: number, nowSec: number): string {
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   if (s < 86_400) return `${Math.floor(s / 3600)} h ago`;
   return `${Math.floor(s / 86_400)} days ago`;
+}
+
+/**
+ * How long it took, from the chain (services d5e49ff): tookS when it is a number; for a row written before chain times
+ * (deliveredAt and tookS both null, endedAt set) the watcher's endedAt - createdAt; nothing while it is pending.
+ */
+export function tookOf(r: Pick<ActivityRow, 'outcome' | 'createdAt' | 'endedAt' | 'deliveredAt' | 'tookS'>): string | null {
+  if (r.outcome === 'pending') return null;
+  if (typeof r.tookS === 'number') return tookText(Math.max(r.tookS, 0) * 1000);
+  const before = (r.deliveredAt ?? null) === null && (r.tookS ?? null) === null && r.endedAt !== null;
+  return before ? tookText((r.endedAt! - r.createdAt) * 1000) : null;
 }
 
 export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): OrderView {
@@ -51,7 +64,7 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
     id: r.id, kind: r.kind, status: pillOf(r.outcome, r.stage),
     stageText: pending ? stageText(r, nowSec) : null,
     day: dayText(r.createdAt * 1000, nowSec * 1000), time: clockText(r.createdAt * 1000).slice(0, 5), ago: agoText(r.createdAt, nowSec),
-    took: r.endedAt !== null ? tookText((r.endedAt - r.createdAt) * 1000) : null,
+    took: tookOf(r),
     from: sideView(r.from, logo, false), to: sideView(r.to, logo, pending),
     refund: rf && rf.chain !== null
       ? { ...sideView({ chain: rf.chain, token: rf.token, symbol: rf.symbol, decimals: rf.decimals, amount: rf.amount, amountMin: null, wallet: rf.receiver, tx: rf.tx, block: rf.block }, logo, false), toText: short(rf.receiver) }
@@ -62,6 +75,7 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
     gas: r.gasMode === 'gasless' ? 'Gasless' : r.gasMode === 'userPays' ? 'You paid gas' : 'No gas',
     feeText: r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
     payer: r.from.wallet, recipient: r.to.wallet, direction: r.direction ?? null, createdAt: r.createdAt, endedAt: r.endedAt,
+    deliveredAt: pending ? null : r.deliveredAt ?? null,
   };
 }
 

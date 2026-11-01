@@ -31,7 +31,11 @@ export function statusView(i: {
   const at = rows.filter((r) => r.atMs !== null).map((r) => r.atMs!);
   const phase = s.outcome === 'pending' ? 'progress' : s.outcome === 'delivered' ? 'delivered' : 'refunded';
   const lastChain = rows[current >= 0 ? current : rows.length - 1]?.chain ?? null;
-  const total = at.length > 1 ? tookText(at[at.length - 1]! - at[0]!) : '';
+  // how long it took, from the chain (tookS, services d5e49ff); before chain times, from the steps' own times
+  const chainTook = 'tookS' in s && typeof s.tookS === 'number' ? s.tookS : null;
+  const total = chainTook !== null ? tookText(Math.max(chainTook, 0) * 1000) : at.length > 1 ? tookText(at[at.length - 1]! - at[0]!) : '';
+  // when it started, by the chain when known
+  const startedMs = 'startedAt' in s && typeof s.startedAt === 'number' ? s.startedAt * 1000 : at[0] ?? null;
   const fromChain = rows[0]?.chain ?? null;
   // the closed word on the steps' end (contract 5.14); the status's own `reason` text is never read
   const word = rows.find((r) => r.step === 'failed' || r.step === 'refunded')?.reason ?? null;
@@ -49,7 +53,7 @@ export function statusView(i: {
       : null,
     reason: s.outcome === 'refunded' || s.outcome === 'failed' ? reasonSentence(word, { refundChain: refund?.chain ?? null, fromChain }) : null,
     steps,
-    when: at[0] ? `${dayText(at[0], i.nowSec * 1000)}, ${clockText(at[0]).slice(0, 5)}` : '',
+    when: startedMs ? `${dayText(startedMs, i.nowSec * 1000)}, ${clockText(startedMs).slice(0, 5)}` : '',
     title: phase === 'delivered' ? 'Delivered' : phase === 'refunded' ? (s.outcome === 'failed' ? 'Stopped' : 'Refunded') : steps[current]?.label ?? 'On its way',
     text: phase === 'delivered' ? `Arrived in ${total}` : phase === 'refunded' ? (refund ? refundLine(refund) : 'Our team is on it') : etaLeftText(('etaAt' in s ? s.etaAt : s.queue?.etaAt) ?? null, i.nowSec) ?? 'Updating live',
     ringLogo: lastChain ? chainLogo(lastChain) : '/images/landing/logo/swapic-logo.svg',

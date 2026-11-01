@@ -119,7 +119,8 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
               <InfoRow k="To wallet"><span className="font-mono font-normal">{o.recipient ? short(o.recipient) : ''}</span>{o.recipient && <CopyButton id="recipient" copied={copied} onCopy={copy} text={o.recipient} />}</InfoRow>
               <InfoRow k="Fee">{o.feeText ?? ''}</InfoRow>
               <InfoRow k="Created">{fullDay(o.createdAt)}, {steps?.[0]?.at ?? clock(o.createdAt)}</InfoRow>
-              <InfoRow k={refund ? 'Refunded' : 'Finished'}>{live || o.endedAt === null ? 'Not yet' : `${fullDay(o.endedAt)}, ${steps?.at(-1)?.at ?? clock(o.endedAt)}`}</InfoRow>
+              {/* when it arrived: the chain's time (deliveredAt); before chain times, the last step's or the watcher's */}
+              <InfoRow k={refund ? 'Refunded' : 'Finished'}>{live || o.endedAt === null ? 'Not yet' : o.deliveredAt !== null ? `${fullDay(o.deliveredAt)}, ${clock(o.deliveredAt)}` : `${fullDay(o.endedAt)}, ${steps?.at(-1)?.at ?? clock(o.endedAt)}`}</InfoRow>
             </>
           )}
       </motion.div>

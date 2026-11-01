@@ -13,7 +13,15 @@ export interface Refund {
 export type ReasonCode = 'expired' | 'timedOut' | 'priceMoved' | 'notFilled' | 'poolShort' | 'stopped' | 'other';
 /** contract 5.7. `reason` is the backend's own text and is never shown (it may name a rail, contract 6); the app reads `reasonCode`.
  *  A side whose `chain` is null is the Swapic Pool: every stake's `to` (an EVM stake's too), every withdrawal's `from`. */
-export interface ActivityRow {
+/**
+ * Chain times (services d5e49ff, 2026-11-01): `startedAt` the wallet's signing time (gasless) or the source transaction's
+ * block time, `deliveredAt` the block time of the transaction that paid the recipient (the canister log's time for an
+ * ICP payout), `tookS` = deliveredAt - startedAt (never below 0), all unix seconds or null; left out by a service older
+ * than that. `createdAt` and `endedAt` are the watcher's own clock: every duration the app shows comes from the chain
+ * times, the watcher's clock only for rows written before them.
+ */
+export interface ChainTimes { startedAt?: number | null; deliveredAt?: number | null; tookS?: number | null }
+export interface ActivityRow extends ChainTimes {
   id: string; kind: 'swap' | 'stake' | 'withdraw'; outcome: Outcome; stage: string;
   createdAt: number; endedAt: number | null; etaAt: number | null; gasMode: 'gasless' | 'userPays' | null;
   from: Side; to: Side; feeUsdc: string | null; payoutId: number | null; reason: string | null;
@@ -21,7 +29,7 @@ export interface ActivityRow {
   direction?: 'sent' | 'received' | 'self';
 }
 /** contract 5.8, plus today's fields (api/mod.rs:801-817) */
-export interface OrderStatusAnswer {
+export interface OrderStatusAnswer extends ChainTimes {
   orderId: string; status: string; srcTx: string | null; dstTx: string | null; amountOut: string | null;
   token: string | null; refunded: boolean; reason?: string; signedTxId?: number;
   pool?: { kind: string; status: string; arrived: string | null; paid: string | null; sharesMinted: string | null };
@@ -57,7 +65,7 @@ export interface StepRow {
   /** on `refunded` and `failed`: one closed word (contract 5.14), never the backend's text */
   tx: string | null; block: number | null; amount: string | null; token: string | null; reason: ReasonCode | (string & {}) | null;
 }
-export interface StepsAnswer { id: string; kind: 'swap' | 'stake' | 'withdraw'; outcome: Outcome; steps: StepRow[] }
+export interface StepsAnswer extends ChainTimes { id: string; kind: 'swap' | 'stake' | 'withdraw'; outcome: Outcome; steps: StepRow[] }
 /** api/mod.rs:195-221; numbers as decimal strings, signatures 0x hex, signedAt unix milliseconds */
 export interface GaslessSubmit {
   orderId: string;

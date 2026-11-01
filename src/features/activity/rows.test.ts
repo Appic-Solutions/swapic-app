@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { mergeRows, orderView } from './rows';
+import { mergeRows, orderView, tookOf } from './rows';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const logo = () => '/x.png';
@@ -45,3 +45,29 @@ describe('orderView', () => {
     expect(mergeRows([[r], [{ ...r, direction: 'self' }]]).length).toBe(1);
   });
 });
+
+describe('how long it took (chain times, services d5e49ff)', () => {
+  const row = c('scanner-search-tx.json').items[0];
+  it('takes tookS when it is a number, never the watcher\'s clock (82 s by the watcher, 22 s by the chain)', () => {
+    const r = { ...row, outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, startedAt: 1_010, deliveredAt: 1_032, tookS: 22 };
+    expect(tookOf(r)).toBe('22 s');
+    const v = orderView(r, 2_000, logo);
+    expect(v.took).toBe('22 s');
+    expect(v.deliveredAt).toBe(1_032);
+  });
+  it('falls back to endedAt - createdAt only for a row written before chain times (both null, or left out)', () => {
+    expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, deliveredAt: null, tookS: null })).toBe('1 min');
+    expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_040 })).toBe('40 s');
+    // a chain time is known but tookS is not: no guess from the watcher's clock
+    expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, deliveredAt: 1_032, tookS: null })).toBeNull();
+  });
+  it('shows nothing while it is pending', () => {
+    expect(tookOf({ outcome: 'pending', createdAt: 1_000, endedAt: null, deliveredAt: null, tookS: null })).toBeNull();
+    expect(tookOf({ outcome: 'pending', createdAt: 1_000, endedAt: 1_082, deliveredAt: null, tookS: 22 })).toBeNull();
+    const v = orderView({ ...row, outcome: 'pending', stage: 'bridging', endedAt: null, refund: null, deliveredAt: 1_032, tookS: 22 }, 2_000, logo);
+    expect(v.took).toBeNull();
+    expect(v.deliveredAt).toBeNull();
+  });
+  it('never shows a negative time', () => expect(tookOf({ outcome: 'delivered', createdAt: 0, endedAt: 1, tookS: -3 })).toBe('0 s'));
+});
+
