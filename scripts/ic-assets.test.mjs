@@ -39,6 +39,10 @@ describe('deep links with a trailing slash', () => {
     expect(slashAliases(out)).toEqual(['history/index.html', 'pool/index.html', 'pool/stake/index.html']);
     expect(readFileSync(join(out, 'pool', 'index.html'), 'utf8')).toBe('pool');
     expect(readFileSync(join(out, 'pool', 'stake', 'index.html'), 'utf8')).toBe('stake');
+    // one file per page: the .html is gone, so the asset canister certifies /pool for that one file
+    expect(existsSync(join(out, 'pool.html'))).toBe(false);
+    expect(existsSync(join(out, 'history.html'))).toBe(false);
+    expect(existsSync(join(out, 'pool', 'stake.html'))).toBe(false);
     // never the home page, the not found pages or Next's own files
     expect(existsSync(join(out, 'index', 'index.html'))).toBe(false);
     expect(existsSync(join(out, '404', 'index.html'))).toBe(false);

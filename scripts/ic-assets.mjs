@@ -10,12 +10,14 @@
 // fails on any violation and on any API request carrying sentry-trace or baggage. scripts/check-build.mjs fails when out/
 // holds E2E-FAKE-MARKER; it is first shown to fail on the e2e build. Tests: scripts/ic-assets.test.mjs.
 // Deep links with a trailing slash (staging 2026-10-31: /pool/ showed the Swap page). The asset canister serves /pool from
-// pool.html, but /pool/ only from pool/index.html, and answers index.html (Swap) when that is missing. slashAliases writes
-// <route>/index.html beside every <route>.html the export made, the same bytes, so both forms open the right page; the URL
-// style of the app (no trailing slash) does not change. Tests: scripts/ic-assets.test.mjs.
+// pool.html, but /pool/ only from pool/index.html, and answers index.html (Swap) when that is missing. slashAliases moves
+// every <route>.html the export made to <route>/index.html, so one file answers both /pool and /pool/. Never both files:
+// with pool.html and pool/index.html each claiming /pool, the asset canister certified /pool for one of them only, and
+// the gateway refused /pool, /history and /swap with a response verification error (staging 2026-11-01). The URL style of
+// the app (no trailing slash) does not change. Tests: scripts/ic-assets.test.mjs.
 // Usage: node scripts/ic-assets.mjs test|prod   (after `next build`, writes out/.ic-assets.json5 and out/.well-known/ic-domains)
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,17 +60,17 @@ function* htmlFiles(dir) {
 }
 
 const NOT_ROUTES = new Set(['index.html', '404.html', '_not-found.html']);
-/** For every <route>.html of the export (not index, 404 or _not-found, nothing under _next), <route>/index.html with the same
- *  bytes, unless one is there already. Returns the files written, relative to outDir. */
+/** Every <route>.html of the export (not index, 404 or _not-found, nothing under _next) moved to <route>/index.html (one
+ *  already there is kept and the .html dropped), so each page has exactly one file. Returns the index files, relative to outDir. */
 export function slashAliases(outDir) {
   const written = [];
-  for (const f of htmlFiles(outDir)) {
+  for (const f of [...htmlFiles(outDir)]) {
     const rel = relative(outDir, f);
     if (NOT_ROUTES.has(basename(f)) || rel.startsWith('_next')) continue;
     const target = join(dirname(f), basename(f, '.html'), 'index.html');
-    if (existsSync(target)) continue;
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(f, target);
+    if (existsSync(target)) unlinkSync(f);
+    else renameSync(f, target);
     written.push(relative(outDir, target));
   }
   return written.sort();
