@@ -478,5 +478,21 @@
     "recordedAt": "2026-10-31",
     "replacedBy": null,
     "note": "Swap shows the cap line and 'Up to $100 right now'"
+  },
+  {
+    "path": "tests/fixtures/real/kyber/kyber_arb_weth_usdc_pool_2026_11_01.json",
+    "kind": "real",
+    "source": "swapic-backend-fe libraries/onchain/samples/kyber_arb_weth_usdc_pool_2026_11_01.json (KyberSwap's Arbitrum aggregator, 2026-11-01, built for the Arbitrum Runner)",
+    "recordedAt": "2026-11-01",
+    "replacedBy": null,
+    "note": "option B (Jeff 2026-11-01): the input handed straight to a SushiSwap v2 style pool, which now passes"
+  },
+  {
+    "path": "tests/fixtures/real/kyber/kyber_arb_weth_usdc_executor_2026_11_01.json",
+    "kind": "real",
+    "source": "swapic-backend-fe libraries/onchain/samples/kyber_arb_weth_usdc_executor_2026_11_01.json (KyberSwap's Arbitrum aggregator, 2026-11-01, built for the Arbitrum Runner)",
+    "recordedAt": "2026-11-01",
+    "replacedBy": null,
+    "note": "option B (Jeff 2026-11-01): the input handed to KyberSwap's executor, as before"
   }
 ]

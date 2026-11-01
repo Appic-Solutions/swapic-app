@@ -4,6 +4,7 @@
 import { decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, pad, size, type Hex } from 'viem';
 import { ECO_ROUTE, KYBER_EXECUTOR, KYBER_ROUTER, STEP_ABI, sameAddress, type OrderValue } from './abi';
 import type { GuardContext } from './context';
+import type { ChainView } from '@/lib/icp';
 import { decodeEnvelope, type Envelope } from './envelope';
 import { GuardError, must } from './errors';
 
@@ -52,6 +53,32 @@ const ours = (ctx: PlanContext, chainId: number) => {
   return [c.swapic, c.runner, c.cctpReceiver].map((a) => a.toLowerCase());
 };
 
+/**
+ * A KyberSwap step as the canister reads it (Jeff's option B, 2026-11-01; the canister's check_swap and the services'
+ * shared check, swapic-backend-fe libraries/onchain/src/kyber, in its order): the step calls KyberSwap's router, decoded
+ * strictly and encoded back to the same bytes, with no writes; it sells the token the step spends (never the zero
+ * address); its callTarget is KyberSwap's executor; it hands its input to at least one receiver, none of them the zero
+ * address, Swapic, the Runner or the CctpReceiver of that chain, or the canister's EVM address (a route through an old
+ * v2 style pool hands it straight to the pool, and passes); it pays no fee and carries no permit; and it pays its output
+ * to the chain's Runner. The input's amounts are not read: the Runner approves exactly the step's delta and reverts on
+ * anything left of it. Refusals: swapExecutor (another callTarget), swapSrcReceiver (no receiver, or one that is zero
+ * or ours), and the rules this guard had before.
+ */
+export function readKyberSwap(step: Step, source: ChainView, canisterEvm: Hex | null): void {
+  const d = decode(step.data);
+  must(d.functionName === 'swap', 'unknownStep');
+  must(sameAddress(step.target, KYBER_ROUTER), 'unknownStep');
+  const [ex] = d.args as readonly [KyberExecution];
+  must(same(encodeFunctionData({ abi: STEP_ABI, functionName: 'swap', args: [ex as never] }), step.data) && step.writes.length === 0, 'stepNotCanonical');
+  must(!sameAddress(step.token, ZERO) && sameAddress(ex.desc.srcToken, step.token), 'swapToken');
+  must(sameAddress(ex.callTarget, KYBER_EXECUTOR), 'swapExecutor');
+  must(!!canisterEvm, 'noAnchor');
+  const refused = [ZERO, source.swapic, source.runner, source.cctpReceiver, canisterEvm!];
+  must(ex.desc.srcReceivers.length > 0 && ex.desc.srcReceivers.every((r) => !refused.some((x) => sameAddress(r, x))), 'swapSrcReceiver');
+  must(ex.desc.feeReceivers.length === 0 && ex.desc.permit === '0x', 'swapFees');
+  must(sameAddress(ex.desc.dstReceiver, source.runner), 'swapReceiver');
+}
+
 function readStep(step: Step, ctx: PlanContext): Read {
   const source = ctx.config.chains.get(ctx.sourceChainId);
   must(!!source, 'noAnchor');
@@ -77,16 +104,9 @@ function readStep(step: Step, ctx: PlanContext): Read {
     }
     case 'publishAndFund':
       return readIntent(step, d.args as readonly [bigint, Hex, Reward, boolean], ctx);
-    case 'swap': {
-      must(sameAddress(step.target, KYBER_ROUTER), 'unknownStep');
-      const [ex] = d.args as readonly [KyberExecution];
-      must(same(encodeFunctionData({ abi: STEP_ABI, functionName: 'swap', args: [ex as never] }), step.data) && step.writes.length === 0, 'stepNotCanonical');
-      must(!sameAddress(step.token, ZERO) && sameAddress(ex.desc.srcToken, step.token), 'swapToken');
-      must(sameAddress(ex.callTarget, KYBER_EXECUTOR) && ex.desc.srcReceivers.length === 1 && sameAddress(ex.desc.srcReceivers[0], ex.callTarget), 'swapExecutor');
-      must(ex.desc.feeReceivers.length === 0 && ex.desc.permit === '0x', 'swapFees');
-      must(sameAddress(ex.desc.dstReceiver, source!.runner), 'swapReceiver');
+    case 'swap':
+      readKyberSwap(step, source!, ctx.canisterEvm);
       return { kind: 'swap' };
-    }
     default:
       throw new GuardError('unknownStep');
   }
