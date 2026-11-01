@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useWallets } from './store';
+import { icpSignerOf, kitIdOf, useWallets } from './store';
+import { PLUG_UUID } from './plug';
 
 beforeEach(() => useWallets.setState({ evm: null, icp: null }));
 
@@ -14,6 +15,16 @@ describe('wallet store', () => {
   it('never keeps the anonymous principal', () => {
     useWallets.getState().setIcp({ principal: '2vxsx-fae', signer: 'NFIDW' });
     expect(useWallets.getState().icp).toBeNull();
+  });
+  it('names Plug by its ICRC-94 uuid both ways, keeps the other signer ids, and drops an id it does not know', () => {
+    expect(icpSignerOf(PLUG_UUID)).toBe('Plug');
+    expect(kitIdOf('Plug')).toBe(PLUG_UUID);
+    for (const id of ['OISY', 'NFIDW', 'InternetIdentity'] as const) {
+      expect(icpSignerOf(id)).toBe(id);
+      expect(kitIdOf(id)).toBe(id);
+    }
+    expect(icpSignerOf('https://some.signer/rpc')).toBeNull();
+    expect(icpSignerOf(undefined)).toBeNull();
   });
   it('stores EVM addresses in lower case', () => {
     useWallets.getState().setEvm({ address: '0xF00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC' as `0x${string}`, chainId: 1 });

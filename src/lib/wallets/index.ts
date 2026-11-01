@@ -18,5 +18,6 @@ export type { EvmWallet, IcpWallet, IcpSignerId } from './store';
 export { type EvmSigner, type SignableTypedData } from './evm-signer';
 export { isUserRejection, isLostSignerAnswer } from './rejection';
 export { useIcpCaller } from './icp-caller';
-export { Providers, queryClient } from './providers';
+export { Providers, queryClient, PLUG_PRESENT } from './providers';
+export { PLUG_INSTALL_URL } from './plug';
 export { useEvmConnect, useEvmModalOpen, useIcpConnect, useDisconnectWallets } from './bridge';

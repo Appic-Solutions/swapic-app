@@ -43,18 +43,69 @@ test.describe('the shell', () => {
   });
 });
 
+// Plug's page script answers ICRC-94 discovery in the same tick with its fixed uuid (lib/wallets/plug.ts). This stand in
+// does the same, records what IdentityKit sends it, and says no the way Plug does (ICRC-25 code 3000, "User rejected").
+const FAKE_PLUG = () => {
+  const sent: string[] = [];
+  (window as unknown as { __plugSent: string[] }).__plugSent = sent;
+  const detail = Object.freeze({
+    uuid: '71edc834-bab2-4d59-8860-c36a01fee7b8', name: 'Plug Wallet', rdns: 'ooo.plugwallet', icon: 'data:image/png;base64,',
+    sendMessage: async (m: { id: string; method: string }) => {
+      sent.push(m.method);
+      return { jsonrpc: '2.0', id: m.id, error: { code: 3000, message: 'User rejected' } };
+    },
+    dismiss: async () => {},
+  });
+  window.addEventListener('icrc94:requestProvider', () => window.dispatchEvent(new CustomEvent('icrc94:announceProvider', { detail })));
+};
+
 test.describe('the wallet chooser', () => {
   test.beforeEach(async ({ page }) => open(page, 'no-wallet'));
 
-  test('Connect Wallet offers the EVM list and the three ICP wallets', async ({ page }) => {
+  test('Connect Wallet opens on two choices, ICP opens its own step with Plug, Back returns', async ({ page }) => {
     await page.goto('/');
     await page.getByText('Connect Wallet', { exact: true }).click();
     await expect(page.getByText('Connect a wallet', { exact: true })).toBeVisible();
     // scoped to our menu: IdentityKit's hidden signer list names OISY too
     const menu = page.getByTestId('wallet-menu');
-    for (const name of ['EVM wallet', 'OISY', 'NFID', 'Internet Identity']) {
-      await expect(menu.getByText(name, { exact: true })).toBeVisible();
-    }
+    await expect(menu.getByText('EVM wallet', { exact: true })).toBeVisible();
+    await expect(menu.getByText('ICP wallet', { exact: true })).toBeVisible();
+    for (const name of ['OISY', 'NFID', 'Internet Identity', 'Plug']) await expect(menu.getByText(name, { exact: true })).toHaveCount(0);
     await expect(menu.getByText('You can connect one EVM wallet and one ICP wallet at the same time.')).toBeVisible();
+
+    await menu.getByText('ICP wallet', { exact: true }).click();
+    await expect(page.getByText('Choose an ICP wallet', { exact: true })).toBeVisible();
+    for (const name of ['OISY', 'NFID', 'Internet Identity', 'Plug']) await expect(menu.getByText(name, { exact: true })).toBeVisible();
+    await expect(menu.getByText('EVM wallet', { exact: true })).toHaveCount(0);
+    // no Plug extension in this browser: its row opens Plug's site
+    await expect(menu.getByRole('link', { ...HIDDEN_TOO, name: /Plug/ })).toHaveAttribute('href', 'https://plugwallet.ooo/');
+
+    await page.getByRole('button', { ...HIDDEN_TOO, name: 'Back', exact: true }).click();
+    await expect(menu.getByText('EVM wallet', { exact: true })).toBeVisible();
+    await expect(menu.getByText('ICP wallet', { exact: true })).toBeVisible();
+  });
+
+  test('without Plug, OISY still opens its own window (IdentityKit is not left waiting)', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('Connect Wallet', { exact: true }).click();
+    const menu = page.getByTestId('wallet-menu');
+    await menu.getByText('ICP wallet', { exact: true }).click();
+    const popup = page.waitForEvent('popup');
+    await menu.getByText('OISY', { exact: true }).click();
+    expect((await popup).url()).toContain('oisy.com');
+    await expect(menu.getByText('Check your wallet', { exact: true })).toBeVisible();
+  });
+
+  test('with Plug installed, Plug asks the extension, and its no ends "Check your wallet"', async ({ page }) => {
+    await page.addInitScript(FAKE_PLUG);
+    await page.goto('/');
+    await page.getByText('Connect Wallet', { exact: true }).click();
+    const menu = page.getByTestId('wallet-menu');
+    await menu.getByText('ICP wallet', { exact: true }).click();
+    await expect(menu.getByText('Not found in this browser. Get it at plugwallet.ooo')).toHaveCount(0);
+    await menu.getByText('Plug', { exact: true }).click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __plugSent: string[] }).__plugSent)).not.toEqual([]);
+    await expect(menu.getByText('ICP wallet', { exact: true })).toBeVisible();
+    await expect(menu.getByText('Check your wallet', { exact: true })).toHaveCount(0);
   });
 });

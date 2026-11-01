@@ -28,6 +28,7 @@ test('every tab and both wallet menus load with no CSP violation and no trace he
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
   await page.getByText('Connect Wallet', { exact: true }).filter({ visible: true }).click();
+  await page.getByTestId('wallet-menu').getByText('ICP wallet', { exact: true }).click();
   await page.getByTestId('wallet-menu').getByText('OISY', { exact: true }).click();
   await page.waitForTimeout(2000);
   expect(walletList).toBe(true);

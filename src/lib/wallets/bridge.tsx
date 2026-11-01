@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { getAccount, getBytecode } from 'wagmi/actions';
 import { useAppKitAccount, useAppKitNetwork, useAppKitState, useDisconnect as useAppKitDisconnect, useAppKit } from '@reown/appkit/react-core';
 import { useAuth, useSigner } from '@nfid/identitykit/react';
-import { useWallets, type IcpSignerId } from './store';
+import { icpSignerOf, kitIdOf, useWallets, type IcpSignerId } from './store';
 import { wagmiConfig } from './evm-config';
 import { BASE_ACCOUNT_CONNECTOR_ID, judgeEvmWallet } from './guard';
 
@@ -58,7 +58,7 @@ export function WalletBridge() {
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
-    setIcp(user ? { principal: user.principal.toText(), signer: (signer?.id as IcpSignerId | undefined) ?? null } : null);
+    setIcp(user ? { principal: user.principal.toText(), signer: icpSignerOf(signer?.id) } : null);
   }, [user, signer, setIcp]);
 
   return null;
@@ -74,7 +74,7 @@ export function useEvmModalOpen(): boolean {
 }
 export function useIcpConnect() {
   const { connect } = useAuth();
-  return (signer?: IcpSignerId) => connect(signer);
+  return (signer?: IcpSignerId) => connect(signer && kitIdOf(signer));
 }
 export function useDisconnectWallets() {
   const { disconnect: evm } = useAppKitDisconnect();
