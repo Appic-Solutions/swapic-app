@@ -64,9 +64,26 @@ export function WalletBridge() {
   return null;
 }
 
+// The EVM wallet list. AppKit's basic build (the react-core entry, evm-config.ts) loads only its WalletConnect QR, All
+// wallets and Downloads views, so open({ view: 'Connect' }) showed an empty window: w3m-connect-view was never defined
+// (checked on test.swapic.xyz, 2026-11-01). The full build always loads @reown/appkit-scaffold-ui's core views; this
+// loads the same module once (prefetched when the wallet menu opens), before the list opens. If it cannot load, the
+// basic build's own WalletConnect view opens instead of an empty one.
+let evmViews: Promise<unknown> | undefined;
+export function loadEvmList(): Promise<unknown> {
+  evmViews ??= import('@reown/appkit-scaffold-ui').catch((e: unknown) => {
+    evmViews = undefined;
+    throw e;
+  });
+  return evmViews;
+}
+
 export function useEvmConnect() {
   const { open } = useAppKit();
-  return () => open({ view: 'Connect' });
+  return async () => {
+    const loaded = await loadEvmList().then(() => true, () => false);
+    return open({ view: loaded ? 'Connect' : 'ConnectingWalletConnectBasic' });
+  };
 }
 /** True while AppKit's own wallet list is open (the menu shows "Check your wallet" until it closes). */
 export function useEvmModalOpen(): boolean {

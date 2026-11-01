@@ -17,7 +17,7 @@ import { Avatar } from '@/components/ui/avatar';
 import Spinner from '@/components/ui/spinner';
 import { ChevronDownIcon, CloseIcon, CopyIcon, ExpandLeftIcon } from '@/components/icons';
 import {
-  PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
+  loadEvmList, PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
 import { useWalletMenu } from '@/lib/wallets/menu';
 import { AnimatePresence, motion } from 'motion/react';
@@ -252,6 +252,11 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
     setWasOpen(open);
     if (open) setStep('choose');
   }
+
+  // the EVM wallet list's views load while the menu is open, so EVM wallet opens the list at once
+  React.useEffect(() => {
+    if (open && !evm) void loadEvmList().catch(() => {});
+  }, [open, evm]);
 
   // "Check your wallet" ends when the wallet connects, or when AppKit's list closes without one.
   const evmListSeen = React.useRef(false);

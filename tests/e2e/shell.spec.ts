@@ -85,6 +85,25 @@ test.describe('the wallet chooser', () => {
     await expect(menu.getByText('ICP wallet', { exact: true })).toBeVisible();
   });
 
+  test('EVM wallet opens the EVM wallet list with its wallet view drawn (it was an empty window)', async ({ page }) => {
+    await page.goto('/');
+    await page.getByText('Connect Wallet', { exact: true }).click();
+    await page.getByTestId('wallet-menu').getByText('EVM wallet', { exact: true }).click();
+    // AppKit's list lives in shadow roots: its Connect view must be defined and take up room
+    const connectViewHeight = () => page.evaluate(() => {
+      let h = 0;
+      const walk = (root: Document | ShadowRoot) => {
+        for (const el of root.querySelectorAll('*')) {
+          if (el.tagName.toLowerCase() === 'w3m-connect-view') h = el.getBoundingClientRect().height;
+          if (el.shadowRoot) walk(el.shadowRoot);
+        }
+      };
+      walk(document);
+      return customElements.get('w3m-connect-view') ? h : -1;
+    });
+    await expect.poll(connectViewHeight, { timeout: 15_000 }).toBeGreaterThan(0);
+  });
+
   test('without Plug, OISY still opens its own window (IdentityKit is not left waiting)', async ({ page }) => {
     await page.goto('/');
     await page.getByText('Connect Wallet', { exact: true }).click();
