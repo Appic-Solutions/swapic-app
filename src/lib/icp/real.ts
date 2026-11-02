@@ -39,10 +39,9 @@ export function realIcpClient(): IcpClient {
   return {
     async getConfig(): Promise<SwapicConfigView> {
       const c = await swapic(await anon()).get_config();
-      const usdc = new Map(c.usdc_addresses.map(([id, a]) => [Number(id), hex(a)]));
       const chains = new Map(
         c.evm_chains.map(([id, ch]) => [Number(id), {
-          swapic: hex(ch.swapic), usdc: usdc.get(Number(id)) ?? hex(ch.usdc), runner: hex(ch.runner),
+          swapic: hex(ch.swapic), usdc: hex(ch.usdc), runner: hex(ch.runner),
           cctpReceiver: hex(ch.cctp_receiver), tokenMessenger: hex(ch.token_messenger),
         }]),
       );

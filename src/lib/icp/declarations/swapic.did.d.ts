@@ -13,19 +13,22 @@ export interface ActionAmounts {
   'relay_deliver' : bigint,
   'complete_swap' : bigint,
   /**
-   * The rebalancing's rows (P11c), optional as the pool's.
+   * The rebalancing's rows, optional as the pool's.
    */
   'pool_move' : [] | [bigint],
   'release' : bigint,
+  /**
+   * A controller's sweep, optional as the pool's.
+   */
+  'sweep' : [] | [bigint],
   'pool_ck_deposit' : [] | [bigint],
   'pool_approve' : [] | [bigint],
   /**
-   * Eco's `cancelAndProve` of an unfilled intent (P11e), optional as the pool's.
+   * Eco's `cancelAndProve` of an unfilled intent, optional as the pool's.
    */
   'eco_rescue' : [] | [bigint],
   /**
-   * The pool's rows (P11b), optional: an absent one refuses its action. Left out of the
-   * ConfigChanged JSON when absent, so a config without them keeps its shape.
+   * The pool's rows, optional: an absent one refuses its action.
    */
   'pool_payout' : [] | [bigint],
   'relay_eco' : bigint,
@@ -42,21 +45,25 @@ export interface ActionGas {
   'relay_deliver' : bigint,
   'complete_swap' : bigint,
   /**
-   * The rebalancing's rows (P11c), optional as the pool's: a move's own order, its CCTP
-   * finish (the limit the watcher finishes the canister's own move with), and a Base to
-   * ICP Eco move's ck deposit on Ethereum.
+   * The rebalancing's rows, optional as the pool's: a move's own order, its CCTP finish
+   * (the limit the watcher finishes the canister's own move with), and a Base to ICP Eco
+   * move's ck deposit on Ethereum.
    */
   'pool_move' : [] | [bigint],
   'release' : bigint,
+  /**
+   * A controller's sweep (`sweep_evm`): a native transfer or a `USDC.transfer`, optional
+   * as the pool's.
+   */
+  'sweep' : [] | [bigint],
   'pool_ck_deposit' : [] | [bigint],
   'pool_approve' : [] | [bigint],
   /**
-   * Eco's `cancelAndProve` of an unfilled intent (P11e), optional as the pool's.
+   * Eco's `cancelAndProve` of an unfilled intent, optional as the pool's.
    */
   'eco_rescue' : [] | [bigint],
   /**
-   * The pool's rows (P11b), optional: an absent one refuses its action. Left out of the
-   * ConfigChanged JSON when absent, so a config without them keeps its shape.
+   * The pool's rows, optional: an absent one refuses its action.
    */
   'pool_payout' : [] | [bigint],
   'relay_eco' : bigint,
@@ -65,51 +72,12 @@ export interface ActionGas {
 /**
  * Why an event was not appended. Nothing was written.
  */
-export type AppendError = {
-    'ChainDiverged' : {
-      'log_head' : Uint8Array | number[],
-      'state_head' : Uint8Array | number[],
-    }
-  } |
-  { 'LogFull' : null } |
+export type AppendError = { 'LogFull' : null } |
   { 'Transition' : TransitionError } |
   { 'IndexMismatch' : { 'sealed' : bigint, 'log_len' : bigint } } |
-  { 'Canonical' : CanonicalError } |
   {
     'OutOfStableMemory' : { 'current_pages' : bigint, 'delta_pages' : bigint }
   };
-/**
- * What one step of the deep check found.
- * 
- * `finished` is the field to read first: only a step that reached the head compared the
- * fold with the live one, and `matches` is its verdict. A step short of the head reports
- * how far the fold got and how much is left, and condemns nothing. An entry the fold
- * refuses, or a finished fold that differs, is a divergence and halts the canister; every
- * verdict starts the next audit over from genesis.
- */
-export interface AuditProgress {
-  /**
-   * whether the fold is the live fold, which only a finished step says
-   */
-  'matches' : boolean,
-  'finished' : boolean,
-  /**
-   * whether this step halted the canister
-   */
-  'halted' : boolean,
-  /**
-   * entries between the fold and the head, as the log stood when this step read it
-   */
-  'remaining' : bigint,
-  /**
-   * entries folded from genesis, this step's included
-   */
-  'folded_so_far' : bigint,
-  /**
-   * why the fold stopped, if it did
-   */
-  'refused' : [] | [ReplayError],
-}
 /**
  * One chain's book lines and its last balance check. `surplus` is `observed` minus what
  * the lines expect at that check; it is never booked by itself.
@@ -132,13 +100,10 @@ export interface BookLines {
   'failed_at_ns' : [] | [bigint],
 }
 /**
- * A value the canonical preimage has no bytes for.
- */
-export type CanonicalError = { 'TooLong' : { 'len' : bigint } } |
-  { 'AmountTooLarge' : bigint };
-/**
- * One chain as the watcher last saw it. There is no instant on it: the canister stamps
- * what it receives, so nothing a caller sends can date its data forward.
+ * A chain's head and gas price as the watcher read them, handed with the call that makes
+ * the canister sign (`relay_gasless`, `finish_cctp`, `pay_payout`). There is no instant on
+ * it: the canister stamps what it receives, so nothing a caller sends can date its data
+ * forward.
  */
 export interface ChainData {
   /**
@@ -155,54 +120,46 @@ export interface ChainData {
   'priority_fee_wei_per_gas' : bigint,
 }
 /**
- * A cached reading with the canister time it arrived at.
- */
-export interface ChainDataEntry { 'data' : ChainData, 'pushed_at_ns' : bigint }
-/**
- * Why a pushed reading is not one this canister prices gas with.
- */
-export type ChainDataError = { 'FeeTooLarge' : { 'field' : string } };
-/**
  * The chain a signed transaction is for.
  */
 export type ChainRef = { 'Evm' : bigint } |
   { 'Solana' : null };
-export type Choice = { 'Requote' : null } |
-  { 'Refund' : null };
 /**
- * Every knob the canister reads at runtime. Numbers are the spec defaults; the two
- * address maps and the key name are what a deploy fills in.
+ * Every knob the canister reads at runtime. The rpc urls, the chain table and the key name
+ * are what a deploy fills in.
  */
 export interface Config {
   'confirmations' : Array<[bigint, bigint]>,
-  'audit_chunk_events' : number,
-  'rail_status_max_age_s' : bigint,
-  'expiry_check_interval_s' : bigint,
+  /**
+   * How long the outbox holds signed transactions back to send them together.
+   */
   'batch_window_ms' : bigint,
-  'max_refunds_per_sweep' : number,
   'ecdsa_key_name' : string,
-  'max_fee_bps' : number,
   /**
    * The chain the pool's EVM pocket is on, whose books the pool's guard reads. None:
    * the pool is closed.
    */
   'pool_chain' : [] | [bigint],
   'rpc_urls' : Array<[bigint, string]>,
+  /**
+   * How often the pool's Base USDC and ICP ckUSDC are checked against the books: 3,600
+   * by default.
+   */
   'books_check_interval_s' : bigint,
   /**
    * Whether the canister simulates a transaction itself before it signs it. False by
    * default: the watcher and the submit API simulate before they ask.
    */
   'simulate_before_sign' : boolean,
-  'vault_addresses' : Array<[bigint, string]>,
   /**
-   * Whether the Eco rail may be used. False until its route is designed: a quote
-   * naming it is refused at registration and at the claim, and a swap already on it is
-   * paused until the rail is on again (counted by `paused_swaps`).
+   * How often the engine's backstop drives while a payout, an ICP op or a move is open,
+   * at most 60. Nothing drives on it while no work is open.
+   */
+  'backstop_interval_s' : bigint,
+  /**
+   * Whether the Eco rail may be used. False until its route is designed.
    */
   'eco_enabled' : boolean,
-  'platform_fee_bps' : number,
-  'permit_deadline_s' : bigint,
   /**
    * CCTP's domain id per chain: Circle's own numbering, never a chain id.
    */
@@ -219,18 +176,15 @@ export interface Config {
    * nothing.
    */
   'evm_chains' : Array<[bigint, EvmChainConfig]>,
-  'replay_audit_interval_s' : bigint,
   /**
    * How far below what the books expect a balance may read, in micro-USDC, before the
    * pool pauses.
    */
   'books_tolerance' : bigint,
-  'quote_ttl_s' : bigint,
   /**
    * Eco's `Portal`, the same address on every chain.
    */
   'eco_portal' : [] | [string],
-  'decision_timeout_min' : bigint,
   /**
    * The crediting depth per chain: how deep money arriving at the canister (a deposit,
    * a ck minter withdrawal's USDC, the books' balance read) must be before it is
@@ -239,29 +193,7 @@ export interface Config {
    * reads below 12 whatever is set.
    */
   'credit_confirmations' : [] | [Array<[bigint, bigint]>],
-  /**
-   * The USDC contract per chain, as an EVM address.
-   */
-  'usdc_addresses' : Array<[bigint, string]>,
-  'chain_data_max_age_s' : bigint,
-  'max_swap_usd' : bigint,
   'max_batch_items' : number,
-  /**
-   * How long after a quote's deposit deadline (its expiry plus the permit window) a
-   * claim for a deposit that landed by that deadline is still admitted, from any
-   * caller the claim admits, the controller included: 600 to 86,400 seconds, an hour by
-   * default. The pending store keeps the quote until it ends.
-   */
-  'claim_grace_s' : bigint,
-  'max_evictions_per_sweep' : number,
-  /**
-   * How many blocks back from a chain's head the deposit read looks for a user's
-   * deposit: at most 400,000, the widest range the read walks, forty windows of ten
-   * thousand blocks, and the default; and more than a claim may be asked after its
-   * deposit at four blocks a second (the longest quote, `permit_deadline_s` and
-   * `claim_grace_s`), which `LookbackShorterThanClaims` refuses.
-   */
-  'deposit_lookback_blocks' : number,
 }
 /**
  * Why a config was refused, naming the knob at fault.
@@ -276,36 +208,20 @@ export type ConfigError = {
   { 'EmptyEcdsaKeyName' : null } |
   {
     /**
-     * The v1 claim's rule, kept with its knobs: a claim could be asked `span_s` after the
-     * deposit it read for (the longest quote lifetime, `permit_deadline_s` and
-     * `claim_grace_s`), `needed_blocks` at four blocks a second, and
-     * `deposit_lookback_blocks` does not reach that far back.
+     * `evm_chains[chain_id].block_time_ms` is outside 100 to 60,000.
      */
-    'LookbackShorterThanClaims' : {
-      'needed_blocks' : bigint,
-      'span_s' : bigint,
-      'lookback_blocks' : number,
-    }
+    'BlockTimeOutOfRange' : { 'chain_id' : bigint, 'block_time_ms' : bigint }
   } |
-  { 'MaxFeeAboveHundredPercent' : number } |
-  { 'VaultAddressTooLong' : { 'len' : bigint, 'chain_id' : bigint } } |
   {
     'CapOutOfRange' : { 'cap' : number, 'field' : string, 'ceiling' : number }
   } |
   {
-    'TimerIntervalTooShort' : {
-      'field' : string,
-      'interval_s' : bigint,
-      'floor_s' : bigint,
-    }
+    /**
+     * The text in `field` at `chain_id` is not an EIP-712 domain name or version: 1 to 32
+     * printable ASCII characters.
+     */
+    'NotDomainText' : { 'field' : string, 'chain_id' : bigint }
   } |
-  {
-    'PlatformFeeAboveMax' : {
-      'max_fee_bps' : number,
-      'platform_fee_bps' : number,
-    }
-  } |
-  { 'EmptyVaultAddress' : { 'chain_id' : bigint } } |
   {
     /**
      * The text in `field` (for a table, at `chain_id`) is not an EVM address.
@@ -365,6 +281,62 @@ export type ConfigError = {
   { 'DurationTooLong' : { 'field' : string } } |
   { 'EmptyRpcUrl' : { 'chain_id' : bigint } };
 /**
+ * `icrc21_consent_info`.
+ */
+export interface ConsentInfo {
+  'metadata' : ConsentMessageMetadata,
+  'consent_message' : ConsentMessage,
+}
+/**
+ * `icrc21_consent_message`.
+ */
+export type ConsentMessage = { 'FieldsDisplayMessage' : FieldsDisplay } |
+  { 'GenericDisplayMessage' : string };
+/**
+ * `icrc21_consent_message_metadata`.
+ */
+export interface ConsentMessageMetadata {
+  /**
+   * Minutes east of UTC. In a request, None is UTC; in an answer, None says the message
+   * holds no local time.
+   */
+  'utc_offset_minutes' : [] | [number],
+  /**
+   * A BCP-47 language tag.
+   */
+  'language' : string,
+}
+/**
+ * `icrc21_consent_message_request`: the call a signer is about to make.
+ */
+export interface ConsentMessageRequest {
+  /**
+   * Its candid argument, byte for byte as the signer would send it.
+   */
+  'arg' : Uint8Array | number[],
+  /**
+   * The method the signer would call on this canister.
+   */
+  'method' : string,
+  'user_preferences' : ConsentMessageSpec,
+}
+/**
+ * `icrc21_consent_message_response`. A variant of its own rather than a `Result`, so the
+ * did gains no `Result_N` and every existing one keeps its number.
+ */
+export type ConsentMessageResponse = { 'Ok' : ConsentInfo } |
+  { 'Err' : Icrc21Error };
+/**
+ * `icrc21_consent_message_spec`.
+ */
+export interface ConsentMessageSpec {
+  'metadata' : ConsentMessageMetadata,
+  /**
+   * None: the canister picks (this one: the generic display).
+   */
+  'device_spec' : [] | [DeviceSpec],
+}
+/**
  * A controller's answer to a deposit held for a human (`resolve_deposit`): back to its
  * payout with fresh attempts, what arrived back to its payer on Base, or its transfer found
  * landed in ledger block `block`.
@@ -372,6 +344,21 @@ export type ConfigError = {
 export type DepositResolution = { 'Refund' : null } |
   { 'MarkPaid' : { 'block' : bigint } } |
   { 'Retry' : null };
+/**
+ * The display a signer shows a message on.
+ */
+export type DeviceSpec = {
+    /**
+     * Markdown, no external resources.
+     */
+    'GenericDisplay' : null
+  } |
+  {
+    /**
+     * Titled fields of plain text.
+     */
+    'FieldsDisplay' : null
+  };
 /**
  * Why a key or a signature is not one this canister can use. A refused management call is
  * reported rather than trapped: the interface specification says a rejected signing
@@ -384,83 +371,37 @@ export type EcdsaError = { 'NoParityRecovers' : null } |
   { 'Signature' : { 'message' : string } } |
   { 'PublicKey' : { 'message' : string } };
 /**
- * One entry of the log. `time_ns` is IC time in nanoseconds.
+ * `icrc21_error_info`: a description for developers, never shown to the user.
+ */
+export interface ErrorInfo { 'description' : string }
+/**
+ * One entry of the log, kept forever. `index` counts from zero with no gap; `time_ns` is
+ * IC time in nanoseconds.
  */
 export interface Event {
-  'hash' : Uint8Array | number[],
   'index' : bigint,
   'time_ns' : bigint,
   'payload' : EventType,
-  'parent_hash' : Uint8Array | number[],
 }
 /**
- * What happened. The event hash is computed over a canonical encoding of the variant,
- * never over this candid layout.
+ * What happened. A `Flow`, `Books` or `Pool` line carries its step as `step_bytes`, the
+ * step's minicbor encoding, with `step` its name and `detail` a readable rendering.
  */
 export type EventType = {
-    'PocketFunded' : { 'chain_id' : bigint, 'amount' : bigint }
-  } |
-  {
-    'PaidInStable' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'amount' : bigint,
-    }
-  } |
-  {
     /**
-     * A gasless pull was signed: the transaction that takes a user's funds into the vault
-     * with their permit, recorded before it is broadcast. It names the quote and the nonce
-     * and no swap, because the deposit it makes is what `claim_swap` then verifies.
+     * A controller's sweep, its amount taken off the books it came from as it was signed
+     * (EVM) or asked of the ledger (ICP). `amount` is in the asset's smallest unit.
      */
-    'PullSigned' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'nonce' : bigint,
-      'raw_tx' : Uint8Array | number[],
-      'tx_hash' : Uint8Array | number[],
-    }
-  } |
-  {
-    'FundsReceived' : {
-      'token' : string,
-      'quote_bytes' : Uint8Array | number[],
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'tx_ref' : string,
+    'Swept' : {
+      'id' : bigint,
+      'to' : SweepTarget,
+      'asset' : SweepAsset,
       'amount' : bigint,
-    }
-  } |
-  {
-    'PocketReleased' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'amount' : bigint,
-    }
-  } |
-  {
-    'Refunded' : {
-      'to' : string,
-      'token' : string,
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'amount' : bigint,
-    }
-  } |
-  {
-    'TxSigned' : {
-      'attempt' : number,
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'raw_tx' : Uint8Array | number[],
-      'tx_hash' : Uint8Array | number[],
     }
   } |
   {
     /**
-     * A step of a flow: a gasless relay, ICP to EVM, or EVM to ICP. `step` names it,
-     * `detail` is a readable rendering, and `step_bytes` is the step exactly as the log
-     * hashes it.
+     * A step of a flow: a gasless relay, or a CCTP finish.
      */
     'Flow' : {
       'quote_hash' : Uint8Array | number[],
@@ -483,7 +424,20 @@ export type EventType = {
   } |
   {
     /**
-     * A step of the pool, rendered and exactly as the log hashes it.
+     * A transaction the canister signed reached its end: mined at the depth the outbox
+     * waits for (`tx_hash` the one that landed), or its nonce spent by a cancel.
+     */
+    'TxFinal' : {
+      'chain_id' : bigint,
+      'nonce' : bigint,
+      'tx_hash' : Uint8Array | number[],
+      'outcome' : TxOutcome,
+      'purpose' : TxPurpose,
+    }
+  } |
+  {
+    /**
+     * A step of the pool.
      */
     'Pool' : {
       'step' : string,
@@ -493,7 +447,8 @@ export type EventType = {
   } |
   {
     /**
-     * A step of a chain's USDC books, rendered and exactly as the log hashes it.
+     * A step of a chain's USDC books: a fee earned, a check that found a shortfall or a
+     * new surplus, a pause.
      */
     'Books' : {
       'step' : string,
@@ -502,67 +457,23 @@ export type EventType = {
       'chain_id' : bigint,
     }
   } |
-  { 'SwapDone' : { 'quote_hash' : Uint8Array | number[] } } |
   {
-    'TxFailed' : {
-      'attempt' : number,
-      'quote_hash' : Uint8Array | number[],
-      'reason' : string,
-    }
-  } |
-  {
-    'PocketRebalanced' : {
-      'to_chain' : bigint,
-      'from_chain' : bigint,
-      'amount' : bigint,
-      'route' : string,
-    }
-  } |
-  {
-    'RefundStarted' : {
-      'quote_hash' : Uint8Array | number[],
-      'reason' : string,
-    }
-  } |
-  {
-    'DecisionRequired' : {
-      'quote_hash' : Uint8Array | number[],
-      'reason' : string,
-    }
+    /**
+     * A sweep that moved nothing (reverted, cancelled, or refused by the ledger): its
+     * amount is back on the books it came from.
+     */
+    'SweepReverted' : { 'id' : bigint, 'why' : string }
   } |
   {
     /**
-     * Principals as text, so the audit line reads without a decoder.
+     * Principals as text, so the line reads without a decoder.
      */
     'RolesChanged' : { 'watcher' : string, 'quoter' : string }
   } |
   {
     /**
-     * A swap's waiting index entries were made to agree with the swap: what no event could
-     * have produced was dropped, and the wait the swap is in is there. Only a divergence
-     * needs one, so this line is the repair's explanation.
-     */
-    'WaitingRepaired' : { 'quote_hash' : Uint8Array | number[] }
-  } |
-  {
-    'FeeAccrued' : { 'quote_hash' : Uint8Array | number[], 'amount' : bigint }
-  } |
-  {
-    'TxConfirmed' : {
-      'attempt' : number,
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'block' : bigint,
-      'tx_hash' : Uint8Array | number[],
-    }
-  } |
-  {
-    'DecisionMade' : { 'quote_hash' : Uint8Array | number[], 'choice' : Choice }
-  } |
-  {
-    /**
      * `json` is the public view of the config written: JSON of `Config` with every rpc url
-     * as `"***"` and `max_swap_usd` as a decimal string.
+     * as `"***"`.
      */
     'ConfigChanged' : { 'json' : string }
   } |
@@ -576,7 +487,7 @@ export type EventType = {
       'max_priority_fee_wei_per_gas' : bigint,
       /**
        * The gas action whose budget the transaction is held to (`relay_cctp`,
-       * `complete_swap`, ...), on every line that records one.
+       * `complete_swap`, `sweep`, ...).
        */
       'action' : [] | [string],
       'data' : Uint8Array | number[],
@@ -588,7 +499,6 @@ export type EventType = {
       'purpose' : TxPurpose,
     }
   } |
-  { 'Frozen' : { 'quote_hash' : Uint8Array | number[], 'reason' : string } } |
   {
     /**
      * An open transaction was re-sent at the same nonce with a higher fee, with the bytes
@@ -603,20 +513,6 @@ export type EventType = {
       'tx_hash' : Uint8Array | number[],
       'purpose' : TxPurpose,
     }
-  } |
-  {
-    'PocketReserved' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'amount' : bigint,
-    }
-  } |
-  {
-    'PocketSpent' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'amount' : bigint,
-    }
   };
 /**
  * Why a text is not an EVM address. Mirrors `types::evm::EvmAddressError` so a caller
@@ -628,8 +524,9 @@ export type EvmAddressError = { 'BadChecksum' : null } |
   { 'NoPrefix' : null } |
   { 'NotHex' : null };
 /**
- * One EVM chain as design C runs on it: its Swapic deployment, CCTP v2, its USDC, and per
- * action the gas limit, the gas budget and the least fee. Addresses are EVM addresses.
+ * One EVM chain as design C runs on it: its Swapic deployment, CCTP v2, its USDC, its
+ * block time, and per action the gas limit, the gas budget and the least fee. Addresses
+ * are EVM addresses.
  */
 export interface EvmChainConfig {
   /**
@@ -646,9 +543,20 @@ export interface EvmChainConfig {
   'runner' : string,
   'usdc' : string,
   /**
+   * USDC's EIP-712 domain version on this chain, as its contract answers `version()`.
+   * None: "2". 1 to 32 printable ASCII characters.
+   */
+  'usdc_domain_version' : [] | [string],
+  /**
    * The least fee step, in USDC units, each action needs.
    */
   'min_network_fee' : ActionAmounts,
+  /**
+   * USDC's EIP-712 domain name on this chain, as its contract answers `name()`: what a
+   * 3009 authorization is signed under. None: "USD Coin". 1 to 32 printable ASCII
+   * characters.
+   */
+  'usdc_domain_name' : [] | [string],
   /**
    * The most each action's transaction may cost in wei (`gas_limit * max_fee_per_gas`):
    * the gas rule. Above it the canister signs nothing and the caller tries again.
@@ -665,10 +573,30 @@ export interface EvmChainConfig {
    */
   'swapic' : string,
   /**
+   * How often the chain makes a block, 100 to 60,000: the outbox reads a transaction's
+   * receipt at this pace.
+   */
+  'block_time_ms' : bigint,
+  /**
    * CCTP v2's `MessageTransmitterV2`.
    */
   'message_transmitter' : string,
 }
+/**
+ * What `sweep_evm` sends from the canister's address on an EVM chain.
+ */
+export type EvmSweepAsset = {
+    /**
+     * USDC fee income booked on the chain, in micro USDC.
+     */
+    'FeeUsdc' : null
+  } |
+  {
+    /**
+     * The chain's native gas, in wei.
+     */
+    'Native' : null
+  };
 /**
  * An EVM staker's withdrawal, signed by the staker (EIP-712).
  */
@@ -687,11 +615,22 @@ export interface EvmWithdrawal {
    */
   'nonce' : bigint,
   /**
-   * At least the canister's floor.
+   * Micro USDC out of `usdc`, Swapic's: the payout's own gas.
    */
-  'rebalance_share' : bigint,
   'network_fee' : bigint,
   'payout' : PayoutTerms,
+  /**
+   * Micro USDC out of `usdc`, Swapic's: the cost of one ICP to Base move at live gas, as
+   * the quoter priced it.
+   */
+  'move_fee' : bigint,
+}
+/**
+ * A fields display's message: its intent and its titled values.
+ */
+export interface FieldsDisplay {
+  'fields' : Array<[string, Value]>,
+  'intent' : string,
 }
 /**
  * Why a flow door refused. Nothing moved.
@@ -716,8 +655,7 @@ export type FlowCallError = {
     'Unavailable' : string
   };
 /**
- * What the flows read at runtime. Set by a controller; the canister's `Config` is the
- * chain layer's and stays as it was.
+ * What the flows and the rebalancing read at runtime, beside `Config`. Set by a controller.
  */
 export interface FlowSettings {
   /**
@@ -727,70 +665,24 @@ export interface FlowSettings {
   'cketh_ledger' : [] | [Principal],
   'cketh_fee_allowance' : bigint,
   /**
-   * The most gas a relay or a continuation may be given.
-   */
-  'max_gas_limit' : bigint,
-  /**
-   * How long the continuation's params stay valid on chain.
-   */
-  'continuation_deadline_s' : bigint,
-  /**
-   * Whether the ICP flows run: `register_icp_quote`, `start_icp_swap`,
-   * `register_evm_quote` and their engine steps. They still speak router ABI v2, so
-   * `true` is refused (`IcpFlowsNotOnV3`) until they move to ABI v3 with the pool (P11).
-   */
-  'icp_enabled' : [] | [boolean],
-  /**
-   * The ckETH minter, which withdraws ckERC20 tokens too.
+   * The ckETH minter, which withdraws ckERC20 tokens too: an ICP to Base move's ckUSDC
+   * leaves ICP through it.
    */
   'ck_minter' : [] | [Principal],
-  'ckusdc_ledger' : [] | [Principal],
   /**
    * Eco's prover, the one a rebalance proposal's intent may name: an intent proven by
-   * any other pays its reward to whoever that prover says (P11c).
+   * any other pays its reward to whoever that prover says.
    */
   'eco_prover' : [] | [string],
   /**
-   * The furthest ahead a relayed quote's deadline may be.
+   * The furthest ahead a relayed order's deadline may be.
    */
   'relay_window_s' : bigint,
   /**
-   * The only ICPSwap pools a quote may name.
-   */
-  'icpswap_pools' : Array<Principal>,
-  /**
-   * USDC on that chain, which the withdrawal lands as.
-   */
-  'ethereum_usdc' : [] | [string],
-  /**
-   * The chain the ck minter withdraws to and the continuation runs on: Ethereum.
-   */
-  'ethereum_chain_id' : bigint,
-  /**
    * The ck minter's ERC-20 deposit helper on Ethereum (`depositErc20` with subaccounts):
-   * a Base to ICP rebalance move filled by Eco is deposited through it (P11c).
+   * a Base to ICP rebalance move filled by Eco is deposited through it.
    */
   'ck_helper' : [] | [string],
-}
-/**
- * A flow as the fold holds it.
- */
-export interface FlowView {
-  'status' : string,
-  'tx_block' : [] | [bigint],
-  'withdrawal_id' : [] | [bigint],
-  'held' : bigint,
-  'kind' : string,
-  'failed_continuations' : number,
-  'chain_id' : [] | [bigint],
-  'held_ledger' : [] | [Principal],
-  'delivered' : [] | [bigint],
-  'tx_hash' : [] | [Uint8Array | number[]],
-  'tx_open' : boolean,
-  'continuation_action' : [] | [number],
-  'landed_tx' : [] | [Uint8Array | number[]],
-  'eth_held' : bigint,
-  'reason' : [] | [string],
 }
 /**
  * Why a caller was refused before anything ran. A refusal names the role and never a
@@ -854,10 +746,46 @@ export interface IcpSwapTerms {
    */
   'amount_in' : bigint,
 }
+/**
+ * What `sweep_icp` sends from the canister's ICP accounts.
+ */
+export type IcpSweepAsset = {
+    /**
+     * The canister's ICP, in e8s.
+     */
+    'Icp' : null
+  } |
+  {
+    /**
+     * The pool's ICP fee line, in micro ckUSDC.
+     */
+    'CkUsdcFees' : null
+  } |
+  {
+    /**
+     * The canister's ckETH, in wei.
+     */
+    'CkEth' : null
+  };
 export interface IcpTokenEntry {
   'ledger' : Principal,
   'icpswap_pool' : Principal,
 }
+/**
+ * `icrc21_error`, the two cases this canister answers.
+ */
+export type Icrc21Error = {
+    /**
+     * A call the canister refuses: another method, or an argument its door would not take.
+     */
+    'UnsupportedCanisterCall' : ErrorInfo
+  } |
+  {
+    /**
+     * A call the canister cannot describe now: what reading it needs is not set yet.
+     */
+    'ConsentMessageUnavailable' : ErrorInfo
+  };
 /**
  * What an install starts from: the whole config and both service roles, so a canister is
  * never live on default knobs or without its quoter and watcher. Each is validated as
@@ -969,23 +897,20 @@ export interface PayoutSettings {
    */
   'min_network_fee' : bigint,
   /**
-   * Micro USDC, the least network fee a payout over CCTP carries (the user's line for the
-   * canister's own finish on the destination). None: no CCTP payout is signed.
-   */
-  'cctp_min_network_fee' : [] | [bigint],
-  /**
    * How long a waiting payout waits for a valid order before it is retried, then undone
    * at its deadline.
    */
   'order_wait_s' : bigint,
   /**
+   * Whether a payout may leave Base over CCTP. Its least network fee per destination is
+   * the pool chain's `min_network_fee.relay_cctp` plus the destination's
+   * `min_network_fee.complete_swap` (a token out) or `relay_deliver` (USDC out).
+   */
+  'cctp_payouts' : boolean,
+  /**
    * The most gas a payout order may be signed with on Base.
    */
   'max_payout_gas' : bigint,
-  /**
-   * The least a stake's or a withdrawal's rebalancing share may be, in bps of its amount.
-   */
-  'rebalance_share_floor_bps' : number,
 }
 export type PayoutStatus = { 'Queued' : null } |
   {
@@ -1086,13 +1011,24 @@ export type PoolAccount = {
   } |
   { 'Icp' : IcpAccount };
 export interface PoolAccountView { 'value_usdc' : bigint, 'shares' : bigint }
+/**
+ * A report of USDC that reached the canister's Base address in `base_tx`.
+ */
 export interface PoolArrival {
-  /**
-   * The terms of the deposit the transfer pays, whose ref its proof must carry.
-   */
-  'terms' : PoolTerms,
   'base_tx' : Uint8Array | number[],
+  /**
+   * The order's memo, the deposit's encoded terms: taken only when its keccak is the ref
+   * the transfer's proof carries. None: the canister reads it from the order's
+   * `OrderStarted` itself.
+   */
+  'memo' : [] | [Uint8Array | number[]],
+  /**
+   * The chain the order ran on: the pool chain for a same-chain deposit.
+   */
   'src_chain' : bigint,
+  /**
+   * The order's own transaction on `src_chain`; empty when it is `base_tx`.
+   */
   'src_tx' : Uint8Array | number[],
 }
 export type PoolArrivalOutcome = {
@@ -1140,7 +1076,7 @@ export interface PoolDepositView {
   'min_usdc' : bigint,
   'src_chain' : bigint,
   'payout_block' : [] | [bigint],
-  'rebalance_share' : bigint,
+  'move_fee' : bigint,
 }
 export type PoolError = { 'NotDeep' : { 'have' : bigint, 'needed' : bigint } } |
   { 'Sanctioned' : string } |
@@ -1261,36 +1197,6 @@ export interface PoolStateView {
   'closed_reason' : [] | [string],
 }
 /**
- * A pool deposit's terms (P11d, 2026-10-21: no registration): the preimage of the ref its
- * order carries (section 2), handed to the canister with the arrival. Every fee is the
- * user's own line: a swap's premium (pure pool income) and its ICP path's ledger fees
- * (`icp_fees`, at least the path's own ckUSDC fees); a stake's rebalancing share.
- */
-export interface PoolTerms {
-  /**
-   * Swap: micro USDC; Stake: 0.
-   */
-  'premium' : bigint,
-  'kind' : PoolDepositKind,
-  /**
-   * Swap: micro USDC; Stake: 0.
-   */
-  'icp_fees' : bigint,
-  /**
-   * 32 bytes.
-   */
-  'salt' : Uint8Array | number[],
-  /**
-   * Stake: micro USDC; Swap: 0.
-   */
-  'rebalance_share' : bigint,
-}
-/**
- * Why `push_chain_data` stored nothing.
- */
-export type PushChainDataError = { 'Guard' : GuardError } |
-  { 'InvalidData' : ChainDataError };
-/**
  * Why a quote was refused, naming the field wherever one is at fault.
  */
 export type QuoteError = { 'NotUtf8' : { 'field' : string } } |
@@ -1331,82 +1237,44 @@ export interface Recipe {
   'data' : Uint8Array | number[],
   'target' : string,
 }
-/**
- * A relay's status.
- */
-export type RelayStatus = {
-    'Failed' : {
-      'chain_id' : bigint,
-      'block' : bigint,
-      'tx_hash' : Uint8Array | number[],
-    }
-  } |
-  {
-    'Confirmed' : {
-      'chain_id' : bigint,
-      'block' : bigint,
-      'tx_hash' : Uint8Array | number[],
-    }
-  } |
-  {
-    /**
-     * Signed and on its way; `tx_hash` is the first broadcast's.
-     */
-    'Signed' : { 'chain_id' : bigint, 'tx_hash' : Uint8Array | number[] }
-  };
-/**
- * Why the log does not fold. The replay stopped at `index` and applied nothing from there.
- */
-export type ReplayError = {
-    'OutOfSequence' : { 'found' : bigint, 'expected' : bigint }
-  } |
-  { 'LogFull' : { 'index' : bigint } } |
-  { 'Refused' : { 'error' : TransitionError, 'index' : bigint } } |
-  {
-    'Unlinked' : {
-      'head' : Uint8Array | number[],
-      'index' : bigint,
-      'parent' : Uint8Array | number[],
-    }
-  };
-export type Result = { 'Ok' : AuditProgress } |
-  { 'Err' : GuardError };
-export type Result_1 = { 'Ok' : null } |
+export type Result = { 'Ok' : string } |
+  { 'Err' : SignError };
+export type Result_1 = { 'Ok' : bigint } |
   { 'Err' : string };
 export type Result_10 = { 'Ok' : null } |
-  { 'Err' : SetConfigError };
+  { 'Err' : string };
 export type Result_11 = { 'Ok' : null } |
-  { 'Err' : FlowCallError };
-export type Result_12 = { 'Ok' : null } |
-  { 'Err' : GuardError };
-export type Result_13 = { 'Ok' : null } |
   { 'Err' : SetRolesError };
-export type Result_14 = { 'Ok' : bigint } |
+export type Result_12 = { 'Ok' : bigint } |
   { 'Err' : SetSanctionedError };
-export type Result_15 = { 'Ok' : StakeIcpOk } |
+export type Result_13 = { 'Ok' : StakeIcpOk } |
   { 'Err' : PoolError };
-export type Result_16 = { 'Ok' : SwapFromIcpOk } |
+export type Result_14 = { 'Ok' : SwapFromIcpOk } |
   { 'Err' : PoolError };
+export type Result_15 = { 'Ok' : SweepEvmOk } |
+  { 'Err' : SweepError };
+export type Result_16 = { 'Ok' : SweepIcpOk } |
+  { 'Err' : SweepError };
 export type Result_17 = { 'Ok' : WithdrawEvmOk } |
   { 'Err' : PoolError };
 export type Result_18 = { 'Ok' : WithdrawIcpOk } |
   { 'Err' : PoolError };
-export type Result_2 = { 'Ok' : string } |
-  { 'Err' : SignError };
-export type Result_3 = { 'Ok' : bigint } |
-  { 'Err' : string };
-export type Result_4 = { 'Ok' : Config } |
+export type Result_2 = { 'Ok' : Config } |
   { 'Err' : GuardError };
-export type Result_5 = { 'Ok' : PoolArrivalOutcome } |
+export type Result_3 = { 'Ok' : PoolArrivalOutcome } |
+  { 'Err' : PoolError };
+export type Result_4 = { 'Ok' : PayPayoutOk } |
+  { 'Err' : PoolError };
+export type Result_5 = { 'Ok' : null } |
   { 'Err' : PoolError };
 export type Result_6 = { 'Ok' : PayPayoutOk } |
-  { 'Err' : PoolError };
-export type Result_7 = { 'Ok' : null } |
-  { 'Err' : PoolError };
-export type Result_8 = { 'Ok' : null } |
-  { 'Err' : PushChainDataError };
-export type Result_9 = { 'Ok' : PayPayoutOk } |
   { 'Err' : string };
+export type Result_7 = { 'Ok' : null } |
+  { 'Err' : SetConfigError };
+export type Result_8 = { 'Ok' : null } |
+  { 'Err' : FlowCallError };
+export type Result_9 = { 'Ok' : null } |
+  { 'Err' : GuardError };
 /**
  * A service role the canister hands out.
  */
@@ -1460,6 +1328,11 @@ export interface StakeIcpArgs {
   'owner' : PoolAccount,
   'from_subaccount' : [] | [Uint8Array | number[]],
   'amount' : bigint,
+  /**
+   * Micro ckUSDC out of `amount`, Swapic's: the cost of one ICP to Base move at live gas,
+   * as the quoter priced it. Shares are minted on the rest.
+   */
+  'move_fee' : bigint,
 }
 export interface StakeIcpOk { 'shares' : bigint }
 /**
@@ -1469,6 +1342,10 @@ export interface StakeIcpOk { 'shares' : bigint }
  */
 export type StakeResolution = { 'NotPulled' : null } |
   { 'Pulled' : { 'block' : bigint } };
+/**
+ * One standard `icrc10_supported_standards` lists.
+ */
+export interface SupportedStandard { 'url' : string, 'name' : string }
 /**
  * `swap_from_icp`'s answer: the payout's id, and where it stands as the call returns
  * (`Signed` when its plan fitted; `Waiting` when it waits for an order).
@@ -1486,6 +1363,100 @@ export type SwapStatus = { 'PaidInStable' : null } |
   { 'Done' : null } |
   { 'Executing' : null } |
   { 'Frozen' : null };
+/**
+ * What a logged sweep sent.
+ */
+export type SweepAsset = { 'Icp' : null } |
+  { 'FeeUsdc' : null } |
+  { 'CkUsdcFees' : null } |
+  { 'Native' : null } |
+  { 'CkEth' : null };
+/**
+ * Why a sweep sent nothing.
+ */
+export type SweepError = {
+    /**
+     * An argument the door does not take: the field and why.
+     */
+    'Invalid' : string
+  } |
+  {
+    /**
+     * The destination is sanctioned.
+     */
+    'Sanctioned' : null
+  } |
+  {
+    /**
+     * Open work may still need the asset: what is open.
+     */
+    'Busy' : string
+  } |
+  { 'Guard' : GuardError } |
+  {
+    /**
+     * More than the books allow: what they allow now.
+     */
+    'AboveBooks' : { 'available' : bigint }
+  } |
+  {
+    /**
+     * The ledger refused the transfer: why. Nothing left the books.
+     */
+    'Ledger' : string
+  } |
+  {
+    /**
+     * A chain or a ledger did not answer usably: ask again.
+     */
+    'Unavailable' : string
+  };
+export interface SweepEvmArgs {
+  /**
+   * An EVM address: never the canister's own, the zero address or a sanctioned one.
+   */
+  'to' : string,
+  'asset' : EvmSweepAsset,
+  'chain_id' : bigint,
+  /**
+   * In the asset's smallest unit.
+   */
+  'amount' : bigint,
+}
+/**
+ * `sweep_evm`'s answer: the sweep's id, and its signed transaction's id in `signed_txs`.
+ */
+export interface SweepEvmOk { 'id' : bigint, 'tx_id' : bigint }
+export interface SweepIcpArgs {
+  /**
+   * Never the canister's own account.
+   */
+  'to' : IcpAccount,
+  'asset' : IcpSweepAsset,
+  /**
+   * In the asset's smallest unit; the ledger's fee is paid on top, from the same account.
+   */
+  'amount' : bigint,
+}
+/**
+ * `sweep_icp`'s answer: the sweep's id, and the ledger block of its transfer.
+ */
+export interface SweepIcpOk { 'id' : bigint, 'block' : bigint }
+/**
+ * Where a logged sweep sent to.
+ */
+export type SweepTarget = {
+    /**
+     * An EIP-55 address on `chain_id`.
+     */
+    'Evm' : { 'to' : string, 'chain_id' : bigint }
+  } |
+  { 'Icp' : IcpAccount };
+export interface TextValue { 'content' : string }
+/**
+ * Unix seconds, which the signer writes in its user's zone.
+ */
+export interface TimestampSeconds { 'amount' : bigint }
 /**
  * Why an event cannot move the state it was offered to.
  */
@@ -1581,33 +1552,49 @@ export type TransitionError = {
     }
   };
 /**
- * Why an outbound transaction exists. All but the last name the swap they belong to.
+ * How a transaction the canister signed ended.
  */
-export type TxPurpose = { 'Continue' : Uint8Array | number[] } |
+export type TxOutcome = { 'Reverted' : { 'block' : bigint } } |
+  { 'Succeeded' : { 'block' : bigint } } |
   {
+    /**
+     * Its nonce was spent by a cancel: it never ran.
+     */
+    'Cancelled' : null
+  };
+/**
+ * Why an outbound transaction exists.
+ */
+export type TxPurpose = {
     /**
      * A pool payout from the canister's Base pocket, by its payout id.
      */
     'PoolPayout' : bigint
   } |
-  { 'Payout' : Uint8Array | number[] } |
-  { 'Burn' : Uint8Array | number[] } |
-  { 'Mint' : Uint8Array | number[] } |
-  { 'Refund' : Uint8Array | number[] } |
+  {
+    /**
+     * A controller's sweep, by its id.
+     */
+    'Sweep' : bigint
+  } |
   {
     /**
      * Eco's `cancelAndProve` of an unfilled intent, by the order id that published it.
      */
     'EcoRescue' : Uint8Array | number[]
   } |
-  { 'GaslessPull' : Uint8Array | number[] } |
   {
     /**
      * The canister's standing USDC allowance to Swapic.
      */
     'PoolApprove' : null
   } |
-  { 'Relay' : Uint8Array | number[] } |
+  {
+    /**
+     * A gasless order relayed, by its relay key.
+     */
+    'Relay' : Uint8Array | number[]
+  } |
   {
     /**
      * An orphan sent back, by the hash of its credit key.
@@ -1620,9 +1607,25 @@ export type TxPurpose = { 'Continue' : Uint8Array | number[] } |
      */
     'PoolMove' : bigint
   } |
-  { 'Finish' : Uint8Array | number[] } |
-  { 'Cancel' : bigint } |
-  { 'Reclaim' : Uint8Array | number[] };
+  {
+    /**
+     * A CCTP arrival finished, by its finish key.
+     */
+    'Finish' : Uint8Array | number[]
+  } |
+  {
+    /**
+     * A same-nonce zero-value self-transfer on that chain.
+     */
+    'Cancel' : bigint
+  };
+/**
+ * A field's value: the standard's `Value` less `TokenAmount` and `DurationSeconds`, which
+ * this canister never sends (an amount is text it wrote exactly; no message holds a
+ * duration).
+ */
+export type Value = { 'Text' : TextValue } |
+  { 'TimestampSeconds' : TimestampSeconds };
 /**
  * `withdraw_evm`'s answer: the payout's id and the shares burned.
  */
@@ -1637,31 +1640,14 @@ export interface WithdrawIcpArgs {
   'min_out' : bigint,
   'usdc' : bigint,
   'token_out' : Principal,
+  /**
+   * Micro ckUSDC out of `usdc`, Swapic's: the cost of one Base to ICP move at live gas,
+   * as the quoter priced it.
+   */
+  'move_fee' : bigint,
 }
 export interface WithdrawIcpOk { 'paid' : bigint, 'burned' : bigint }
 export interface _SERVICE {
-  /**
-   * Controller-only. One step of the deep check: folds up to `max_events` more of the log
-   * onto the fold the step before saved, from genesis when there is none, and once the fold
-   * reaches the head compares it with the live state. An update, not a query, because a
-   * divergence it finds halts the canister, and because the fold so far is saved in stable
-   * memory between steps, so an audit spans as many calls as the log needs and survives an
-   * upgrade in the middle.
-   * 
-   * Each step answers how much is folded and how much is left; keep calling until
-   * `finished`. A refusal, a broken link, or a finished fold that differs from the live
-   * state halts the canister, and every verdict starts the next audit over from genesis.
-   * 
-   * A step costs the entries it folds plus the fold so far, which is read and written whole,
-   * so on a large fold the fold's own size is the floor and `max_events` is the rest. A step
-   * too large for one message fails that call alone and leaves the saved fold where it was.
-   */
-  'audit_replay_step' : ActorMethod<[bigint], Result>,
-  /**
-   * Controller-only. Moves a surplus the last balance check found on `chain_id`, once
-   * someone has looked at it, into the `unattributed` line.
-   */
-  'book_surplus' : ActorMethod<[bigint, bigint], Result_1>,
   /**
    * The book lines of every chain, in micro-USDC, with the last balance check.
    */
@@ -1672,7 +1658,7 @@ export interface _SERVICE {
    * contracts are configured with this address and it has to be funded for gas, and neither
    * can wait for the first transaction to derive it.
    */
-  'derive_evm_address' : ActorMethod<[], Result_2>,
+  'derive_evm_address' : ActorMethod<[], Result>,
   'event_count' : ActorMethod<[], bigint>,
   /**
    * `len` is capped server-side; ask for the count first and page through.
@@ -1701,11 +1687,10 @@ export interface _SERVICE {
    * and action, and one arrival per source transaction.
    * Answers the signed transaction's id in `signed_txs`.
    * 
-   * `reading`, when given, is `chain_id`'s reading the watcher priced the finish on. It is
-   * stored right after the role and the halt, as `push_chain_data` stores one, so no
-   * separate push has to land before this call; an invalid one refuses the call with
-   * `push_chain_data`'s error text. A reading whose block is not above the stored one's is
-   * kept out and the stored one is used, as it is with none.
+   * `reading`, when given, is `chain_id`'s head and gas price the watcher priced the finish
+   * on, stored right after the role and the halt; an invalid one refuses the call. With none
+   * the canister reads the gas price itself. A reading whose block is not above the stored
+   * one's is kept out.
    */
   'finish_cctp' : ActorMethod<
     [
@@ -1717,18 +1702,8 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_3
+    Result_1
   >,
-  /**
-   * The cached reading for a chain, with the instant the canister stamped it, or nothing for
-   * a chain the watcher has never pushed. World-readable: a block height and a gas price are
-   * public facts about a public chain, and the stamp is how ops see the watcher stop
-   * pushing.
-   * 
-   * Answers the entry however old it is. Freshness is a decision, and the canister makes it
-   * against `chain_data_max_age` at the moment it decides.
-   */
-  'get_chain_data' : ActorMethod<[bigint], [] | [ChainDataEntry]>,
   /**
    * Public, so it answers with the redacted view; `get_config_full` is the ops door onto
    * the real thing.
@@ -1737,25 +1712,14 @@ export interface _SERVICE {
   /**
    * The unredacted config, for ops. Controller-only, because `rpc_urls` holds api keys.
    */
-  'get_config_full' : ActorMethod<[], Result_4>,
-  /**
-   * A flow, any kind, as the fold holds it.
-   */
-  'get_flow' : ActorMethod<[Uint8Array | number[]], [] | [FlowView]>,
+  'get_config_full' : ActorMethod<[], Result_2>,
   /**
    * The flows' settings.
    */
   'get_flow_settings' : ActorMethod<[], FlowSettings>,
   /**
-   * True once the canister has stopped on a divergence. Three things set it today: the audit
-   * timer finding the fold out of step with the log, that same timer finding a bad link in
-   * the chunk of the chain it verified, and a controller calling `set_halted`.
-   * 
-   * The deep comparison of the fold against a replay of the log is not on that timer: it is
-   * the controller-only `audit_replay_step`, run as many times as the log needs, and it
-   * halts the canister on what it finds. While it is set nothing is signed, sent or paid.
-   * 
-   * Nothing clears it but a controller, once the divergence is understood.
+   * True once a controller stopped the canister with `set_halted`. While it is set nothing
+   * is signed, sent or paid. Nothing clears it but a controller.
    */
   'halted' : ActorMethod<[], boolean>,
   /**
@@ -1763,6 +1727,21 @@ export interface _SERVICE {
    * token's route. Empty while none are set.
    */
   'icp_routes' : ActorMethod<[], IcpRoutesView>,
+  /**
+   * ICRC-10: the standards this canister implements, ICRC-10 itself and ICRC-21.
+   */
+  'icrc10_supported_standards' : ActorMethod<[], Array<SupportedStandard>>,
+  /**
+   * ICRC-21: a plain-words description of a call to `swap_from_icp`, `stake_icp`,
+   * `withdraw_icp` or `withdraw_evm`, read from its argument exactly as that door reads it,
+   * for a wallet to show its user before it signs; an ICRC-21 error for any other call or an
+   * argument the door would not take. Any caller, anonymous included; never halted; writes
+   * nothing and awaits nothing. An update, as ICRC-21 declares it.
+   */
+  'icrc21_canister_call_consent_message' : ActorMethod<
+    [ConsentMessageRequest],
+    ConsentMessageResponse
+  >,
   /**
    * Anyone (the watcher), refused while halted: an ICP to Base move's USDC reached the
    * canister's Base address in `base_tx` (and, for an Eco route, the order's `src_tx` on
@@ -1774,35 +1753,44 @@ export interface _SERVICE {
    */
   'note_move_arrival' : ActorMethod<
     [bigint, Uint8Array | number[], bigint, Uint8Array | number[]],
-    Result_5
+    Result_3
   >,
   /**
-   * Any caller (the watcher, or the user's app as a backup), refused while halted (P11d,
-   * 2026-10-21: no registration). A USDC transfer to the canister's Base address in
-   * `base_tx` (and, for an Eco arrival, the order's `src_tx` on `src_chain`; an empty
-   * `src_tx` names none) pays the deposit whose `terms` are handed over. The canister reads
-   * the receipt itself (one batched outcall, and one more on the source chain for Eco) at
-   * the crediting depth, proves every transfer to it against its rail, recomputes the ref
-   * from the terms and credits the transfer whose proof carries it, at most once:
+   * Any caller (the watcher, or the user's app as a backup), refused while halted. A USDC
+   * transfer to the canister's Base address in `base_tx` pays the deposit its order's memo
+   * describes: the order ran in `base_tx` (same chain) or in `src_tx` on `src_chain` (CCTP,
+   * Eco). The canister reads the receipts itself at the crediting depth, proves every
+   * transfer to it against its rail, takes the memo (the one handed over, or the one in the
+   * order's `OrderStarted`) only when its keccak is the ref the proof carries, and credits
+   * the transfer at most once, and only when it brings at least the memo's `min_usdc`:
    * `Credited` (the payout follows on the canister's timer), or `Unattributed` with why,
-   * held for a controller. `BadArrival` when no transfer carries the terms' ref. The
-   * canister trusts only the chain and the fingerprint. A caller other than the watcher is
-   * held to 10 reports a minute in total and 3 an hour per `base_tx` (P11e), refused
-   * `Unavailable` before any outcall.
+   * held for a controller. `BadArrival` when no transfer carries the memo's ref. The
+   * canister trusts only the chain and the hash. A caller other than the watcher is held to
+   * 10 reports a minute in total and 3 an hour per `base_tx`, refused `Unavailable` before
+   * any outcall.
    */
-  'note_pool_arrival' : ActorMethod<[PoolArrival], Result_5>,
+  'note_pool_arrival' : ActorMethod<[PoolArrival], Result_3>,
   /**
    * Watcher-only, refused while halted and while the pool is closed: the order the quoter
-   * built for waiting payout `id` at its exact amount (`abi.encode` of an Order), and the gas
-   * limit to sign it with. The canister checks the untrusted order against the payout's own
-   * terms (payer the canister, Base USDC in, exactly the payout's amount, no fee step, no CCTP
-   * burn, one delivery paying the recipient at least their minimum of their token on their
-   * chain, an Eco intent's reward refunding the canister, a deadline at least 60 s away and
-   * within the payout's, no sanctioned party, the gas within `max_payout_gas`) and signs
-   * `Swapic.run(order)` from its own Base pocket. A payout signed already answers its
-   * transaction's id; a retry after a revert signs only the order it pinned.
+   * built for waiting payout `id` at its exact amount (`abi.encode` of an Order, its memo
+   * empty), and the gas limit to sign it with. The canister checks the untrusted order
+   * against the payout's own terms (payer the canister, Base USDC in, exactly the payout's
+   * amount, no fee step, a CCTP burn only while CCTP payouts are on and the payout's network
+   * fee covers the destination's floor, one delivery paying the recipient at least their
+   * minimum of their token on their chain, an Eco intent's reward refunding the canister, a
+   * deadline at least 60 s away and within the payout's, no sanctioned party, the gas within
+   * `max_payout_gas`) and signs `Swapic.run(order)` from its own Base pocket. A payout signed
+   * already answers its transaction's id; a retry after a revert signs only the order it
+   * pinned.
+   * 
+   * `reading`, when given, is the pool chain's head and gas price the watcher priced the
+   * payout on; with none the canister reads the gas price itself. A reading whose block is
+   * not above the stored one's is kept out.
    */
-  'pay_payout' : ActorMethod<[bigint, Uint8Array | number[], bigint], Result_6>,
+  'pay_payout' : ActorMethod<
+    [bigint, Uint8Array | number[], bigint, [] | [ChainData]],
+    Result_4
+  >,
   /**
    * A payout from the Base pocket by its id, if one was opened under it.
    */
@@ -1826,7 +1814,7 @@ export interface _SERVICE {
    * allowance to the ck minter's deposit helper on Ethereum (flow settings' `ck_helper`), which
    * a move to ICP by Eco deposits through. An allowance in place answers `Known`.
    */
-  'pool_approve_ck_helper' : ActorMethod<[], Result_6>,
+  'pool_approve_ck_helper' : ActorMethod<[], Result_4>,
   /**
    * Controller-only, refused while halted, once per deploy and chain (Base, and Ethereum for
    * the moves to Base, P11c): reads the canister's USDC allowance to Swapic on `chain_id` and,
@@ -1834,15 +1822,15 @@ export interface _SERVICE {
    * signature of `Swapic.run`. Safe because `run` pulls only from `payer == msg.sender`. An
    * allowance already in place answers `Known`; an approval on its way answers `Unavailable`.
    */
-  'pool_approve_swapic' : ActorMethod<[bigint], Result_6>,
+  'pool_approve_swapic' : ActorMethod<[bigint], Result_4>,
   /**
    * A deposit by its ref, if one is registered under it.
    */
   'pool_deposit' : ActorMethod<[Uint8Array | number[]], [] | [PoolDepositView]>,
   /**
    * The orphans held for a controller: USDC at the canister's Base address no deposit could
-   * take, not refunded or booked yet (a deposit's transfer found without its terms only once
-   * its 24 hours of waiting for them are over).
+   * take (no memo that hashes to its ref, below the memo's `min_usdc`, a ref credited
+   * already, terms the pool refused), not refunded or booked yet.
    */
   'pool_orphans' : ActorMethod<[], Array<OrphanView>>,
   /**
@@ -1862,19 +1850,8 @@ export interface _SERVICE {
    */
   'propose_rebalance' : ActorMethod<
     [bigint, Uint8Array | number[], bigint],
-    Result_7
+    Result_5
   >,
-  /**
-   * Watcher-only. Ambient chain data: the head and the gas prices the watcher saw, which the
-   * canister would otherwise spend an outcall on before every decision. It moves no money,
-   * so the halt switch does not gate it: a halted canister still wants a current view of the
-   * chains while ops investigate.
-   * 
-   * The record carries no instant. The canister stamps what it stores with its own clock,
-   * because the age of a reading is what every decision on it depends on, and a caller that
-   * could date its data forward could keep stale gas prices alive indefinitely.
-   */
-  'push_chain_data' : ActorMethod<[bigint, ChainData], Result_8>,
   /**
    * The open and in-flight moves, in id order.
    */
@@ -1897,14 +1874,13 @@ export interface _SERVICE {
    * chain's `min_network_fee` for its rail, plus on CCTP the destination's for the arrival;
    * it is signed with exactly `gas_limit` (the limit the quoter charged for), refused when
    * that is above the chain's maximum for the action, and held to the gas rule. Signed
-   * once per order id: a second call answers the first one's id. Answers the signed
-   * transaction's id in `signed_txs`; `relay_status(order_id)` follows it.
+   * once per order id: a second call answers the first one's id. An order whose memo is
+   * longer than 256 bytes is refused. Answers the signed transaction's id in `signed_txs`.
    * 
-   * `reading`, when given, is `chain_id`'s reading the watcher priced the relay on. It is
-   * stored right after the role and the halt, as `push_chain_data` stores one, so no
-   * separate push has to land before this call; an invalid one refuses the call with
-   * `push_chain_data`'s error text. A reading whose block is not above the stored one's is
-   * kept out and the stored one is used, as it is with none.
+   * `reading`, when given, is `chain_id`'s head and gas price the watcher priced the relay
+   * on, stored right after the role and the halt; an invalid one refuses the call. With none
+   * the canister reads the gas price itself. A reading whose block is not above the stored
+   * one's is kept out.
    */
   'relay_gasless' : ActorMethod<
     [
@@ -1914,12 +1890,8 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_3
+    Result_1
   >,
-  /**
-   * A gasless relay's status: signed, then confirmed or failed at depth.
-   */
-  'relay_status' : ActorMethod<[Uint8Array | number[]], [] | [RelayStatus]>,
   /**
    * Watcher-only, refused while halted: for the Eco intent the order `order_id` published (a
    * relayed order's, a pool payout's or a move's: one the canister signed for), once its fill
@@ -1929,7 +1901,7 @@ export interface _SERVICE {
    * by itself. One rescue per order: a second call answers the first one's id. Every rescue
    * is logged.
    */
-  'rescue_eco_intent' : ActorMethod<[Uint8Array | number[]], Result_9>,
+  'rescue_eco_intent' : ActorMethod<[Uint8Array | number[]], Result_6>,
   /**
    * Controller-only, refused while halted (Jeff, 2026-10-24): an EVM to ICP deposit held for a
    * human (`PayoutFailed`: a payout stopped after its tenth failure, a queued one that never
@@ -1958,14 +1930,14 @@ export interface _SERVICE {
    */
   'resolve_deposit' : ActorMethod<
     [Uint8Array | number[], DepositResolution],
-    Result_7
+    Result_5
   >,
   /**
    * Controller-only, refused while halted: a stuck move sent on from where it stands
    * (`Retry`: a reverted order signed again, the same one; a minter's call a controller found
    * never ran asked again; a wait read again), or written off with why (`Lost`).
    */
-  'resolve_move' : ActorMethod<[bigint, MoveResolution], Result_7>,
+  'resolve_move' : ActorMethod<[bigint, MoveResolution], Result_5>,
   /**
    * Controller-only, refused while halted (Jeff, 2026-10-19: orphans are ALWAYS held for a
    * controller): resolves the orphan under `key` (its 48 bytes, as `pool_orphans` lists it)
@@ -1974,7 +1946,7 @@ export interface _SERVICE {
    */
   'resolve_orphan' : ActorMethod<
     [Uint8Array | number[], OrphanAction],
-    Result_7
+    Result_5
   >,
   /**
    * Controller-only, refused while halted (Jeff, 2026-10-23): a payout stopped for a human
@@ -1983,7 +1955,7 @@ export interface _SERVICE {
    * the controller checked no refund went out before. `MarkPaid`: its signed order ran after
    * all, and its paid line is booked.
    */
-  'resolve_payout' : ActorMethod<[bigint, PayoutResolution], Result_7>,
+  'resolve_payout' : ActorMethod<[bigint, PayoutResolution], Result_5>,
   /**
    * Controller-only, refused while halted (Jeff, 2026-10-24): an ICP stake whose pull's answer
    * was lost, past the ledger's deduplication window (23 hours after it started; the canister
@@ -1998,62 +1970,60 @@ export interface _SERVICE {
    */
   'resolve_stake' : ActorMethod<
     [Uint8Array | number[], StakeResolution],
-    Result_7
+    Result_5
   >,
   /**
    * Controller-only, and it takes the whole record, so editing one knob is a
    * read-modify-write: read with `get_config_full`, never with the redacted `get_config`,
    * or the write puts "***" into `rpc_urls` and is refused.
    */
-  'set_config' : ActorMethod<[Config], Result_10>,
+  'set_config' : ActorMethod<[Config], Result_7>,
   /**
-   * Controller-only. The routers, the ck canisters, the ICPSwap pools a quote may name,
-   * and the windows the flows read.
+   * Controller-only. The ck canisters, the relay window and the rebalancing's addresses.
    */
-  'set_flow_settings' : ActorMethod<[FlowSettings], Result_11>,
+  'set_flow_settings' : ActorMethod<[FlowSettings], Result_8>,
   /**
-   * Controller-only, both ways: `true` is an emergency stop, `false` is the human saying
-   * the divergence has been investigated. The audit never clears it on its own.
+   * Controller-only, both ways: `true` is an emergency stop, `false` lifts it.
    * 
    * Lifting the halt wakes the outbox: a halted canister's pass does not re-arm itself,
    * so this is what puts it back on the window when a queued transaction or an allocation
    * waiting for its cancel was held back by the halt.
    */
-  'set_halted' : ActorMethod<[boolean], Result_12>,
+  'set_halted' : ActorMethod<[boolean], Result_9>,
   /**
    * Controller-only, refused while halted. Sets the ICP routes (interface section 3c): the
    * ICP/ckUSDC pool, and each listed token's route, directly through its ckUSDC pool or
    * through ICP. Reads the ICP ledger off the ICP/ckUSDC pool and every route ledger's fee.
    * No token has a size cap of its own: the pool's per swap cap applies.
    */
-  'set_icp_routes' : ActorMethod<[[] | [Principal], Array<IcpRoute>], Result_7>,
+  'set_icp_routes' : ActorMethod<[[] | [Principal], Array<IcpRoute>], Result_5>,
   /**
    * Controller-only, refused while halted. Sets the Base payouts' knobs: the least network
-   * fee, the rebalancing share's floor, how long a waiting payout waits for an order, the
-   * most gas a payout order is signed with, and the least network fee of a CCTP payout.
+   * fee, how long a waiting payout waits for an order, the most gas a payout order is signed
+   * with, and whether a payout may leave Base over CCTP.
    */
-  'set_payout_settings' : ActorMethod<[PayoutSettings], Result_7>,
+  'set_payout_settings' : ActorMethod<[PayoutSettings], Result_5>,
   /**
    * Controller-only. Pauses the pool (`true`), or reopens it (`false`), which also clears a
    * shortfall the last balance check latched, once someone has looked at it. Recorded in
    * the log on the pool chain's books; the pool's guard reads it.
    */
-  'set_pool_paused' : ActorMethod<[boolean], Result_1>,
+  'set_pool_paused' : ActorMethod<[boolean], Result_10>,
   /**
    * Controller-only, refused while halted. Sets the pool's knobs after reading the ckUSDC
    * ledger's fee and every listed token's (`icrc1_fee`), which the ICP fees' floor at an
    * arrival reads.
    */
-  'set_pool_settings' : ActorMethod<[PoolSettings], Result_7>,
+  'set_pool_settings' : ActorMethod<[PoolSettings], Result_5>,
   /**
    * Controller-only, refused while halted: the rebalancing's knobs, held together.
    */
-  'set_rebalance_settings' : ActorMethod<[RebalanceSettings], Result_7>,
+  'set_rebalance_settings' : ActorMethod<[RebalanceSettings], Result_5>,
   /**
    * Controller-only, and it sets both roles at once: a deploy hands out the pair, and
    * there is no path that leaves one of them stale.
    */
-  'set_roles' : ActorMethod<[Principal, Principal], Result_13>,
+  'set_roles' : ActorMethod<[Principal, Principal], Result_11>,
   /**
    * The watcher's, or a controller's. Adds `add` to the sanctions set and then removes
    * `remove` from it, and answers how many addresses the set holds after. An EVM address is
@@ -2065,7 +2035,7 @@ export interface _SERVICE {
    * nothing of it written. Every text is held to the 256-byte cap and a longer one is refused
    * by its position, also with nothing written.
    */
-  'set_sanctioned' : ActorMethod<[Array<string>, Array<string>], Result_14>,
+  'set_sanctioned' : ActorMethod<[Array<string>, Array<string>], Result_12>,
   /**
    * Every transaction the canister signed after `after_id`, oldest first, at most `limit`
    * of them (capped). The watcher broadcasts them; the canister's own broadcast is the
@@ -2077,11 +2047,12 @@ export interface _SERVICE {
    * five calls a minute or thirty an hour (this door and `swap_from_icp` together).
    * Stakes `amount` of the caller's own ckUSDC (from `from_subaccount`), pulled with
    * `icrc2_transfer_from` on the caller's approval of the canister (its main account; the
-   * approval covers `amount` and the ledger's fee), for `owner`, within the TVL cap; mints
-   * its shares at the pool's price before it. A pull whose answer was lost answers
-   * `Unavailable`, and the canister asks again with the same pull.
+   * approval covers `amount` and the ledger's fee), for `owner`, within the TVL cap: books
+   * `move_fee` to Swapic's ICP fee line and mints shares on the rest at the pool's price
+   * before it. A pull whose answer was lost answers `Unavailable`, and the canister asks
+   * again with the same pull.
    */
-  'stake_icp' : ActorMethod<[StakeIcpArgs], Result_15>,
+  'stake_icp' : ActorMethod<[StakeIcpArgs], Result_13>,
   /**
    * Any caller, refused while halted, while the pool is closed, for a sanctioned party, and
    * past five calls a minute or thirty an hour (this door and `stake_icp` together): an
@@ -2095,15 +2066,43 @@ export interface _SERVICE {
    * it and the flat network fee, paid with an order built at that exact amount. Answers the
    * payout's id and where it stands; a pull the ledger refused answers its refusal.
    */
-  'swap_from_icp' : ActorMethod<[IcpSwapTerms], Result_16>,
-  'verify_chain' : ActorMethod<[], boolean>,
-  'verify_replay' : ActorMethod<[], boolean>,
+  'swap_from_icp' : ActorMethod<[IcpSwapTerms], Result_14>,
+  /**
+   * Controller-only, refused while halted. Sends `amount` of the canister's own `asset` on
+   * `chain_id` to `to`, signed from the canister's address with the chain's `sweep` gas row
+   * at a gas price the canister reads itself:
+   * 
+   * - `Native`: the chain's gas coin, refused while any transaction of the canister on that
+   * chain is still open (it may need the gas for a fee bump).
+   * - `FeeUsdc`: `USDC.transfer` of booked fee income only: at most the chain books' fee
+   * income, plus the pool's Base fee line on the pool chain. The amount leaves the books
+   * as the transaction is signed and comes back if it reverts or is cancelled.
+   * 
+   * Refused for the canister's own address, the zero address and a sanctioned one. Answers
+   * the sweep's id and its transaction's id in `signed_txs`.
+   */
+  'sweep_evm' : ActorMethod<[SweepEvmArgs], Result_15>,
+  /**
+   * Controller-only, refused while halted. Sends `amount` of the canister's own `asset` on
+   * ICP to `to`, the ledger's fee paid on top from the same account:
+   * 
+   * - `CkUsdcFees`: at most the pool's ICP fee line, never the ICP pocket's ckUSDC.
+   * - `CkEth`: refused while a rebalancing move is open (its minter withdrawal spends
+   * ckETH).
+   * - `Icp`: refused while an ICP swap or withdrawal is open (a route through ICP holds
+   * the user's ICP between its legs).
+   * 
+   * The amount leaves the books before the transfer is asked and comes back if the ledger
+   * refuses it. Refused for the canister's own account. Answers the sweep's id and the
+   * ledger block of its transfer.
+   */
+  'sweep_icp' : ActorMethod<[SweepIcpArgs], Result_16>,
   'version' : ActorMethod<[], string>,
   /**
    * Any caller (the 65-byte EIP-712 signature proves the staker; the watcher's
    * `POST /v2/withdraw` forwards here), refused while halted, while the pool is closed, and for
    * a sanctioned party. Burns the shares `usdc` is worth (rounded up, at most `max_shares` and
-   * the staker's own), keeps the rebalancing share in the pool and the network fee on Base, and
+   * the staker's own), books the move fee and the network fee to Swapic's Base fee line, and
    * opens a payout of the rest from the Base pocket, waiting for its order or queued while the
    * pocket is short. One nonce per staker, once. Answers the payout's id and the shares burned.
    */
@@ -2114,11 +2113,11 @@ export interface _SERVICE {
   /**
    * The ICP owner of the shares (the caller, at its subaccount `from`), refused while halted,
    * while the pool is closed, and for a sanctioned party. Burns the shares `usdc` is worth
-   * (rounded up, at most `max_shares`) and pays `to` all of it as `token_out` (ckUSDC, or a
-   * listed token through its ICPSwap pool, at least `min_out`; below it, all of it as ckUSDC),
-   * every ledger fee out of `usdc`. Refused when the ICP pocket's free ckUSDC is short (the
-   * queue is P11b). A payout that does not finish in this call answers `Unavailable` with
-   * the shares burned, and the canister's timer finishes it.
+   * (rounded up, at most `max_shares`), books `move_fee` to Swapic's ICP fee line, and pays
+   * `to` the rest as `token_out` (ckUSDC, or a listed token through its ICPSwap pool, at
+   * least `min_out`; below it, all of it as ckUSDC), every ledger fee out of it. Refused when
+   * the ICP pocket's free ckUSDC is short. A payout that does not finish in this call
+   * answers `Unavailable` with the shares burned, and the canister's timer finishes it.
    */
   'withdraw_icp' : ActorMethod<[WithdrawIcpArgs], Result_18>,
 }

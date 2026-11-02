@@ -139,7 +139,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
     };
     if (icp) {
       if (!caller) { setBusy(false); return; }
-      after(await executeStakeIcp({ amount: start.amount, caller, onStep }, icpClient()));
+      after(await executeStakeIcp({ amount: start.amount, moveFee: review.moveFee, caller, onStep }, icpClient()));
       return;
     }
     if (!signer) { setBusy(false); return; }

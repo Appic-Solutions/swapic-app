@@ -494,5 +494,13 @@
     "recordedAt": "2026-11-01",
     "replacedBy": null,
     "note": "option B (Jeff 2026-11-01): the input handed to KyberSwap's executor, as before"
+  },
+  {
+    "path": "tests/fixtures/golden/interface.json",
+    "kind": "contract",
+    "source": "swapic-core canister/golden/interface.json at 47a36c9 (the prod interface)",
+    "recordedAt": "2026-11-02",
+    "replacedBy": null,
+    "note": "copied byte for byte; the Order with its memo, the gasless doors, the memos and the withdrawal, computed independently of the canister"
   }
 ]

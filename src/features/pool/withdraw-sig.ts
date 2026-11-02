@@ -29,20 +29,20 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export const WITHDRAWAL_TYPES = {
   Withdrawal: [
     { name: 'staker', type: 'address' }, { name: 'usdc', type: 'uint256' }, { name: 'maxShares', type: 'uint256' },
-    { name: 'rebalanceShare', type: 'uint256' }, { name: 'networkFee', type: 'uint256' }, { name: 'dstChain', type: 'uint64' },
+    { name: 'moveFee', type: 'uint256' }, { name: 'networkFee', type: 'uint256' }, { name: 'dstChain', type: 'uint64' },
     { name: 'recipient', type: 'address' }, { name: 'tokenOut', type: 'address' }, { name: 'minOut', type: 'uint256' },
     { name: 'deadline', type: 'uint64' }, { name: 'nonce', type: 'uint64' },
   ],
 };
 
-/** "Swapic Pool" v1 (pool_eip712/mod.rs:18-28): the deadline signed in seconds, floored from the record's nanoseconds. */
+/** "Swapic Pool" v1 (golden interface.json `withdrawal`): the deadline signed in seconds, floored from the record's nanoseconds. */
 export function withdrawalTypedData(r: WithdrawalJson, chainId: number, swapic: Hex): SignableTypedData {
   return {
     domain: { name: 'Swapic Pool', version: '1', chainId, verifyingContract: getAddress(swapic) },
     types: WITHDRAWAL_TYPES,
     primaryType: 'Withdrawal',
     message: {
-      staker: getAddress(r.staker), usdc: BigInt(r.usdc), maxShares: BigInt(r.maxShares), rebalanceShare: BigInt(r.rebalanceShare),
+      staker: getAddress(r.staker), usdc: BigInt(r.usdc), maxShares: BigInt(r.maxShares), moveFee: BigInt(r.moveFee),
       networkFee: BigInt(r.networkFee), dstChain: BigInt(r.payout.dstChain), recipient: getAddress(r.payout.recipient),
       tokenOut: getAddress(r.payout.tokenOut), minOut: BigInt(r.payout.minOut), deadline: BigInt(r.payout.deadlineNs) / 1_000_000_000n, nonce: BigInt(r.nonce),
     },
@@ -74,7 +74,7 @@ export function checkWithdrawQuote(i: WithdrawCheckInput): CheckedWithdraw {
   must(same(r.payout.tokenOut, i.dstUsdc!), 'tokenOut');
   const minOut = BigInt(r.payout.minOut);
   must(minOut > 0n && minOut === BigInt(a.payout.minOut), 'minOut');
-  const fee = BigInt(r.networkFee) + BigInt(r.rebalanceShare);
+  const fee = BigInt(r.networkFee) + BigInt(r.moveFee);
   must(fee < i.usdc, 'fees');
   // at least 5 minutes ahead (the canister's floor); at most a day: the quoter signs 6 hours out for a withdrawal that may wait
   const deadlineS = BigInt(r.payout.deadlineNs) / 1_000_000_000n;
@@ -93,7 +93,7 @@ export function checkWithdrawQuote(i: WithdrawCheckInput): CheckedWithdraw {
     record: r, typedData, digest, minOut, expectedOut: BigInt(a.payout.expectedOut), feeUsdc: fee, etaSeconds: a.etaSeconds,
     queued: !!a.queue, queueEtaAt: a.queue?.etaAt ?? null,
     candid: {
-      staker: r.staker, usdc: i.usdc, max_shares: maxShares, rebalance_share: BigInt(r.rebalanceShare), network_fee: BigInt(r.networkFee),
+      staker: r.staker, usdc: i.usdc, max_shares: maxShares, move_fee: BigInt(r.moveFee), network_fee: BigInt(r.networkFee),
       payout: { dst_chain: BigInt(r.payout.dstChain), recipient: r.payout.recipient, token_out: r.payout.tokenOut, min_out: minOut, deadline_ns: BigInt(r.payout.deadlineNs) },
       nonce: BigInt(r.nonce),
     },

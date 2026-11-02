@@ -4,7 +4,8 @@
 // before the pool is known open, the amount known under the room and the balance known to cover the amount and two fees
 // (the canister counts the call against 5 a minute first); a second approval after a lost answer.
 // How the design proves it: executeStakeIcp builds owner from the caller's own principal with no subaccount and
-// from_subaccount empty; it checks open, room and balance from fresh reads first; the approval is IcpClient.approve (spender
+// from_subaccount empty; its move_fee is the one Review stake showed (the quoter's price, below the amount); it checks
+// open, room and balance from fresh reads first; the approval is IcpClient.approve (spender
 // fixed) for exactly amount + fee, reusing a live allowance of exactly that amount. After a lost answer (plan check M4) it
 // judges from the records, never from the allowance alone: the caller's shares (pool_account) and ckUSDC balance read right
 // before the call; then every 15 s (settleLost) shares grown or the balance down by the amount means the stake went in
@@ -18,8 +19,9 @@
 // answer that withdraws twice.
 // How the design proves it: executeWithdrawIcp computes usdc and max_shares with planIcpWithdraw (all of it, or the amount
 // with the quoter's 0.5% room, capped at the owned shares); to = the caller's default account, from empty (the caller's
-// default account owns the shares, contract section 2); token_out = ckUSDC; min_out = usdc - 2 * fee (the canister takes
-// every ledger fee out of usdc, can.did withdraw_icp). ShortShares: read account and pool again and retry once (spec 11).
+// default account owns the shares, contract section 2); token_out = ckUSDC; move_fee the one Review withdrawal showed;
+// min_out = usdc - move_fee - 2 * fee (the canister takes the move fee and every ledger fee out of usdc, can.did
+// withdraw_icp). ShortShares: read account and pool again and retry once (spec 11).
 // A lost answer is never retried (plan check M4): the owner's shares (pool_account) are read every 15 s with settleLost;
 // fewer shares means it went through; the same shares read as "it did not go through" only after 6 minutes, when the call
 // can no longer run; anything else says plainly it cannot tell. Unavailable with shares burned means the canister's timer
@@ -28,12 +30,12 @@
 // later." (Jeff, 2026-10-28). Tests: flows.test.ts.
 // Design note (stake from EVM, plan 3 Task 4).
 // Must never happen: the stake's shares minted to anyone but the paying wallet (Jeff's owner rule, contract section 2); an
-// order whose ref commits other terms than the ones checked (another owner, another rebalancing share: plan check C2);
+// order whose memo commits other terms than the ones checked (another owner, another move fee: plan check C2);
 // anything signed or sent without plan 2's checks, or with a step the canister would not read (plan check C1); a stake
 // above the room under the cap started at all.
 // How the design proves it: the stake quote is asked with owner = payer = the connected EVM address; verifyEvmRoute's stake
-// branch (plan 2 Task 1) holds it: with stakeOwner set, route.pool.kind must be stake and route.pool.account the payer,
-// poolRefOf(route.pool) must equal the order's ref, every step is read as the canister's read_plan reads it, and the plan
+// branch (plan 2 Task 1) holds it: with stakeOwner set, the order's memo must hash to its ref and hold stake terms owned
+// by the payer, its move fee below its least USDC, every step is read as the canister's read_plan reads it, and the plan
 // must deliver the pool chain's USDC to the canister's own EVM address there (poolDelivery); the anchors are read fresh with
 // loadGuardContext in the same run; the room tvlCap - totalAssets is checked before the quote (StakePanel), and an amount
 // over it never reaches a wallet; the signing and sending is plan 2's sendCheckedEvm, unchanged. Tests: the stake tests in
@@ -59,6 +61,7 @@ import { ICP_CHAIN } from '@/config';
 import { chainNumber } from '@/lib/explorer';
 import type { UiToken } from '@/components/ui/token-types';
 import { formatUsd, formatUsdWhole, planIcpWithdraw } from '@/lib/money';
+import { tokenAmountText } from '@/lib/copy/format';
 import { captureFailure } from '@/lib/sentry';
 import type { EvmSigner } from '@/lib/wallets';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
@@ -69,7 +72,7 @@ import { loadGuardContext, type GuardContext } from '@/features/swap/guards/cont
 import type { CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import type { PickedOption } from '@/features/swap/options';
-import { etaText, sumFees } from '@/features/swap/view';
+import { etaText } from '@/features/swap/view';
 import { checkWithdrawQuote, normalizeSignature, type CheckedWithdraw } from './withdraw-sig';
 import type { usedNonces } from './used-nonces';
 import { realClock, settleLost, type Clock } from '@/features/swap/lost';
@@ -93,12 +96,24 @@ export function pickStakeOption(q: StakeQuote): PickedOption | undefined {
   return u ? { key: `userPays:${u.routeId}`, tags: ['Fastest'], mode: 'userPays', route: u } : undefined;
 }
 
-/** Added to your stake: the least USDC the order delivers less the rebalancing share, the base the shares are minted on
- *  (answer/mod.rs:197-198). */
-export function stakeView(o: PickedOption): { added: bigint; addedText: string; feeText: string; readyText: string } {
-  const raw = BigInt(o.route.amountOutMin) - BigInt(o.route.pool?.rebalanceShare ?? '0');
-  const added = raw > 0n ? raw : 0n;
-  return { added, addedText: formatUsd(added).slice(1), feeText: formatUsd(sumFees(o.route.fees)), readyText: etaText(o.route.etaSeconds) };
+/** USDC in words, two decimals: "1.43 USDC". */
+export const usdcText = (micro: bigint) => `${tokenAmountText(micro, 6, 'USDC')} USDC`;
+
+/** A checked stake's numbers: Added to your stake is the least USDC the order delivers less the move fee its memo commits
+ *  (shares are minted on the rest); the fee is the route's gas and carriers plus that move fee, one line in USDC. */
+export function stakeView(o: PickedOption, checked: CheckedEvmRoute): { added: bigint; addedText: string; moveFee: bigint; feeText: string; readyText: string } {
+  const moveFee = checked.terms?.kind === 'stake' ? checked.terms.moveFee : 0n;
+  const added = checked.minOut > moveFee ? checked.minOut - moveFee : 0n;
+  const f = o.route.fees;
+  const fee = BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + moveFee;
+  return { added, addedText: formatUsd(added).slice(1), moveFee, feeText: usdcText(fee), readyText: etaText(o.route.etaSeconds) };
+}
+
+/** The move fee an ICP stake (one ICP to Base move) or an ICP withdrawal (one Base to ICP move) pays Swapic, micro USDC,
+ *  as the quoter prices it; null while it does not (the app then offers neither). */
+export function icpMoveFee(pool: PoolAnswer | undefined, kind: 'stake' | 'withdraw'): bigint | null {
+  const raw = kind === 'stake' ? pool?.moveFees?.icpToBase : pool?.moveFees?.baseToIcp;
+  return typeof raw === 'string' && /^\d{1,30}$/.test(raw) ? BigInt(raw) : null;
 }
 
 /**
@@ -132,12 +147,12 @@ export async function executeStakeEvm(
   }
   const option = pickStakeOption(q);
   if (!option) return { kind: 'failed', message: 'No route found for this amount' };
-  if (stakeView(option).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
   try {
     // the canister's anchors, fresh (get_config, Eco's prover, its EVM address); every step read as the canister reads it
     const guard = await loadGuardContext(d.icp);
     const checked = checkStakeRoute({ quote: q, option, from: i.from, amount: i.amount, owner: i.evm.address, guard, nowSec: Math.floor(d.nowMs() / 1000) });
-    // the wallet steps on screen must be the ones the wallet will be asked for
+    // less added than shown, or other wallet steps than shown: new terms, never signed
+    if (stakeView(option, checked).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
     if (i.shownApproval !== undefined && !!checked.approval !== i.shownApproval) return { kind: 'newPrice', quote: asQuote(q), option };
     return await sendCheckedEvm(checked, i.evm, d, i);
   } catch (e) {
@@ -146,11 +161,10 @@ export async function executeStakeEvm(
   }
 }
 
-export async function executeStakeIcp(
-  i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
-  icp: IcpClient,
-  clock: Clock = realClock,
-): Promise<ExecOutcome | StakeLanding> {
+type IcpStakeInput = { amount: bigint; moveFee: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void };
+
+export async function executeStakeIcp(i: IcpStakeInput, icp: IcpClient, clock: Clock = realClock): Promise<ExecOutcome | StakeLanding> {
+  if (i.moveFee >= i.amount) return { kind: 'failed', message: 'This amount does not cover the fee. Try a larger amount.' };
   const [pool, fee] = await Promise.all([icp.poolState(), icp.ledgerFee(CKUSDC)]);
   if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
   const room = pool.tvlCap > pool.totalAssets ? pool.tvlCap - pool.totalAssets : 0n;
@@ -173,7 +187,7 @@ export async function executeStakeIcp(
  *  right before the call (null when that read failed), so the screen checks it in only once pool_account shows more. */
 export interface StakeLanding { kind: 'landing'; sharesBefore: bigint | null }
 
-async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void }, icp: IcpClient, approveAmount: bigint, clock: Clock): Promise<ExecOutcome | StakeLanding> {
+async function callStake(i: IcpStakeInput, icp: IcpClient, approveAmount: bigint, clock: Clock): Promise<ExecOutcome | StakeLanding> {
   // the records before the call: the canister's shares for this owner, the ledger's balance (a pull takes amount + fee)
   const owner = { Icp: { owner: i.caller.principal, subaccount: [] as [] } };
   const [sharesBefore, balanceBefore] = await Promise.all([
@@ -182,7 +196,7 @@ async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: n
   ]);
   try {
     i.onStep(1, 'wait');
-    await icp.stakeIcp(i.caller, { owner: { Icp: { owner: i.caller.principal, subaccount: [] } }, from_subaccount: [], amount: i.amount });
+    await icp.stakeIcp(i.caller, { owner: { Icp: { owner: i.caller.principal, subaccount: [] } }, from_subaccount: [], amount: i.amount, move_fee: i.moveFee });
     i.onStep(1, 'done');
     return { kind: 'started', activityId: 'stake' };
   } catch (e) {
@@ -211,7 +225,7 @@ async function callStake(i: { amount: bigint; caller: IcpCaller; onStep(index: n
 }
 
 export async function executeWithdrawIcp(
-  i: { wanted: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  i: { wanted: bigint; moveFee: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
   icp: IcpClient,
   clock: Clock = realClock,
   retried = false,
@@ -222,10 +236,12 @@ export async function executeWithdrawIcp(
   const holding = await icp.poolAccount(owner);
   if (holding.shares === 0n) return { kind: 'failed', message: 'This wallet holds no stake' };
   const plan = planIcpWithdraw(i.wanted, holding, pool.totalAssets, pool.totalShares);
-  const minOut = plan.usdc > 2n * fee ? plan.usdc - 2n * fee : 0n;
+  const costs = i.moveFee + 2n * fee;
+  if (plan.usdc <= costs) return { kind: 'failed', message: 'This amount does not cover the fee. Try a larger amount.' };
+  const minOut = plan.usdc - costs;
   try {
     i.onStep(0, 'wait');
-    await icp.withdrawIcp(i.caller, { to: { owner: i.caller.principal, subaccount: [] }, from: [], usdc: plan.usdc, max_shares: plan.maxShares, min_out: minOut, token_out: Principal.fromText(CKUSDC) });
+    await icp.withdrawIcp(i.caller, { to: { owner: i.caller.principal, subaccount: [] }, from: [], usdc: plan.usdc, max_shares: plan.maxShares, min_out: minOut, token_out: Principal.fromText(CKUSDC), move_fee: i.moveFee });
     i.onStep(0, 'done');
     return { kind: 'started', activityId: 'withdraw' };
   } catch (e) {

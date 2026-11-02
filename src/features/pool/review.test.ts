@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { hashTypedData, type Hex } from 'viem';
 import type { Quote, Route, WithdrawQuoteAnswer, WithdrawalJson } from '@/lib/api';
 import type { UiToken } from '@/components/ui/token-types';
-import { poolRefOf } from '@/features/swap/guards/abi';
 import { verifyEvmRoute, type CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { CANISTER, GUARD, PAYER, executable, forge, load } from '@/features/swap/guards/forge.fixture';
+import { memoRef } from '@/features/swap/guards/memo';
+import { encodeMemo } from '@/features/swap/guards/memo.fixture';
 import type { PickedOption } from '@/features/swap/options';
+import { tokenAmountText } from '@/lib/copy/format';
 import { evmStakeReview, evmStakeSteps, evmWithdrawReview, icpStakeReview, icpWithdrawReview } from './review';
 import { checkWithdrawQuote, withdrawalTypedData } from './withdraw-sig';
 
@@ -17,9 +19,9 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
   const q = load('base-usdc-to-base-eth');
   const base = executable(q, 'userPays')[0]!;
   const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
-  const terms = { ref: '', salt: `0x${'55'.repeat(32)}`, kind: 'stake' as const, account: PAYER.toLowerCase(), premium: '0', icpFees: '0', rebalanceShare: '35827', candid: '0x' };
-  const ref = poolRefOf(terms);
-  const route: Route = { ...forge(q, base, (o) => ({ ...o, ref, steps: [], payout: { token: q.fromToken.address as Hex, recipient: CANISTER, minOut: BigInt(q.amountIn) } })), pool: { ...terms, ref }, envelope: undefined };
+  const memo = encodeMemo({ kind: 'stake', salt: `0x${'55'.repeat(32)}`, minUsdc: BigInt(q.amountIn), owner: { evm: PAYER }, moveFee: 35_827n });
+  const ref = memoRef(memo);
+  const route: Route = { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: CANISTER, minOut: BigInt(q.amountIn) } })), pool: { ref, kind: 'stake' }, envelope: undefined };
   const stakeQuote: Quote = { ...q, toChain: 'icp:737ba355e855bd4b61279056603e0550', toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } };
   const amount = BigInt(q.amountIn);
   const checked = verifyEvmRoute({
@@ -29,8 +31,11 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
   const option: PickedOption = { key: `userPays:${route.routeId}`, tags: ['Fastest'], mode: 'userPays', route };
   const r = evmStakeReview({ option, checked, from: USDC_BASE, amount, native: NATIVE });
 
-  it('adds the checked minimum less the rebalancing share the order commits', () => {
+  it('adds the checked minimum less the move fee the memo commits, and shows that fee in the one fee line', () => {
     expect(r.added).toBe(checked.minOut - 35_827n);
+    expect(r.moveFee).toBe(35_827n);
+    const f = route.fees;
+    expect(r.feeText).toBe(`${tokenAmountText(BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + 35_827n, 6, 'USDC')} USDC`);
     // this fixture's minimum (a real order's) less 35,827 micro USDC, in whole cents, never rounded up
     expect(r.addedText).toBe('408,660,260.76');
   });
@@ -55,11 +60,12 @@ describe('the wallet steps of a checked stake route', () => {
 });
 
 describe('Review stake from ICP', () => {
-  const r = icpStakeReview(100_000_000n, 10_000n, CKUSDC_TOKEN);
-  it('adds the amount itself; the wallet pays two ledger fees', () => {
-    expect(r.added).toBe(100_000_000n);
-    expect(r.addedText).toBe('100.00');
-    expect(r.feeText).toBe('$0.02');
+  const r = icpStakeReview(100_000_000n, 10_000n, 1_400_000n, CKUSDC_TOKEN);
+  it('adds the amount less the move fee; the fee line is the move fee and two ledger fees, in USDC', () => {
+    expect(r.added).toBe(98_600_000n);
+    expect(r.moveFee).toBe(1_400_000n);
+    expect(r.addedText).toBe('98.60');
+    expect(r.feeText).toBe('1.42 USDC');
   });
   it('asks twice: approve the ckUSDC, then confirm', () => expect(r.steps.map((s) => s.label)).toEqual(['Approve ckUSDC', 'Confirm stake']));
 });
@@ -68,14 +74,14 @@ describe('Review withdrawal to an EVM chain, on the record the real check accept
   const SWAPIC = '0xF0Ba68cBc87c31eCaA9654EB14daF3632eaCa406' as Hex;
   const ARB_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
   const record: WithdrawalJson = {
-    staker: PAYER, usdc: '5000000', maxShares: '4980000000000000000', rebalanceShare: '1000', networkFee: '50000',
+    staker: PAYER, usdc: '5000000', maxShares: '4980000000000000000', moveFee: '1000', networkFee: '50000',
     payout: { dstChain: 42161, recipient: PAYER, tokenOut: ARB_USDC, minOut: '4949000', deadlineNs: '1800000000000000000' }, nonce: '7',
   };
   const answer = (expectedOut: string, queue?: { etaAt: number }): WithdrawQuoteAnswer => {
     const td = withdrawalTypedData(record, 8453, SWAPIC);
     return {
       withdrawal: record, typedData: td as never, digest: hashTypedData(td as never), verifyingContract: SWAPIC,
-      fees: { networkFee: record.networkFee, rebalanceShare: record.rebalanceShare, moveCost: '0', networkLines: [] },
+      fees: { networkFee: record.networkFee, moveFee: record.moveFee },
       payout: { route: 'cctp', amount: expectedOut, expectedOut, minOut: record.payout.minOut },
       shares: { burn: '0', maxShares: record.maxShares, label: 'estimated' }, etaSeconds: 20, quotedAt: 1_799_999_000, expiresAt: 1_800_000_000,
       ...(queue ? { queue: { place: 2, etaAt: queue.etaAt } } : {}),
@@ -90,7 +96,8 @@ describe('Review withdrawal to an EVM chain, on the record the real check accept
     const r = evmWithdrawReview(check(answer('4949000')), 1_799_999_000);
     expect(r.minOut).toBe(4_949_000n);
     expect(r.getLabel).toBe('You get at least');
-    expect(r.feeText).toBe('$0.05');
+    expect(r.feeText).toBe('0.05 USDC');
+    expect(r.moveFee).toBe(1000n);
     expect(r.arrives).toBe('Right away');
     expect(r.queuedText).toBeNull();
   });
@@ -105,10 +112,11 @@ describe('Review withdrawal to an EVM chain, on the record the real check accept
 });
 
 describe('Review withdrawal from ICP', () => {
-  it('pays ckUSDC on ICP less the ledger fee, one confirm', () => {
-    const r = icpWithdrawReview(250_000_000n, 10_000n);
-    expect(r.minOut).toBe(249_990_000n);
-    expect(r.feeText).toBe('$0.01');
+  it('pays ckUSDC on ICP less the move fee and the ledger fee, one confirm', () => {
+    const r = icpWithdrawReview(250_000_000n, 10_000n, 1_400_000n);
+    expect(r.minOut).toBe(248_590_000n);
+    expect(r.moveFee).toBe(1_400_000n);
+    expect(r.feeText).toBe('1.41 USDC');
     expect(r.steps.map((s) => s.label)).toEqual(['Confirm withdrawal']);
   });
 });

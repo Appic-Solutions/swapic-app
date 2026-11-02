@@ -1,7 +1,5 @@
-import { Principal } from '@icp-sdk/core/principal';
-import { concat, encodeAbiParameters, hashTypedData, hexToBytes, keccak256, numberToBytes, parseAbi, parseAbiParameters, stringToBytes, type Hex } from 'viem';
-import type { OrderJson, PoolTerms } from '@/lib/api';
-import { GuardError } from './errors';
+import { encodeAbiParameters, hashTypedData, parseAbi, parseAbiParameters, type Hex } from 'viem';
+import type { OrderJson } from '@/lib/api';
 
 export const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3' as const;
 /** KyberSwap's router and executor, one address on every chain (canister/types/src/swapic/mod.rs:1154-1194). */
@@ -14,12 +12,13 @@ export const isNative = (a: string) => NATIVE.includes(a.toLowerCase());
 /** The quoter writes the coin as the zero address, the order as 0xEeee…EEeE (contract 1.2). */
 export const sameToken = (a: string, b: string) => (isNative(a) && isNative(b)) || sameAddress(a, b);
 
-/** libraries/onchain/src/swapic/mod.rs:100-103 (viem orders referenced types by name: Payout, Step, Write). */
+/** The Swapic Order, its memo last (tests/fixtures/golden/interface.json `type_string`; viem orders referenced types by
+ *  name: Payout, Step, Write). */
 export const ORDER_TYPES = {
   Order: [
     { name: 'ref', type: 'bytes32' }, { name: 'payer', type: 'address' }, { name: 'tokenIn', type: 'address' },
     { name: 'amountIn', type: 'uint256' }, { name: 'deadline', type: 'uint256' }, { name: 'steps', type: 'Step[]' },
-    { name: 'payout', type: 'Payout' },
+    { name: 'payout', type: 'Payout' }, { name: 'memo', type: 'bytes' },
   ],
   Step: [
     { name: 'target', type: 'address' }, { name: 'data', type: 'bytes' }, { name: 'token', type: 'address' },
@@ -43,10 +42,11 @@ export const ORDER_TUPLE = {
       ],
     },
     { name: 'payout', type: 'tuple', components: [{ name: 'token', type: 'address' }, { name: 'recipient', type: 'address' }, { name: 'minOut', type: 'uint256' }] },
+    { name: 'memo', type: 'bytes' },
   ],
 } as const;
 
-/** Swapic.run(Order), libraries/onchain/src/swapic/mod.rs:64. */
+/** Swapic.run(Order). */
 export const SWAPIC_RUN_ABI = [
   { type: 'function', name: 'run', stateMutability: 'payable', inputs: [{ name: 'order', ...ORDER_TUPLE }], outputs: [{ name: 'id', type: 'bytes32' }] },
 ] as const;
@@ -74,6 +74,8 @@ export interface OrderValue {
   ref: Hex; payer: Hex; tokenIn: Hex; amountIn: bigint; deadline: bigint;
   steps: readonly { target: Hex; data: Hex; token: Hex; min: bigint; writes: readonly { at: number; minus: bigint }[] }[];
   payout: { token: Hex; recipient: Hex; minOut: bigint };
+  /** A pool deposit's encoded terms (memo.ts); `0x` on every other order. */
+  memo: Hex;
 }
 
 export function orderValue(o: OrderJson): OrderValue {
@@ -84,6 +86,7 @@ export function orderValue(o: OrderJson): OrderValue {
       writes: s.writes.map((w) => ({ at: w.at, minus: BigInt(w.minus) })),
     })),
     payout: { token: o.payout.token as Hex, recipient: o.payout.recipient as Hex, minOut: BigInt(o.payout.minOut) },
+    memo: (o.memo ?? '0x').toLowerCase() as Hex,
   };
 }
 
@@ -92,6 +95,7 @@ export function orderJsonOf(o: OrderValue): Omit<OrderJson, 'abi'> {
     ref: o.ref, payer: o.payer, tokenIn: o.tokenIn, amountIn: o.amountIn.toString(), deadline: o.deadline.toString(),
     steps: o.steps.map((s) => ({ target: s.target, data: s.data, token: s.token, min: s.min.toString(), writes: s.writes.map((w) => ({ at: w.at, minus: w.minus.toString() })) })),
     payout: { token: o.payout.token, recipient: o.payout.recipient, minOut: o.payout.minOut.toString() },
+    memo: o.memo,
   };
 }
 
@@ -103,34 +107,4 @@ export function orderIdOf(o: OrderValue, chainId: number, swapic: Hex): Hex {
     domain: { name: 'Swapic', version: '3', chainId, verifyingContract: swapic },
     types: ORDER_TYPES, primaryType: 'Order', message: o,
   }).toLowerCase() as Hex;
-}
-
-const word = (v: string | bigint) => numberToBytes(BigInt(v), { size: 32 });
-const principalBytes = (text: string) => {
-  try { return Principal.fromText(text).toUint8Array(); } catch { throw new GuardError('poolTerms'); }
-};
-
-/** An EVM owner is `0x01 ‖ address`; an ICP owner `0x02 ‖ length ‖ principal ‖ 32 byte subaccount` (zeros for none).
- *  The services write an ICP account as `principal` or `principal.<64 hex>` (libraries/common/src/canister/pool/mod.rs:433-462). */
-function ownerHash(account: string): Hex {
-  if (/^0x[0-9a-fA-F]{40}$/.test(account)) return keccak256(concat([new Uint8Array([1]), hexToBytes(account as Hex)]));
-  const [p, sub] = account.split('.');
-  if (sub !== undefined && !/^[0-9a-fA-F]{64}$/.test(sub)) throw new GuardError('poolTerms');
-  const bytes = principalBytes(p!);
-  return keccak256(concat([new Uint8Array([2, bytes.length]), bytes, sub ? hexToBytes(`0x${sub}`) : new Uint8Array(32)]));
-}
-
-/** A pool deposit's ref, the canister's formula: keccak256(tag ‖ owner ‖ details ‖ salt) (canister/types/src/pool/mod.rs:200-272).
- *  A swap's details commit token out, least out, premium and ICP fees; a stake's its rebalancing share. */
-export function poolRefOf(t: PoolTerms): Hex {
-  if (!/^0x[0-9a-fA-F]{64}$/.test(t.salt)) throw new GuardError('poolTerms');
-  const tag = keccak256(stringToBytes(t.kind === 'swap' ? 'swapic.pool.v1.swap' : 'swapic.pool.v1.stake'));
-  let details: Hex;
-  if (t.kind === 'swap') {
-    const token = principalBytes(t.tokenOut ?? '');
-    details = keccak256(concat([new Uint8Array([token.length]), token, word(t.minOut ?? '0'), word(t.premium), word(t.icpFees)]));
-  } else {
-    details = keccak256(word(t.rebalanceShare));
-  }
-  return keccak256(concat([hexToBytes(tag), hexToBytes(ownerHash(t.account)), hexToBytes(details), hexToBytes(t.salt as Hex)])).toLowerCase() as Hex;
 }

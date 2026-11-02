@@ -33,7 +33,7 @@ import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } 
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { usePool, type MyStake } from '../data';
-import { CKUSDC, POOL_PAUSED } from '../flows';
+import { CKUSDC, icpMoveFee, POOL_PAUSED, usdcText } from '../flows';
 import { evmWithdrawReview, icpWithdrawReview } from '../review';
 import type { WithdrawStart } from './WithdrawReview';
 import { USDC_LOGO } from '../usdc';
@@ -114,6 +114,9 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
   const state = useQuery({ queryKey: ['pool-state'], queryFn: () => icpClient().poolState(), staleTime: 30_000 });
   // an ICP stake pays ckUSDC less the payout's ledger fee (the canister takes every ledger fee out of the amount)
   const fee = useQuery({ queryKey: ['ledger-fee', CKUSDC], queryFn: () => icpClient().ledgerFee(CKUSDC), enabled: fromIcp, staleTime: 600_000 }).data;
+  // an ICP withdrawal pays Swapic one Base to ICP move, as the quoter prices it; without it none is offered
+  const moveFee = fromIcp ? icpMoveFee(pool, 'withdraw') : null;
+  const icpFee = fee !== undefined && moveFee !== null ? fee + moveFee : null;
   // checked exactly as it will be signed: a quote that fails here never shows numbers
   let checked: CheckedWithdraw | null = null;
   let checkError: string | null = null;
@@ -131,11 +134,13 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
   }
   const asks = !fromIcp && !!evm && !!to && !!stake && !closed && amount !== null && amount > 0n && !overStake;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
-  const quoteError = q.error ? userMessage(q.error) : checkError;
+  const quoteError = fromIcp
+    ? (pool && moveFee === null ? 'Withdrawing on ICP is not available right now. Try again soon.' : icpFee !== null && amount !== null && amount > 0n && amount <= icpFee ? 'This amount does not cover the fee. Try a larger amount.' : null)
+    : q.error ? userMessage(q.error) : checkError;
   const message = overStake ? 'This is more than your stake' : amountError ?? quoteError ?? undefined;
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const icpView = fromIcp && amount !== null && amount > 0n && fee !== undefined && !overStake ? { receive: amount > fee ? amount - fee : 0n, fee } : null;
+  const icpView = fromIcp && amount !== null && amount > 0n && icpFee !== null && amount > icpFee && !overStake ? { receive: amount - icpFee, fee: icpFee } : null;
   const arrives = icpView ? 'Right away' : !checked ? '' : checked.queued
     ? checked.queueEtaAt === null ? 'In line' : `In line, about ${minutes(checked.queueEtaAt, nowSec)} min`
     : checked.etaSeconds < 90 ? 'Right away' : `About ${Math.round(checked.etaSeconds / 60)} min`;
@@ -149,8 +154,8 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
     if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
     if (!ready || !to || amount === null || !stake) return;
     if (fromIcp) {
-      if (fee === undefined) return;
-      onReview({ stake, to, amount, review: icpWithdrawReview(amount, fee) });
+      if (fee === undefined || moveFee === null) return;
+      onReview({ stake, to, amount, review: icpWithdrawReview(amount, fee, moveFee) });
       return;
     }
     if (!checked) return;
@@ -223,9 +228,8 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
               : `~${checked ? tokenAmountText(checked.expectedOut, 6, 'USDC') : '0.00'} USDC on ${where}`}
             small={`From your stake of ${formatUsd(total)}`}
             rows={[
-              ['Fee', icpView ? formatUsd(icpView.fee) : checked ? formatUsd(checked.feeUsdc) : '$0.00'],
+              ['Fee', icpView ? usdcText(icpView.fee) : checked ? usdcText(checked.feeUsdc) : '0.00 USDC'],
               ['Arrives', arrives],
-              ['Exit fee', 'None', 'green'],
             ]}
           />
           {closed ? (

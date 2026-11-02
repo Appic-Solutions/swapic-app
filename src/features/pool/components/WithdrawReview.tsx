@@ -87,7 +87,7 @@ export function WithdrawReview({ start, onBack, onStarted }: { start: WithdrawSt
     const onStep = (i: number, st: 'wait' | 'done' | 'fail') => setStates((s) => (s ?? review.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x)));
     if (icp) {
       if (!caller) { setBusy(false); return; }
-      after(await executeWithdrawIcp({ wanted: start.amount, caller, onStep }, icpClient()));
+      after(await executeWithdrawIcp({ wanted: start.amount, moveFee: review.moveFee, caller, onStep }, icpClient()));
       return;
     }
     if (!signer) { setBusy(false); return; }

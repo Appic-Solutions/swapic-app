@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { concat, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, pad, type Hex } from 'viem';
 import type { Quote, Route } from '@/lib/api';
-import { ECO_ROUTE, STEP_ABI, poolRefOf, type OrderValue } from './abi';
+import { ECO_ROUTE, STEP_ABI, type OrderValue } from './abi';
 import { decodeEnvelope } from './envelope';
 import type { GuardError } from './errors';
 import { routeOffered, verifyEvmRoute, type EvmCheckInput } from './evm';
 import { ATTACKER, CANISTER, GUARD, ICP_ME, PAYER, clone, executable, forge, load } from './forge.fixture';
+import { memoRef, type MemoTerms } from './memo';
+import { encodeMemo } from './memo.fixture';
 
 function input(q: Quote, route: Route, mode: 'gasless' | 'userPays', over: Partial<EvmCheckInput> = {}): EvmCheckInput {
   const env = route.envelope;
@@ -105,22 +107,50 @@ describe('Eco and KyberSwap steps are anchored (plan check C1, C3)', () => {
   });
 });
 
-describe('pool routes: the ref commits the terms on screen (plan check C2)', () => {
+describe('pool routes: the order memo commits the terms on screen, its keccak the ref', () => {
   const q = load('base-usdc-to-base-eth');
   const base = executable(q, 'userPays')[0]!;
   const ICP = 'icp:737ba355e855bd4b61279056603e0550';
   const CKBTC = 'mxzaz-hqaaa-aaaar-qaada-cai';
-  const terms = { ref: '', salt: `0x${'44'.repeat(32)}`, kind: 'swap' as const, account: ICP_ME, tokenOut: CKBTC, minOut: '240300', premium: '1000', icpFees: '10000', rebalanceShare: '0', candid: '0x' };
+  const terms: MemoTerms = {
+    kind: 'swap', salt: `0x${'44'.repeat(32)}`, minUsdc: BigInt(q.amountIn), recipient: { owner: ICP_ME, subaccount: null },
+    tokenOut: CKBTC, minOut: 240_300n, premium: 1000n, icpFees: 10_000n,
+  };
   const poolQuote: Quote = { ...q, toChain: ICP, toToken: { address: CKBTC, symbol: 'ckBTC', decimals: 8, verified: true } };
-  /** A real Base order made into a pool order: no steps, the Base USDC paid to `to`, its ref the one given. */
-  const route = (ref: Hex, to: Hex = CANISTER): Route => ({
-    ...forge(q, base, (o) => ({ ...o, ref, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })),
-    pool: { ...terms, ref }, amountOutMin: terms.minOut, envelope: undefined,
-  });
+  /** A real Base order made into a pool order: no steps, the Base USDC paid to `to`, the memo given, its ref `ref`. */
+  const route = (t: MemoTerms = terms, o: { to?: Hex; ref?: Hex; memo?: Hex } = {}): Route => {
+    const memo = o.memo ?? encodeMemo(t);
+    const ref = o.ref ?? memoRef(memo);
+    return {
+      ...forge(q, base, (v) => ({ ...v, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: o.to ?? CANISTER, minOut: BigInt(q.amountIn) } })),
+      pool: { ref, kind: t.kind }, amountOutMin: '240300', envelope: undefined,
+    };
+  };
   const check = (r: Route) => rule(() => verifyEvmRoute(input(poolQuote, r, 'userPays', { recipient: ICP_ME, toToken: CKBTC })));
-  it('passes when the order commits exactly the terms on screen', () => expect(check(route(poolRefOf(terms)))).toBe('passed'));
-  it('refuses terms the order does not commit (the ref hashes another account)', () => expect(check(route(poolRefOf({ ...terms, account: '2vxsx-fae' })))).toBe('poolRef'));
-  it('refuses the USDC paid anywhere but the canister', () => expect(check(route(poolRefOf(terms), ATTACKER))).toBe('poolDelivery'));
+  it('passes when the memo holds exactly the terms on screen', () => expect(check(route())).toBe('passed'));
+  it('returns the terms it checked', () => expect(verifyEvmRoute(input(poolQuote, route(), 'userPays', { recipient: ICP_ME, toToken: CKBTC })).terms).toEqual(terms));
+  it('refuses a ref that is not the memo\'s keccak', () => expect(check(route(terms, { ref: `0x${'00'.repeat(32)}` }))).toBe('poolRef'));
+  it('refuses a pool route with no memo', () => expect(check(route(terms, { memo: '0x', ref: memoRef(encodeMemo(terms)) }))).toBe('poolRef'));
+  it('refuses a memo that does not decode', () => {
+    const bad = `${encodeMemo(terms)}00` as Hex;
+    expect(check(route(terms, { memo: bad }))).toBe('memo');
+  });
+  it('refuses terms for another account, a subaccount, another token, another least', () => {
+    expect(check(route({ ...terms, recipient: { owner: '2vxsx-fae', subaccount: null } }))).toBe('recipient');
+    expect(check(route({ ...terms, recipient: { owner: ICP_ME, subaccount: `0x${'01'.repeat(32)}` } }))).toBe('recipient');
+    expect(check(route({ ...terms, tokenOut: 'xevnm-gaaaa-aaaar-qafnq-cai' }))).toBe('tokenOut');
+    expect(check(route({ ...terms, minOut: 1n }))).toBe('minOut');
+  });
+  it('refuses the USDC paid anywhere but the canister', () => expect(check(route(terms, { to: ATTACKER }))).toBe('poolDelivery'));
+  it('refuses a least USDC above what the plan delivers (the canister would hold the deposit)', () => {
+    expect(check(route({ ...terms, minUsdc: BigInt(q.amountIn) + 1n }))).toBe('poolLeast');
+    expect(check(route({ ...terms, minUsdc: 0n }))).toBe('poolLeast');
+  });
+  it('refuses a memo on an order that is not a pool deposit', () => {
+    const swap = executable(q, 'userPays')[0]!;
+    const withMemo = forge(q, swap, (v) => ({ ...v, memo: encodeMemo(terms) }));
+    expect(rule(() => verifyEvmRoute(input(q, { ...withMemo, pool: undefined }, 'userPays')))).toBe('poolRef');
+  });
 });
 
 describe('the gasless doors, the transaction, the screen', () => {
@@ -169,23 +199,25 @@ describe('the gasless doors, the transaction, the screen', () => {
   });
 });
 
-describe('verifyEvmRoute, stake (a real Base order made into a stake, its ref recomputed)', () => {
+describe('verifyEvmRoute, stake (a real Base order made into a stake, its memo and ref recomputed)', () => {
   const q = load('base-usdc-to-base-eth');
   const base = executable(q, 'userPays')[0]!;
   const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
-  const terms = { ref: '', salt: `0x${'55'.repeat(32)}`, kind: 'stake' as const, account: PAYER.toLowerCase(), premium: '0', icpFees: '0', rebalanceShare: '35827', candid: '0x' };
+  const terms: MemoTerms = { kind: 'stake', salt: `0x${'55'.repeat(32)}`, minUsdc: BigInt(q.amountIn), owner: { evm: PAYER }, moveFee: 35_827n };
   const stakeQuote: Quote = { ...q, toChain: 'icp:737ba355e855bd4b61279056603e0550', toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } };
-  const route = (t: typeof terms = terms, to: Hex = CANISTER): Route => {
-    const ref = poolRefOf(t);
-    return { ...forge(q, base, (o) => ({ ...o, ref, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })), pool: { ...t, ref }, envelope: undefined };
+  const route = (t: MemoTerms = terms, to: Hex = CANISTER): Route => {
+    const memo = encodeMemo(t);
+    const ref = memoRef(memo);
+    return { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })), pool: { ref, kind: 'stake' }, envelope: undefined };
   };
   const check = (r: Route, over: Partial<EvmCheckInput> = {}) => rule(() => verifyEvmRoute(input(stakeQuote, r, 'userPays', { recipient: PAYER, toToken: CKUSDC, stakeOwner: PAYER, ...over })));
   it('passes when the shares go to the payer and the USDC to the canister', () => expect(check(route())).toBe('passed'));
-  it('refuses shares minted to someone else, even when the ref commits them', () => expect(check(route({ ...terms, account: ATTACKER.toLowerCase() }))).toBe('stakeOwner'));
-  it('refuses terms the order does not commit (plan check C2)', () => {
-    const r = route();
-    expect(check({ ...r, pool: { ...r.pool!, rebalanceShare: '1' } })).toBe('poolRef');
+  it('refuses shares minted to someone else, even when the memo commits them', () => expect(check(route({ ...terms, owner: { evm: ATTACKER } }))).toBe('stakeOwner'));
+  it('refuses shares minted to an ICP account from an EVM stake', () => expect(check(route({ ...terms, owner: { icp: { owner: ICP_ME, subaccount: null } } }))).toBe('stakeOwner'));
+  it('refuses a move fee that eats the deposit', () => expect(check(route({ ...terms, moveFee: terms.minUsdc }))).toBe('moveFee'));
+  it('refuses swap terms on a stake, and stake terms on a swap', () => {
+    expect(check(route({ kind: 'swap', salt: terms.salt, minUsdc: terms.minUsdc, recipient: { owner: ICP_ME, subaccount: null }, tokenOut: CKUSDC, minOut: 1n, premium: 0n, icpFees: 0n }))).toBe('recipient');
+    expect(check(route(), { stakeOwner: undefined })).toBe('stakeOwner');
   });
   it('refuses the USDC sent anywhere but the canister', () => expect(check(route(terms, ATTACKER))).toBe('poolDelivery'));
-  it('refuses a stake checked without its owner', () => expect(check(route(), { stakeOwner: undefined })).toBe('stakeOwner'));
 });

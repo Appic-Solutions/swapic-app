@@ -40,11 +40,9 @@ export interface Fees {
   premium?: string; icpFees?: string; poolRebalancing?: string;
 }
 
-/** answer/mod.rs:214-238 */
-export interface PoolTerms {
-  ref: string; salt: string; kind: 'swap' | 'stake'; account: string;
-  tokenOut?: string; minOut?: string; premium: string; icpFees: string; rebalanceShare: string; candid: string;
-}
+/** A pool route's terms as the quoter shows them. Never trusted: the app reads the terms from the order's own memo, whose
+ *  keccak is the order's ref (guards/memo.ts); only the presence of this object marks a route into the pool. */
+export interface PoolTerms { ref: string; kind: 'swap' | 'stake' }
 
 /** answer/mod.rs:281-305: swap_from_icp's argument, sent as is */
 export interface IcpSwapTermsAnswer {
@@ -65,11 +63,13 @@ export interface IcpSwapAnswer {
   planned: IcpSwapPlanned;
 }
 
-/** order/mod.rs:358-381: the ABI v3 Order as JSON */
+/** The Swapic Order as JSON, its memo last (canister golden interface.json `order.value`). `memo` is `0x` on every order but a
+ *  pool deposit's; a quoter older than the memo leaves it out, which reads as `0x`. */
 export interface OrderJson {
   ref: string; payer: string; tokenIn: string; amountIn: string; deadline: string;
   steps: { target: string; data: string; token: string; min: string; writes: { at: number; minus: string }[] }[];
   payout: { token: string; recipient: string; minOut: string };
+  memo?: string;
   abi: string;
 }
 /** order/mod.rs:383-398 */
@@ -126,19 +126,17 @@ export interface StakeQuote {
 
 /** api/mod.rs:630-652 */
 export interface WithdrawRequest { staker: string; usdc: string; dstChain: string; recipient: string; tokenOut: string; slippageBps?: number }
-/** libraries/common/src/pool_eip712/mod.rs:46-68 */
+/** The signed withdrawal record (canister golden interface.json `withdrawal`); `moveFee` is the record's `move_fee`. */
 export interface WithdrawalJson {
-  staker: string; usdc: string; maxShares: string; rebalanceShare: string; networkFee: string;
+  staker: string; usdc: string; maxShares: string; moveFee: string; networkFee: string;
   payout: { dstChain: number; recipient: string; tokenOut: string; minOut: string; deadlineNs: string };
   nonce: string;
 }
 /** answer/mod.rs:1256-1333 */
 export interface WithdrawQuoteAnswer {
   withdrawal: WithdrawalJson; typedData: TypedDataJson; digest: string; verifyingContract: string;
-  fees: {
-    networkFee: string; rebalanceShare: string; moveCost: string; ecoFee?: string; cctpFee?: string;
-    networkLines: { chain: string; tx: string; usdc: string }[];
-  };
+  /** Shown only: the record's own `networkFee` and `moveFee` are what the check binds. */
+  fees: { networkFee: string; moveFee: string };
   payout: { route: string; amount: string; expectedOut: string; minOut: string };
   shares: { burn: string; maxShares: string; label: string };
   etaSeconds: number; quotedAt: number; expiresAt: number;
@@ -158,6 +156,10 @@ export interface PoolAnswer {
   totalAssets: string; totalShares: string; sharePrice?: string | null; tvlCap: string; perSwapCap: string;
   premiumBps: number; ckusdcLedger: string; icpTokens: { ledger: string; icpswapPool: string }[];
   stats?: PoolStats | null;
+  /** NOT FINAL (services task S8): the full cost of one move between the pool's two sides at live gas, micro USDC, which an
+   *  ICP stake (`icpToBase`) and an ICP withdrawal (`baseToIcp`) pay Swapic as their `move_fee`. Left out by today's quoter:
+   *  the app then offers neither. */
+  moveFees?: { baseToIcp: string; icpToBase: string } | null;
 }
 /** contract 5.2. `points[].sharePrice` is null while no shares exist (before the first stake; staging answers so, recorded
  *  in tests/fixtures/real/staging/pool-history-30d.json). */
@@ -181,11 +183,5 @@ export interface AccountAnswer {
 }
 /** contract 5.6 */
 export interface AccountHistory { account: string; range: PoolRange; stepSeconds: number; points: { t: number; valueUsdc: string }[] }
-/** api/pool.rs:121-157 */
-export interface DepositAnswer {
-  ref: string; kind: 'swap' | 'stake'; account: string; tokenOut?: string; minOut?: string; minUsdc: string;
-  premium: string; rebalanceShare: string; srcChain: string; rail: string; status: string;
-  payoutError?: string; arrived?: string; baseTx?: string; paid?: string; payoutBlock?: number; sharesMinted?: string;
-}
 /** contract 5.1 */
 export interface BalancesAnswer { chain: string; wallet: string; block: number; balances: { token: string; balance: string }[] }

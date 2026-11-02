@@ -15,6 +15,5 @@ export const getPoolActivity = (cursor?: string) => getJson<Q.PoolActivity>('/v2
 export const getAccount = (account: string) => getJson<Q.AccountAnswer>(`/v2/pool/accounts/${enc(account)}`);
 export const getAccountHistory = (account: string, range: Q.PoolRange) =>
   getJson<Q.AccountHistory>(`/v2/pool/accounts/${enc(account)}/history`, { range });
-export const getDeposit = (ref: string) => getJson<Q.DepositAnswer>(`/v2/pool/deposits/${enc(ref)}`);
 export const getBalances = (wallet: string, chain: string, tokens: string[] = []) =>
   getJson<Q.BalancesAnswer>('/v2/balances', { wallet, chain, tokens: tokens.length ? tokens.slice(0, 20).join(',') : undefined });

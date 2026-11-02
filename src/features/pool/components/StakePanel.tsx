@@ -35,9 +35,10 @@ import { evmStakeReview, icpStakeReview } from '../review';
 import type { StakeStart } from './StakeReview';
 import { USDC_LOGO } from '../usdc';
 import { STAKE_CARD, StakeAvatar } from './parts';
-import { checkStakeRoute, CKUSDC, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView } from '../flows';
+import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView, usdcText } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
+const ICP_STAKE_OFF = 'Staking from ICP is not available right now. Try again soon.';
 const ZERO = '0x0000000000000000000000000000000000000000';
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -110,15 +111,30 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   // from ICP: the pool takes the amount itself; the person pays two ledger fees (the approval and the pull)
   const fee = useQuery({ queryKey: ['ledger-fee', CKUSDC], queryFn: () => icpClient().ledgerFee(CKUSDC), enabled: fromIcp, staleTime: 600_000 }).data;
   const option = q.data ? pickStakeOption(q.data) : undefined;
+  // from ICP, Swapic's move fee as the quoter prices it; without it no ICP stake is offered
+  const moveFee = fromIcp ? icpMoveFee(pool, 'stake') : null;
+  // from an EVM chain, the route checked exactly as it will be signed: a quote that fails here never shows numbers
+  let checked: ReturnType<typeof checkStakeRoute> | null = null;
+  let checkError: string | null = null;
+  if (!fromIcp && q.data && option && evm && from && amount !== null && guard) {
+    try {
+      checked = checkStakeRoute({ quote: q.data, option, from, amount, owner: evm.address, guard, nowSec: Math.floor(Date.now() / 1000) });
+    } catch (e) {
+      checkError = e instanceof GuardError ? GUARD_MESSAGE : userMessage(e);
+    }
+  }
   const view = fromIcp
-    ? (amount !== null && amount > 0n && fee !== undefined ? { added: amount, addedText: formatUsd(amount).slice(1), feeText: formatUsd(2n * fee), readyText: '5 Sec' } : null)
-    : option ? stakeView(option) : null;
+    ? (amount !== null && amount > 0n && fee !== undefined && moveFee !== null && amount > moveFee
+      ? { added: amount - moveFee, addedText: formatUsd(amount - moveFee).slice(1), feeText: usdcText(2n * fee + moveFee), readyText: '5 Sec' } : null)
+    : option && checked ? stakeView(option, checked) : null;
   // skeletons from the moment an amount that will be quoted is typed until its quote answers (the design's loading card)
   const asks = !fromIcp && !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
   // over the canister's per swap cap (the stake quote's 422 aboveSwapCap): the cap's own line and button
   const swapCap = fromIcp ? null : swapCapOf(q.error);
-  const quoteError = fromIcp ? null : swapCap !== null ? userMessage(q.error) : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : null;
+  const quoteError = fromIcp
+    ? (pool && moveFee === null ? ICP_STAKE_OFF : moveFee !== null && amount !== null && amount > 0n && amount <= moveFee ? 'This amount does not cover the fee. Try a larger amount.' : null)
+    : swapCap !== null ? userMessage(q.error) : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : checkError;
 
   const message = overBalance && from ? `Not enough ${from.symbol} in your wallet` : amountError ?? quoteError ?? undefined;
   // from an EVM chain, only on the quote for the amount on screen (never the one before it while the new one loads)
@@ -142,14 +158,15 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
     if (!ready || !from || amount === null) return;
     setNote(null);
     if (fromIcp) {
-      if (fee === undefined || !icp) return;
-      onReview({ from, amount, owner: icp.principal, review: icpStakeReview(amount, fee, from), apyLine });
+      if (fee === undefined || moveFee === null || !icp) return;
+      onReview({ from, amount, owner: icp.principal, review: icpStakeReview(amount, fee, moveFee, from), apyLine });
       return;
     }
     if (!q.data || !option || !evm) return;
     try {
-      const checked = checkStakeRoute({ quote: q.data, option, from, amount, owner: evm.address, guard, nowSec: Math.floor(Date.now() / 1000) });
-      onReview({ from, amount, owner: evm.address, review: evmStakeReview({ option, checked, from, amount, native }), evm: { approval: !!checked.approval, native }, apyLine });
+      // checked again at the click: the anchors or the clock may have moved since the render
+      const fresh = checkStakeRoute({ quote: q.data, option, from, amount, owner: evm.address, guard, nowSec: Math.floor(Date.now() / 1000) });
+      onReview({ from, amount, owner: evm.address, review: evmStakeReview({ option, checked: fresh, from, amount, native }), evm: { approval: !!fresh.approval, native }, apyLine });
     } catch (e) {
       setNote(e instanceof GuardError ? GUARD_MESSAGE : userMessage(e));
     }
@@ -203,9 +220,9 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
             big={`~${view ? view.addedText : '0.00'} USDC`}
             small={apy && apy !== 'Not yet' ? `Starts earning ${apy} APY right away` : 'Starts earning right away'}
             rows={[
-              ['Fee', view ? view.feeText : '$0.00'],
+              ['Fee', view ? view.feeText : '0.00 USDC'],
               ['Ready in', view ? view.readyText : ''],
-              ['Withdraw', fromIcp ? 'Anytime on ICP, no exit fee' : 'Anytime, no exit fee', 'green'],
+              ['Withdraw', fromIcp ? 'Anytime on ICP' : 'Anytime', 'green'],
             ]}
           />
           {closed ? (

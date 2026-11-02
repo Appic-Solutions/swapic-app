@@ -6,8 +6,9 @@
 // config.swapicCanisterId agree; the approve amount is exactly terms.amountIn + the ledger's fee; slippage <= 500; the
 // deadline sits between now + 5 min 30 s and now + 1 h; no subaccount and no refund_to (the caller's default account);
 // the planned recipient, token out and chain are the screen's; plan.order is decoded, its id recomputed under the pool
-// chain's anchored Swapic, its payer the canister's EVM address, and every step read by readPlan as the canister will,
-// its delivery the screen's for at least planned.minOut. Tests: icp.test.ts.
+// chain's anchored Swapic, its payer the canister's EVM address, its memo empty (the canister refuses a payout order with
+// one), and every step read by readPlan as the canister will, its delivery the screen's for at least planned.minOut.
+// Tests: icp.test.ts.
 import { Principal } from '@icp-sdk/core/principal';
 import { decodeAbiParameters, getAddress, hexToBytes, type Hex } from 'viem';
 import type { Route } from '@/lib/api';
@@ -63,6 +64,7 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   }
   must(orderIdOf(order, poolChain!, getAddress(poolSwapic!)) === planned.orderId.toLowerCase(), 'planOrder');
   must(sameAddress(order.payer, g!.canisterEvm), 'planPayer');
+  must(order.memo === '0x', 'planMemo');
   const plan = readPlan(order, { ...g!, sourceChainId: poolChain!, payer: getAddress(g!.canisterEvm!), orderDeadline: order.deadline, nowSec: Number(i.nowNs / 1_000_000_000n) });
   const d = plan.delivery;
   must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');

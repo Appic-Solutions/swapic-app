@@ -7,12 +7,11 @@ import { checkWithdrawQuote, normalizeSignature, withdrawalTypedData, type Withd
 const SWAPIC = '0xF0Ba68cBc87c31eCaA9654EB14daF3632eaCa406' as Hex;
 const STAKER = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC' as Hex;
 const ARB_USDC = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
-/** The backend's fixed example (libraries/common/src/pool_eip712/tests.rs, "fixed()"). */
+/** A record in the shape of the backend's fixed example; the pinned digest is the golden one (guards/golden.test.ts). */
 const FIXED: WithdrawalJson = {
-  staker: STAKER, usdc: '5000000', maxShares: '5000000000000000000', rebalanceShare: '1000', networkFee: '50000',
+  staker: STAKER, usdc: '5000000', maxShares: '5000000000000000000', moveFee: '1000', networkFee: '50000',
   payout: { dstChain: 42161, recipient: STAKER, tokenOut: ARB_USDC, minOut: '4949000', deadlineNs: '1800000000000000000' }, nonce: '7',
 };
-const FIXED_DIGEST = '0x198b9ff0da5fb38d93be61e50a38be4fca4e611bac9b06097587f11d9768fd6c';
 // a pool where 5 USDC burns about 4.96 shares: A/S = 1.008924 USDC a share (contract 5.3 example)
 const A = 8_420_550_000n;
 const S = 8_346_065_000_000_000_000_000n;
@@ -23,7 +22,7 @@ function answer(record: WithdrawalJson): WithdrawQuoteAnswer {
     // viem 2.57 range-checks a uint64 when hashing: a record past u64 (the oversized nonce case) gets a zero digest, and the
     // check refuses its nonce before it hashes anything
     withdrawal: record, typedData: td as never, digest: (() => { try { return hashTypedData(td as never); } catch { return `0x${'00'.repeat(32)}` as Hex; } })(), verifyingContract: SWAPIC,
-    fees: { networkFee: record.networkFee, rebalanceShare: record.rebalanceShare, moveCost: '0', networkLines: [] },
+    fees: { networkFee: record.networkFee, moveFee: record.moveFee },
     payout: { route: 'cctp', amount: '4949000', expectedOut: '4949000', minOut: record.payout.minOut },
     shares: { burn: '0', maxShares: record.maxShares, label: 'estimated' }, etaSeconds: 20, quotedAt: 1_799_999_000, expiresAt: 1_800_000_000,
   };
@@ -33,12 +32,6 @@ function input(record: WithdrawalJson, over: Partial<WithdrawCheckInput> = {}): 
   return { answer: answer(record), staker: STAKER, usdc: 5_000_000n, dstChainId: 42161, dstUsdc: ARB_USDC.toLowerCase() as Hex, poolChain: 8453, swapic: SWAPIC, totalAssets: A, totalShares: S, nowSec: 1_799_999_000, used: () => false, ...over };
 }
 const rule = (f: () => unknown) => { try { f(); } catch (e) { return (e as { rule: string }).rule; } return 'passed'; };
-
-describe('withdraw typed data', () => {
-  it('matches the backend pinned digest byte for byte', () => {
-    expect(hashTypedData(withdrawalTypedData(FIXED, 8453, SWAPIC) as never)).toBe(FIXED_DIGEST);
-  });
-});
 
 describe('checkWithdrawQuote', () => {
   it('passes a quote that pays the staker what was asked', () => {
