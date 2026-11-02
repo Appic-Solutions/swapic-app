@@ -48,11 +48,13 @@ export interface ReviewPanelProps {
   routeRef?: React.Ref<HTMLDivElement>;
   /** The quote timer on the route card (none while the wallet asks: nothing updates then). */
   timer?: React.ReactNode;
+  /** Each token's mark after its amount (the tick or a flag pill), and the one line to check a flagged token by. */
+  marks?: { pay?: React.ReactNode; get?: React.ReactNode; check?: React.ReactNode };
   onBack: () => void;
   onSign: () => void;
 }
 
-export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, cancelled, routeRef, timer, onBack, onSign }: ReviewPanelProps) {
+export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
   const [copied, copy] = useCopied();
   const { recipient } = data;
   const steps: StepView[] = data.steps.map((s, i) => {
@@ -67,15 +69,16 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
       left={
         <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-4 hover:bg-[#000000]/0 lg:flex-1">
           <div className="flex w-full flex-1 flex-col justify-center gap-4">
-            <SideBlock label="You pay" side={pay} amount={data.payText} />
+            <SideBlock label="You pay" side={pay} amount={data.payText} badge={marks?.pay} />
             <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
             {/* a fresh price (the 20 s refresh): the old minimum fades out, the new one fades in (the design's quote timer) */}
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={data.minText} variants={fade} initial="hidden" animate="shown" exit="gone">
-                <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-yellow-500' : undefined} />
+                <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-yellow-500' : undefined} badge={marks?.get} />
                 {wasMinText && <p className="ml-16 mt-1 text-sm font-normal text-[#898989]">was <span className="line-through">{wasMinText}</span></p>}
               </motion.div>
             </AnimatePresence>
+            {marks?.check}
           </div>
           <div className="w-full space-y-2 border-t border-gray-700 pt-3">
             <InfoRow k="Send to">

@@ -1,6 +1,8 @@
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
 import { Avatar } from '@/components/ui/avatar';
+import { markOf } from '@/lib/token-marks';
+import { MarkAfterSymbol } from './token-marks';
 import type { UiToken } from './token-types';
 
 interface TokenCardProps {
@@ -32,13 +34,16 @@ export function TokenCard({ token, customOnClick, label, className }: TokenCardP
           />
         </div>
         <div>
-          <p
-            className={cn(
-              'text-nowrap',
-              token?.symbol.length && token?.symbol.length > 7 && 'w-28 text-ellipsis',
-            )}
-          >
-            {token?.symbol || 'Select Token'}
+          <p className="flex items-center gap-x-1.5">
+            <span
+              className={cn(
+                'text-nowrap',
+                token?.symbol.length && token?.symbol.length > 7 && 'w-28 text-ellipsis',
+              )}
+            >
+              {token?.symbol || 'Select Token'}
+            </span>
+            {token && <MarkAfterSymbol mark={markOf(token)} symbol={token.symbol} chainName={chainName} size={18} />}
           </p>
           <p className={cn('text-sm', chainName.length > 3 && 'w-20 text-ellipsis')}>{chainName}</p>
         </div>

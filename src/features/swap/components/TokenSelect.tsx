@@ -1,7 +1,9 @@
 'use client';
 // The token page: moved from the design's swap-screens.tsx TokenSelect (the approved static look, as the design bundle
 // built 2026-10-29 14:46 holds it), wired to data: chain circles from GET /v2/chains, tokens from GET /v2/tokens (50 a
-// page, more as the list scrolls), balances beside them, a pasted address found on no list flagged.
+// page, more as the list scrolls), balances beside them. Each row carries its mark (lib/token-marks): the tick on Swapic's
+// own list, "Unverified" on a token Swapic does not know, "Fake" on one that takes a listed token's symbol; a flagged
+// row opens a confirm under it before it is picked, and a fake's confirm offers the real token first.
 import * as React from 'react';
 import Box from '@/components/ui/box';
 import BoxHeader from '@/components/ui/box-header';
@@ -12,10 +14,13 @@ import Skeleton from '@/components/ui/skeleton';
 import type { UiToken } from '@/components/ui/token-types';
 import { chainLogo, chainNumber } from '@/lib/explorer';
 import { chainPlace } from '@/lib/chains';
-import { useChains, useTokenList } from '../tokens';
-import { motion } from 'motion/react';
+import { toUiToken, useChains, useTokenList } from '../tokens';
+import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/cn';
-import { listItem, page, tw, useInPresence, useMounted } from '@/lib/motion';
+import { listItem, openHeight, page, tw, useInPresence, useMounted, useReducedMotion } from '@/lib/motion';
+import { getTokens } from '@/lib/api';
+import { listedFor, markOf, needsConfirm } from '@/lib/token-marks';
+import { ConfirmPick } from './ConfirmPick';
 import { useFrame } from '@/components/motion/parts';
 
 export interface TokenSelectProps {
@@ -54,7 +59,6 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const fixed = fixedTokens?.[chain];
   const tokens = fixed ?? list.tokens;
   const loading = fixed ? false : list.isLoading;
-  const pasted = !fixed && list.pasted;
   // Rows that show after the first render (after loading, a chain switch) fade up one after another.
   const mounted = useMounted();
   // Opened inside the Swap page's AnimatePresence: slides in and out.
@@ -62,6 +66,19 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   // Inside a MorphFrame (the Pool's one panel: Stake From, Receive on) the frame is the Box and changes the panel in
   // place, so only the content shows, at the Box's inner height (motion part 2).
   const inFrame = useFrame() !== null;
+  const reduced = useReducedMotion();
+  // the flagged row whose confirm is open
+  const [confirming, setConfirming] = React.useState<string | null>(null);
+  /** A fake's "Use the real X": the listed token, from the rows on screen or asked for by its address. */
+  const pickReal = async (t: UiToken) => {
+    const real = listedFor(t)?.token;
+    if (!real) return;
+    const shown = tokens.find((x) => markOf(x) === 'verified' && x.address.toLowerCase() === real.address.toLowerCase());
+    if (shown) { onSelect(shown); return; }
+    const info = chains.find((c) => c.chainId === t.chain);
+    const found = info ? (await getTokens(t.chain, real.address).catch(() => null))?.tokens[0] : undefined;
+    if (found && info) onSelect(toUiToken(found, info));
+  };
 
   // more tokens as the list scrolls to its end
   const sentinel = React.useRef<HTMLDivElement>(null);
@@ -117,17 +134,40 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
           ))
         ) : tokens.length ? (
           <>
-            {pasted && (
-              <div className="animate-slide-in-from-top rounded-md bg-yellow-600/10 p-4 text-left text-white">
-                <span className="inline pr-2 text-yellow-600">Not on our list.</span>
-                <p className="inline text-sm font-thin">Check the address before you swap.</p>
-              </div>
-            )}
-            {tokens.map((t, i) => (
-              <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
-                <TokenListItem token={t} onClick={() => onSelect(t)} isSelected={!!selected && selected.key === t.key} />
-              </motion.div>
-            ))}
+            {tokens.map((t, i) => {
+              const mark = markOf(t);
+              const isSelected = !!selected && selected.key === t.key;
+              const open = confirming === t.key;
+              return (
+                <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
+                  <TokenListItem
+                    token={t}
+                    mark={mark}
+                    isSelected={isSelected}
+                    onClick={() => (needsConfirm(mark) && !isSelected ? setConfirming(open ? null : t.key) : onSelect(t))}
+                  />
+                  <AnimatePresence initial={false}>
+                    {open && (mark === 'fake' || mark === 'unverified') && (
+                      <motion.div
+                        className="overflow-hidden"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto', transition: openHeight(true, reduced) }}
+                        exit={{ opacity: 0, height: 0, transition: openHeight(false, reduced) }}
+                      >
+                        <ConfirmPick
+                          token={t}
+                          mark={mark}
+                          realSymbol={mark === 'fake' ? listedFor(t)?.token.symbol : undefined}
+                          onCancel={() => setConfirming(null)}
+                          onConfirm={() => { setConfirming(null); onSelect(t); }}
+                          onReal={mark === 'fake' ? () => { setConfirming(null); void pickReal(t); } : undefined}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
             <div ref={sentinel} aria-hidden className="h-px w-full shrink-0" />
           </>
         ) : (

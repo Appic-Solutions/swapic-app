@@ -43,6 +43,7 @@ import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label'
 import { statusView, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
+import { reviewMarks } from './ConfirmPick';
 import { SwapPanel, type ReviewStart } from './SwapPanel';
 import { SwapStatus } from './SwapStatus';
 
@@ -280,6 +281,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
             ) : undefined}
             onBack={() => toSwap(false)}
             timer={holding ? undefined : <CountdownLabel startedAt={rvAt} fetching={updating} />}
+            marks={reviewMarks(rv.from, rv.to)}
             onSign={() => void sign()}
           />
         ) : v.startsWith('status') && rv && activity ? (

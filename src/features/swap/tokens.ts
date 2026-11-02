@@ -79,7 +79,7 @@ export function useTokenList(chain: string, query: string) {
     : joinBalances(base, balances.data, chain);
   return {
     tokens, isLoading: list.isLoading || !info, settled: list.isSuccess || list.isError,
-    pasted: pasted && tokens.length > 0 && !tokens[0]!.verified, loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage,
+    loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage,
   };
 }
 

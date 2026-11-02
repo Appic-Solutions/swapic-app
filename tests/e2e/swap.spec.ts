@@ -149,7 +149,7 @@ test.describe('Swap, the shareable link', () => {
   });
   test('a token from a link that is not on the list shows its warning first', async ({ page }) => {
     await openAt(page, 'pasted', '/?from=eip155:8453|0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
-    await expect(page.getByText('Not on our list.')).toBeVisible();
+    await expect(page.getByText('Unverified', { exact: true })).toBeVisible();
     await expect(page.getByPlaceholder('Search token')).toHaveValue('0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
   });
 });
