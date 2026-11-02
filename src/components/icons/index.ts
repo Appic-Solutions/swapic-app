@@ -1,5 +1,4 @@
 export { default as ArrowDownIcon } from './arrow-down';
-export { default as ArrowsRightLeftIcon } from './arrows-right-left';
 export { default as ArrowsUpDownIcon } from './arrows-up-down';
 export { default as BlockchainIcon } from './blockchain';
 export { default as CheckIcon } from './check';

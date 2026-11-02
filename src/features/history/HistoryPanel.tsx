@@ -116,7 +116,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
       <div ref={list} className={cn('flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-1', h.state === 'loading' && tw.shimmerAll)}>
         {h.state === 'loading' && [0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
         {h.state === 'nowallet' && (
-          <Empty img="/images/wallet.svg" title="Connect your wallet to see your history" text="Connect an EVM or ICP wallet, or both. You'll see every swap, stake and withdrawal they made, in one list." action="Connect wallet" onAction={() => openMenu(true)} />
+          <Empty img="/images/wallet.webp" size={180} title="Connect your wallet to see your history" text="Connect an EVM or ICP wallet, or both. You'll see every swap, stake and withdrawal they made, in one list." action="Connect wallet" onAction={() => openMenu(true)} />
         )}
         {h.state === 'empty' && (
           <Empty img="/images/empty.png" title="No swaps yet" text="Your swaps, stakes and withdrawals show up here as soon as you make one, with every step and its transaction." action="Make a swap" onAction={() => router.push('/')} />

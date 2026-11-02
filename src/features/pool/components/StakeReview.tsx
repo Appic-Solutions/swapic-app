@@ -28,7 +28,7 @@ import { useGuardContext } from '@/features/swap/quote';
 import type { NativeCoin } from '@/features/swap/view';
 import { checkStakeRoute, executeStakeEvm, executeStakeIcp, type StakeLanding } from '../flows';
 import { evmStakeReview, type StakeReview as ReviewData } from '../review';
-import { ArrowDown, Details, inPool, REVIEW_CARD, tokenSide, WalletCard, WalletRow, walletSteps } from './ReviewParts';
+import { ArrowDown, Details, inPool, REVIEW_CARD, tokenSide, WalletRow, WalletStepsCard, walletSteps } from './ReviewParts';
 
 /** What Stake hands Review stake: the token and amount, the wallet that stakes, and the checked numbers. */
 export interface StakeStart {
@@ -174,7 +174,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
       right={
         <>
           <Details rows={[['Fee', review.feeText], ['Ready in', review.readyText], ['Withdraw', <span key="w" className="text-[#12b76a]">{review.withdrawText}</span>]]} />
-          <WalletCard steps={steps} />
+          <WalletStepsCard steps={steps} />
           <motion.div variants={fade}>
             {note ? (
               <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>

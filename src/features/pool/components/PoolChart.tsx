@@ -1,10 +1,10 @@
 'use client';
 // Moved from the design's pool-screens.tsx PoolChart: your stake in USDC over time (with no stake: what $1,000 staked at
 // launch is worth), or what stakers earned; the live timeframe pills. The chart draws numbers; the headline is the hovered
-// drawn value, or by default the last point's own bigint.
+// drawn value, or by default the last point's own bigint. The two charts (recharts, about 134 KB gzip) load only when the
+// pool page draws them, behind a placeholder of their own height, so the home page and the pool's first paint never wait.
 import * as React from 'react';
-import SharePriceChart from '@/components/design/SharePriceChart';
-import { VolumeChart } from '@/components/ui/volume-chart';
+import dynamic from 'next/dynamic';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { dayText } from '@/lib/copy/format';
 import { formatBps, formatUsd } from '@/lib/money';
@@ -12,6 +12,12 @@ import { cn } from '@/lib/cn';
 import { tw } from '@/lib/motion';
 import { SlidingPill } from './parts';
 import { combine, earningsSeries, launchGainBps, launchSeries, launchWorth, stakeSeries, usePoolHistory, useMyHistory, type MyStake, type Timeframe } from '../data';
+
+const chartSpace = (height: number) => function ChartSpace() {
+  return <div aria-hidden className="w-full animate-pulse rounded-xl bg-white/5" style={{ height }} />;
+};
+const SharePriceChart = dynamic(() => import('@/components/design/SharePriceChart'), { ssr: false, loading: chartSpace(300) });
+const VolumeChart = dynamic(() => import('@/components/ui/volume-chart').then((m) => m.VolumeChart), { ssr: false, loading: chartSpace(360) });
 
 const TFS: Timeframe[] = ['1D', '1W', '1M', '1Y'];
 const drawn = (v: number) => formatUsd(BigInt(Math.round(v * 1e6)));

@@ -67,7 +67,7 @@ export const walletSteps = (steps: WalletStep[], states?: StepView['state'][]): 
   steps.map((s, i) => { const state = states?.[i] ?? 'todo'; return { key: `w${i}`, label: s.label, sub: state === 'wait' ? 'Check your wallet' : s.sub, state }; });
 
 /** "In your wallet": the steps ahead, numbered; each checks in as the wallet answers. */
-export function WalletCard({ steps }: { steps: StepView[] }) {
+export function WalletStepsCard({ steps }: { steps: StepView[] }) {
   return (
     <motion.div variants={fade} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
       <div className="flex items-center justify-between gap-3">

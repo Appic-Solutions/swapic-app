@@ -26,7 +26,7 @@ import type { MyStake } from '../data';
 import { executeWithdrawEvm, executeWithdrawIcp, type WithdrawNewTerms } from '../flows';
 import { evmWithdrawReview, type WithdrawReview as ReviewData } from '../review';
 import { usedNonces } from '../used-nonces';
-import { ArrowDown, Details, inPool, REVIEW_CARD, tokenSide, WalletCard, WalletRow, walletSteps } from './ReviewParts';
+import { ArrowDown, Details, inPool, REVIEW_CARD, tokenSide, WalletRow, WalletStepsCard, walletSteps } from './ReviewParts';
 
 /** What Withdraw hands Review withdrawal: the stake, the amount, where it pays out, and the checked numbers. */
 export interface WithdrawStart { stake: MyStake; to: UiToken; amount: bigint; review: ReviewData }
@@ -122,7 +122,7 @@ export function WithdrawReview({ start, onBack, onStarted }: { start: WithdrawSt
       right={
         <>
           <Details rows={[['Fee', review.feeText], ['Arrives', review.arrives]]} />
-          <WalletCard steps={steps} />
+          <WalletStepsCard steps={steps} />
           <motion.div variants={fade}>
             {note ? (
               <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
