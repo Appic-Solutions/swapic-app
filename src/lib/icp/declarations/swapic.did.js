@@ -137,6 +137,8 @@ export const idlFactory = ({ IDL }) => {
       'id' : IDL.Nat64,
       'to' : SweepTarget,
       'asset' : SweepAsset,
+      'from_fee_income' : IDL.Nat,
+      'from_pool_fees' : IDL.Nat,
       'amount' : IDL.Nat,
     }),
     'Flow' : IDL.Record({
@@ -420,10 +422,12 @@ export const idlFactory = ({ IDL }) => {
     'premium_bps' : IDL.Nat16,
     'tvl_cap' : IDL.Nat,
     'icp_tokens' : IDL.Vec(IcpTokenEntry),
+    'least_move_fee_base_to_icp' : IDL.Opt(IDL.Nat),
     'large_deposit_confirmations' : IDL.Opt(IDL.Nat64),
     'pool_open_for_swaps' : IDL.Bool,
     'arrival_backup_s' : IDL.Nat64,
     'large_deposit_usdc' : IDL.Opt(IDL.Nat),
+    'least_move_fee_icp_to_base' : IDL.Opt(IDL.Nat),
   });
   const PocketView = IDL.Record({
     'free' : IDL.Nat,

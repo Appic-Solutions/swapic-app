@@ -396,6 +396,15 @@ export type EventType = {
       'id' : bigint,
       'to' : SweepTarget,
       'asset' : SweepAsset,
+      /**
+       * Of `amount`, what came off the chain books' `fee_income`. Zero but for USDC.
+       */
+      'from_fee_income' : bigint,
+      /**
+       * Of `amount`, what came off the pool ledger's fee line: `fees_base` for USDC on
+       * the pool chain, `fees_icp` for ckUSDC. Zero for native gas, ckETH and ICP.
+       */
+      'from_pool_fees' : bigint,
       'amount' : bigint,
     }
   } |
@@ -1163,6 +1172,11 @@ export interface PoolSettings {
   'tvl_cap' : bigint,
   'icp_tokens' : Array<IcpTokenEntry>,
   /**
+   * Micro USDC, the least move fee of an EVM stake and of an ICP withdrawal (each pays
+   * for one Base to ICP move). Absent: 0.
+   */
+  'least_move_fee_base_to_icp' : [] | [bigint],
+  /**
    * The pool chain's blocks a large deposit waits. Absent: 6.
    */
   'large_deposit_confirmations' : [] | [bigint],
@@ -1181,6 +1195,11 @@ export interface PoolSettings {
    * ($1,000).
    */
   'large_deposit_usdc' : [] | [bigint],
+  /**
+   * Micro USDC, the least move fee of an ICP stake and of an EVM withdrawal (each pays
+   * for one ICP to Base move). Absent: 0.
+   */
+  'least_move_fee_icp_to_base' : [] | [bigint],
 }
 export interface PoolStateView {
   'icp' : PocketView,

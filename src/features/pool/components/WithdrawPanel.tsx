@@ -135,7 +135,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
   const asks = !fromIcp && !!evm && !!to && !!stake && !closed && amount !== null && amount > 0n && !overStake;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
   const quoteError = fromIcp
-    ? (pool && moveFee === null ? 'Withdrawing on ICP is not available right now. Try again soon.' : icpFee !== null && amount !== null && amount > 0n && amount <= icpFee ? 'This amount does not cover the fee. Try a larger amount.' : null)
+    ? (pool && moveFee === null ? 'Withdrawing on ICP is not available right now. Try again soon.' : icpFee !== null && amount !== null && amount > 0n && amount <= icpFee ? 'Amount too small to cover the fee' : null)
     : q.error ? userMessage(q.error) : checkError;
   const message = overStake ? 'This is more than your stake' : amountError ?? quoteError ?? undefined;
 

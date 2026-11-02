@@ -164,7 +164,7 @@ export async function executeStakeEvm(
 type IcpStakeInput = { amount: bigint; moveFee: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void };
 
 export async function executeStakeIcp(i: IcpStakeInput, icp: IcpClient, clock: Clock = realClock): Promise<ExecOutcome | StakeLanding> {
-  if (i.moveFee >= i.amount) return { kind: 'failed', message: 'This amount does not cover the fee. Try a larger amount.' };
+  if (i.moveFee >= i.amount) return { kind: 'failed', message: 'Amount too small to cover the fee' };
   const [pool, fee] = await Promise.all([icp.poolState(), icp.ledgerFee(CKUSDC)]);
   if (!pool.open) return { kind: 'failed', message: POOL_PAUSED };
   const room = pool.tvlCap > pool.totalAssets ? pool.tvlCap - pool.totalAssets : 0n;
@@ -237,7 +237,7 @@ export async function executeWithdrawIcp(
   if (holding.shares === 0n) return { kind: 'failed', message: 'This wallet holds no stake' };
   const plan = planIcpWithdraw(i.wanted, holding, pool.totalAssets, pool.totalShares);
   const costs = i.moveFee + 2n * fee;
-  if (plan.usdc <= costs) return { kind: 'failed', message: 'This amount does not cover the fee. Try a larger amount.' };
+  if (plan.usdc <= costs) return { kind: 'failed', message: 'Amount too small to cover the fee' };
   const minOut = plan.usdc - costs;
   try {
     i.onStep(0, 'wait');

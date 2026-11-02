@@ -36,7 +36,7 @@ describe('executeStakeIcp', () => {
   });
   it('refuses a move fee the amount does not cover, before any call', async () => {
     const c = client();
-    expect(await executeStakeIcp({ amount: 1_000_000n, moveFee: 1_000_000n, caller, onStep: () => {} }, c)).toEqual({ kind: 'failed', message: 'This amount does not cover the fee. Try a larger amount.' });
+    expect(await executeStakeIcp({ amount: 1_000_000n, moveFee: 1_000_000n, caller, onStep: () => {} }, c)).toEqual({ kind: 'failed', message: 'Amount too small to cover the fee' });
     expect(c.approve).not.toHaveBeenCalled();
     expect(c.stakeIcp).not.toHaveBeenCalled();
   });

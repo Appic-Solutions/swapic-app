@@ -1,4 +1,4 @@
-// The app's encoders against the canister's golden vectors (tests/fixtures/golden/interface.json, swapic-core 47a36c9),
+// The app's encoders against the canister's golden vectors (tests/fixtures/golden/interface.json, swapic-core 1b94053),
 // which were computed independently of the canister: the Order with its memo, the gasless doors, the memos and the
 // withdrawal must come out byte for byte the same here.
 import { readFileSync } from 'node:fs';
@@ -23,6 +23,21 @@ describe('the Swapic Order with its memo (golden)', () => {
   it('carries the memo of the first golden memo, whose keccak is its ref', () => {
     expect(order.memo).toBe(golden.memos[0].bytes);
     expect(memoRef(order.memo)).toBe(order.ref);
+  });
+});
+
+describe('a same-chain order with an empty memo (golden)', () => {
+  const e = golden.order_empty_memo;
+  const o = orderValue({ ...(e.value as Omit<OrderJson, 'abi'>), abi: '0x' });
+  it('reads the memo as 0x and hashes keccak256(0x) into the struct', () => {
+    expect(o.memo).toBe('0x');
+    expect(keccak256('0x')).toBe(e.empty_memo_hash);
+  });
+  it('encodes the ABI tuple byte for byte', () => expect(orderAbi(o)).toBe(e.abi_encode));
+  it('hashes to the golden order id', () => expect(orderIdOf(o, e.chain_id, e.swapic)).toBe(e.order_id));
+  it('reads a quoter answer with no memo field as the empty memo', () => {
+    const { memo: _memo, ...noMemo } = e.value as Omit<OrderJson, 'abi'>;
+    expect(orderIdOf(orderValue({ ...noMemo, abi: '0x' }), e.chain_id, e.swapic)).toBe(e.order_id);
   });
 });
 

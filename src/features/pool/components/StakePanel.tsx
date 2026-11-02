@@ -133,7 +133,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   // over the canister's per swap cap (the stake quote's 422 aboveSwapCap): the cap's own line and button
   const swapCap = fromIcp ? null : swapCapOf(q.error);
   const quoteError = fromIcp
-    ? (pool && moveFee === null ? ICP_STAKE_OFF : moveFee !== null && amount !== null && amount > 0n && amount <= moveFee ? 'This amount does not cover the fee. Try a larger amount.' : null)
+    ? (pool && moveFee === null ? ICP_STAKE_OFF : moveFee !== null && amount !== null && amount > 0n && amount <= moveFee ? 'Amount too small to cover the fee' : null)
     : swapCap !== null ? userMessage(q.error) : q.error ? (q.error instanceof ApiError && q.error.code === 'no_route' ? NO_ROUTE : userMessage(q.error)) : q.data && !option ? NO_ROUTE : checkError;
 
   const message = overBalance && from ? `Not enough ${from.symbol} in your wallet` : amountError ?? quoteError ?? undefined;

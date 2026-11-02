@@ -498,7 +498,7 @@
   {
     "path": "tests/fixtures/golden/interface.json",
     "kind": "contract",
-    "source": "swapic-core canister/golden/interface.json at 47a36c9 (the prod interface)",
+    "source": "swapic-core canister/golden/interface.json at 1b94053 (the prod interface, amended)",
     "recordedAt": "2026-11-02",
     "replacedBy": null,
     "note": "copied byte for byte; the Order with its memo, the gasless doors, the memos and the withdrawal, computed independently of the canister"
