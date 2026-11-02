@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { listedFor, markOf, needsConfirm, symbolReading, type TokenLists } from './token-marks';
+import { listedFor, markOf, needsConfirm, symbolReading, TOKEN_LISTS, type TokenLists } from './token-marks';
 
 const BASE = 'eip155:8453';
 const USDC = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
@@ -29,8 +29,17 @@ describe('token marks', () => {
     expect(['verified', 'plain', 'unverified', 'fake'].map((m) => needsConfirm(m as never))).toEqual([false, false, true, true]);
     expect(symbolReading('ＵＳＤＣ')).toBe('USDC');
   });
-  it('starts with an empty list: nothing ticked, nothing fake, only unknown tokens flagged', () => {
-    expect(markOf(t(USDC, 'USDC'))).toBe('plain');
-    expect(markOf(t(USDC, 'WOOF', false))).toBe('unverified');
+  it('ticks the reviewed list: Circle USDC on Base, and a USDC at another Base address is fake', () => {
+    expect(markOf(t(USDC, 'USDC'))).toBe('verified');
+    expect(markOf(t('0x9a4fe21c07b3d6a5e81f0c2d94b7a3e6f15c8d2b', 'USDC'))).toBe('fake');
+  });
+  it('lists every address once, in lower case, under one of the ten chains', () => {
+    const lists = Object.entries(TOKEN_LISTS);
+    expect(lists).toHaveLength(10);
+    for (const [chain, tokens] of lists) {
+      expect(chain).toMatch(/^eip155:\d+$/);
+      expect(new Set(tokens.map((x) => x.address)).size).toBe(tokens.length);
+      for (const x of tokens) expect(x.address).toMatch(/^0x[0-9a-f]{40}$/);
+    }
   });
 });
