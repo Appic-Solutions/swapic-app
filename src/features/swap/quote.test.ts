@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError } from '@/lib/api';
-import { icpSwapsPaused, quoteQueryOf, smartWalletTypesRecipient } from './quote';
+import { icpSwapsPaused, namedQueryOf, priceQueryOf, quoteQueryOf, smartWalletTypesRecipient } from './quote';
 
 const t = (chain: string, address: string, decimals: number, chain_type: 'EVM' | 'ICP'): UiToken => ({
   key: `${chain}|${address}`, chain, chainId: chain_type === 'ICP' ? 0 : 1, chainName: '', chainLogo: '', chain_type, address, symbol: 'X', name: 'X', logo: '', decimals, priceUsd: null, verified: true,
@@ -38,6 +38,16 @@ describe('quoteQueryOf', () => {
     expect(quoteQueryOf({ ...form, to: null }, wallets)).toBeNull();
     expect(quoteQueryOf({ ...form, amountText: '0' }, wallets)).toBeNull();
     expect(quoteQueryOf({ ...form, amountText: '1,5' }, wallets)).toBeNull();
+  });
+});
+
+describe('the two asks: priced while choosing, the picked route by name at Review', () => {
+  const full = quoteQueryOf(form, wallets)!;
+  it('prices every route naming no wallet, so nothing is built or stored', () => {
+    expect(priceQueryOf(full)).toEqual({ fromChain: full.fromChain, fromToken: full.fromToken, amount: full.amount, toChain: full.toChain, toToken: full.toToken, allRoutes: true });
+  });
+  it('names the picked route, its mode, the payer and the recipient', () => {
+    expect(namedQueryOf(full, { mode: 'gasless', routeId: 'cctpFast+ckMinter', tags: ['Gasless'] })).toEqual({ ...full, routeId: 'cctpFast+ckMinter', gasMode: 'gasless' });
   });
 });
 

@@ -11,6 +11,11 @@
 // and the option with the same tag replaces the review: the same or more out quietly, less out as a new price
 // (reviewRefresh). While the wallet asks to sign (or the steps run) the label is hidden and no fresh quote loads, so the
 // price never changes under a signature; after a cancel it comes back. Quotes stay valid 45 s.
+// The executable quote (services 679b88e: the quoter builds and stores only the route a request names): the Swap panel's
+// cards are priced only, with no wallet named; Review swap asks at once for the picked route alone, by its id and mode,
+// for this payer and recipient, and every refresh and the signing ask the same. The review's numbers and wallet steps come
+// from that answer (the same rule as a refresh: as much out or more quietly, less out as a new price); signing stays off
+// until it has come, and a route no longer offered says so and is never signed.
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
@@ -19,7 +24,7 @@ import { Note } from '@/components/design/Note';
 import { ClockIcon } from '@/components/icons';
 import { MorphFrame } from '@/components/motion/parts';
 import { AlertTriangle } from 'lucide-react';
-import { getOrders, getQuote, submitGasless, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
+import { getOrders, getQuote, submitGasless, userMessage, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
 import { tokenAmountText } from '@/lib/copy/format';
 import { chainLogo, chainName } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
@@ -31,8 +36,8 @@ import { useActivity } from '@/features/activity/track';
 import { executeSwap, type ExecOutcome } from '../execute';
 import { useSwapForm } from '../form';
 import { routeOffered } from '../guards/evm';
-import { findByTag, pickOptions, type PickedOption } from '../options';
-import { useGuardContext } from '../quote';
+import { namedOption, pickOf, type PickedOption } from '../options';
+import { namedQueryOf, useGuardContext } from '../quote';
 import { reviewData, reviewRefresh } from '../review';
 import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label';
 import { statusView, type StatusData } from '../status-view';
@@ -46,12 +51,15 @@ export type FlowView = 'swap' | 'review' | 'status';
 /** How full the ring is at most while the swap moves (it closes only when the status says it ended). */
 const RING_MOVING = 0.85;
 const TOO_MANY = new Set(['Too many tries, wait a minute', 'Too many requests. Wait a minute and try again.']);
+const GONE = 'This option is not available right now. Go back to pick another.';
 
 interface Review extends ReviewStart {
   from: UiToken; to: UiToken; recipient: string; recipientLabel: string; shownMin: bigint;
   data: ReturnType<typeof reviewData>;
   /** The price moved before signing: the minimum shown before, struck through. */
   wasMinText?: string;
+  /** The review comes from the picked route's own executable quote (until then it shows the priced card, unsigned). */
+  named: boolean;
 }
 
 const sideOf = (t: UiToken, amount: bigint, prefix = ''): SideView => {
@@ -100,7 +108,8 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     if (!f.from || !f.to || !s.query.recipient) return;
     const recipientLabel = f.recipient.show ? 'Wallet you entered' : f.to.chain_type === 'ICP' ? 'Your ICP wallet' : 'Your EVM wallet';
     const data = reviewData({ option: s.option, quote: s.quote, from: f.from, to: f.to, amountIn: s.amountIn, native: s.native, recipient: { label: recipientLabel, address: s.query.recipient, chain: f.to.chain } });
-    setRv({ ...s, from: f.from, to: f.to, recipient: s.query.recipient, recipientLabel, shownMin: data.min, data });
+    // from here on every ask names the picked route; the effect below asks for it at once
+    setRv({ ...s, query: namedQueryOf(s.query, pickOf(s.option)), named: false, from: f.from, to: f.to, recipient: s.query.recipient, recipientLabel, shownMin: data.min, data });
     setRvAt(s.quotedAt);
     setStarted(false);
     setStates(undefined);
@@ -152,13 +161,13 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   /** Less out than on screen: the struck through minimum, the yellow note and "Accept new price"; nothing signed. */
   const newPrice = (cur: Review, quote: Quote, option: PickedOption) => {
     const data = reviewData({ option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
-    setRv({ ...cur, option, quote, data, wasMinText: cur.data.minText });
+    setRv({ ...cur, option, quote, data, wasMinText: cur.data.minText, named: true });
     setRvAt(Date.now());
     setStates(undefined);
     setNote({ tone: 'yellow', text: `The price moved. You now get at least ${data.minText}${data.minUsd ? ` (${data.minUsd})` : ''}.` });
   };
 
-  /** The ring is full: the same query again, the option with the same tag, decided by reviewRefresh. */
+  /** On opening, then each time the ring is full: the picked route asked again by name, decided by reviewRefresh. */
   const refresh = async () => {
     const cur = rv;
     if (!cur || signing.current || refreshing.current) return;
@@ -169,19 +178,23 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
       // a signature started while it loaded: the price never changes under it
       if (signing.current) return;
       const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: cur.query.payer, recipient: cur.query.recipient, guard });
-      const out = reviewRefresh(cur.data.min, findByTag(pickOptions(quote, { indicative: false, accept }), cur.option.tags[0]!));
+      const out = reviewRefresh(cur.data.min, namedOption(quote, pickOf(cur.option), accept));
       if (out.kind === 'quiet') {
         const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
         // the numbers on screen are what a signature binds (after a new price not yet accepted, the old minimum stays bound)
-        setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
+        setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, named: true, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
+        if (!cur.named) setNote(null);
         setRvAt(Date.now());
       } else if (out.kind === 'newPrice') {
         newPrice(cur, quote, out.option);
       } else {
+        // the picked route is no longer offered: before its own quote came, nothing can be signed
+        if (!cur.named) setNote({ tone: 'yellow', text: GONE });
         setRvAt(Date.now());
       }
-    } catch {
-      // no answer: the review stays as it is and the ring goes round again
+    } catch (e) {
+      // no answer: the review stays as it is and the ring goes round again (before its own quote came, it says why)
+      if (!cur.named) setNote({ tone: 'yellow', text: userMessage(e) });
       setRvAt(Date.now());
     } finally {
       refreshing.current = false;
@@ -190,7 +203,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   };
 
   const sign = async () => {
-    if (!rv || busy || waitUntil !== null) return;
+    if (!rv || !rv.named || busy || waitUntil !== null) return;
     setCancelled(false);
     setNote(null);
     signing.current = true;
@@ -202,7 +215,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     setStates(rv.data.steps.map(() => 'todo'));
     handle(await executeSwap(
       {
-        query: rv.query, tag: rv.option.tags[0]!, shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
+        query: rv.query, pick: pickOf(rv.option), shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
         evm: signer, icpCaller: caller,
         onStep: (i, st) => setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))),
         onNote: (text) => setNote({ tone: 'blue', text }),
@@ -244,6 +257,11 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     const t = setTimeout(() => void refreshNow.current(), Math.max(0, rvAt + QUOTE_CYCLE_MS - Date.now()));
     return () => clearTimeout(t);
   }, [view, rvAt, holding, !!rv]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Review swap opened: the picked route's executable quote, asked at once
+  const named = rv?.named ?? true;
+  React.useEffect(() => {
+    if (view === 'review' && !named && !holding) void refreshNow.current();
+  }, [view, named, holding]);
 
   return (
     <MorphFrame view={viewKey} wide={wide}>
@@ -255,7 +273,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
             data={rv.data} pay={sideOf(rv.from, rv.amountIn)} get={sideOf(rv.to, rv.data.min)} toToken={{ symbol: rv.to.symbol, logo: rv.to.logo }}
             states={states} waiting={waiting || (busy && !note)} cancelled={cancelled} routeRef={routeRef}
             wasMinText={rv.wasMinText}
-            disabled={waitUntil !== null}
+            disabled={waitUntil !== null || !rv.named}
             button={waitUntil !== null ? 'Try again in a minute' : rv.wasMinText ? 'Accept new price' : resume ? 'Try again' : undefined}
             note={note ? (
               <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>

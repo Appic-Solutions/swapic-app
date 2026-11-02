@@ -42,7 +42,7 @@ function setup(name: string, mode: 'gasless' | 'userPays', over: { deps?: Partia
   };
   const input: ExecInput = {
     query: { fromChain: q.fromChain, fromToken: q.fromToken.address, amount: q.amountIn, toChain: q.toChain, toToken: q.toToken.address, payer: PAYER, recipient: route.envelope?.recipient ?? PAYER, allRoutes: true },
-    tag: mode === 'gasless' ? 'Gasless' : 'Fastest', shownMin: BigInt(route.amountOutMin), amountIn: BigInt(q.amountIn),
+    pick: { mode, routeId: route.routeId, tags: [mode === 'gasless' ? 'Gasless' : 'Fastest'] }, shownMin: BigInt(route.amountOutMin), amountIn: BigInt(q.amountIn),
     from: tok(q, 'fromToken', q.fromChain), to: tok(q, 'toToken', q.toChain), recipient: route.envelope?.recipient ?? PAYER,
     evm: signer(), icpCaller: null, onStep: vi.fn(), ...over.input,
   };
@@ -128,7 +128,7 @@ describe('executeSwap, ICP', () => {
     const clock = clockAt(ICP_FIXTURE.nowMs);
     const deps: ExecDeps = { getQuote: vi.fn(async () => q), getOrders: vi.fn(), submitGasless: vi.fn(), icp: icpc, ...clock };
     const input: ExecInput = {
-      query: {} as never, tag: 'Gasless', shownMin: BigInt(route.amountOutMin), amountIn: 1_000_000n,
+      query: {} as never, pick: { mode: 'icpPull', routeId: 'pool', tags: ['Gasless'] }, shownMin: BigInt(route.amountOutMin), amountIn: 1_000_000n,
       from: { ...ICP_FIXTURE.from }, to: { ...ICP_FIXTURE.to }, recipient: ICP_FIXTURE.recipient, evm: null, icpCaller: caller, onStep: vi.fn(), onNote: vi.fn(),
     };
     return { deps, input, icpc, clock };

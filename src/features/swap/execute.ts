@@ -4,7 +4,8 @@
 // swap_from_icp may have pulled would let a retry pull twice); a sentence about money the data does not support after a
 // lost ICP answer ("it started" when it did not, "nothing was taken" while the call could still run) (plan check M4); a
 // person's "no" in the wallet treated as an error; a send while the wallet is on another chain.
-// How the design proves it: a fresh quote and fresh canister anchors every run, the same option tag picked among cards
+// How the design proves it: a fresh quote of the picked route alone (asked by its id and mode, the only route the quoter
+// builds and stores) and fresh canister anchors every run, that route picked again by id, mode and tag among the ones
 // routeOffered allows, newPrice when the fresh minimum is below the shown one; Task 1 or 2 checks at the real clock and
 // only checked values move on; ensureChain before every signature and send, an approval's receipt awaited; a lost
 // gasless submit is offered again with the identical body; an ICP approval of exactly amount_in + fee, an equal live
@@ -31,7 +32,7 @@ import { loadGuardContext, type GuardContext } from './guards/context';
 import { routeOffered, verifyEvmRoute, type CheckedEvmRoute } from './guards/evm';
 import { verifyIcpSwap, type CheckedIcpSwap } from './guards/icp';
 import { GuardError, GUARD_MESSAGE } from './guards/errors';
-import { findByTag, pickOptions, type OptionTag, type PickedOption } from './options';
+import { namedOption, type PickedOption, type RoutePick } from './options';
 import { settleLost } from './lost';
 
 export type ExecOutcome =
@@ -43,7 +44,8 @@ export type ExecOutcome =
 
 export interface ExecDeps { getQuote: typeof getQuoteFn; getOrders: typeof getOrdersFn; submitGasless: typeof submitFn; icp: IcpClient; nowMs(): number; sleep(ms: number): Promise<void> }
 export interface ExecInput {
-  query: QuoteQuery; tag: OptionTag; shownMin: bigint; amountIn: bigint;
+  /** The ask naming the picked route (namedQueryOf), and that route as picked. */
+  query: QuoteQuery; pick: RoutePick; shownMin: bigint; amountIn: bigint;
   from: UiToken; to: UiToken; recipient: string;
   evm: EvmSigner | null; icpCaller: IcpCaller | null;
   onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
@@ -72,7 +74,7 @@ export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcom
     return failed(userMessage(e));
   }
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
-  const option = findByTag(pickOptions(quote, { indicative: false, accept }), i.tag);
+  const option = namedOption(quote, i.pick, accept);
   if (!option) return failed('No route found for this amount');
   const min = option.mode === 'icpPull' && option.route.icpSwap ? BigInt(option.route.icpSwap.planned.minOut) : BigInt(option.route.amountOutMin);
   if (min < i.shownMin) return { kind: 'newPrice', quote, option };

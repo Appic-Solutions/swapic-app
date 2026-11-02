@@ -17,10 +17,13 @@ export interface TokenAnswer {
 }
 export interface TokensAnswer { chain: string; tokens: TokenAnswer[]; nextCursor?: string; warning?: string }
 
-/** api/mod.rs:212-258 (query fields; deny_unknown_fields, so send nothing else) */
+/** api/mod.rs QuoteQuery (deny_unknown_fields, so send nothing else). Without `routeId` every route is priced only (reason
+ *  `routeNotNamed`) and nothing is stored; with it, the route of that id (in `gasMode`) is the answer's only route, built
+ *  and stored for the watcher (services 679b88e). */
 export interface QuoteQuery {
   fromChain: string; fromToken: string; amount: string; toChain: string; toToken: string;
   recipient?: string; payer?: string; slippageBps?: number; includeSlow?: boolean; allRoutes?: boolean;
+  routeId?: string; gasMode?: 'gasless' | 'userPays' | 'icpPull';
 }
 
 /** answer/mod.rs:21-36 */

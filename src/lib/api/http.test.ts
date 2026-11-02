@@ -13,6 +13,12 @@ describe('http', () => {
     await expect(getJson('/v2/tokens', { chain: 'eip155:8453', q: undefined, cursor: '' })).resolves.toEqual({ ok: true });
     expect(String(f.mock.calls[0]![0])).toBe('https://api.e2e.swapic.invalid/v2/tokens?chain=eip155%3A8453');
   });
+  it('encodes a route id holding a plus, so the quoter reads the named route and not a space', async () => {
+    const f = answer(200, '{"ok":true}');
+    vi.stubGlobal('fetch', f);
+    await getJson('/v2/quote', { routeId: 'cctpFast+ckMinter', gasMode: 'gasless' });
+    expect(String(f.mock.calls[0]![0])).toBe('https://api.e2e.swapic.invalid/v2/quote?routeId=cctpFast%2BckMinter&gasMode=gasless');
+  });
   it('throws the service code and message (recorded watcher refusal)', async () => {
     vi.stubGlobal('fetch', answer(422, '{"code":"reverts","message":"runFor reverts: CallFailed"}'));
     await expect(postJson('/v2/orders', {})).rejects.toMatchObject({ status: 422, code: 'reverts' });

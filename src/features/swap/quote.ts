@@ -6,9 +6,8 @@ import { parseUnits } from '@/lib/money';
 import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
 import type { QuoteState } from './button';
 import { icpClient } from '@/lib/icp';
-import { findByTag, pickOptions } from './options';
+import { findByTag, pickOptions, type RoutePick } from './options';
 import { loadGuardContext } from './guards/context';
-import { routeOffered } from './guards/evm';
 import { useSwapForm, type SwapFormState } from './form';
 
 type Wallets = { evm: EvmWallet | null; icp: IcpWallet | null };
@@ -37,6 +36,13 @@ export function quoteQueryOf(f: Pick<SwapFormState, 'from' | 'to' | 'amountText'
   };
 }
 
+/** While choosing: every route priced, with no wallet named, so the quoter builds and stores nothing. */
+export const priceQueryOf = ({ fromChain, fromToken, amount, toChain, toToken }: QuoteQuery): QuoteQuery => ({ fromChain, fromToken, amount, toChain, toToken, allRoutes: true });
+
+/** At Review: the picked route alone, built for this payer and recipient and stored for the watcher (`routeId` may hold a
+ *  `+`; the query string encodes it). */
+export const namedQueryOf = (q: QuoteQuery, p: RoutePick): QuoteQuery => ({ ...q, routeId: p.routeId, gasMode: p.mode });
+
 const PAUSED = 'Swaps are paused right now';
 /** Contract 5.15 (lead's copy, 2026-10-28): while any withdrawal waits in line the canister takes no new ICP to EVM swap
  *  (`impl/src/pool/icp_swap/mod.rs:292`) and the quoter withholds those routes with a reason starting `poolShort:`. */
@@ -63,25 +69,29 @@ export function useGuardContext() {
   return useQuery({ queryKey: ['guard-context'], queryFn: () => loadGuardContext(icpClient()), staleTime: 10 * 60_000, gcTime: 10 * 60_000, retry: 1, refetchOnWindowFocus: false }).data;
 }
 
-/** 600 ms after typing stops; again every 20 s while the page is visible (spec 5.1, my call); no retry (60 a minute per IP). */
+/**
+ * Every route priced, 600 ms after typing stops and again every 20 s (spec 5.1, my call); no retry (60 a minute per IP).
+ * The ask names no wallet, so a wallet connecting never asks again and nothing is built: Review swap asks for the picked
+ * route by name (namedQueryOf). `query` is the whole ask with the payer and recipient, which Review swap starts from.
+ */
 export function useSwapQuote() {
   const f = useSwapForm();
   const w = useWallets();
   const amountText = useDebounced(f.amountText, 600);
   const query = quoteQueryOf({ ...f, amountText }, w);
+  const priced = query ? priceQueryOf(query) : null;
   const q = useQuery({
-    queryKey: ['quote', query],
-    queryFn: ({ signal }) => getQuote(query!, signal),
-    enabled: !!query,
+    queryKey: ['quote', priced],
+    queryFn: ({ signal }) => getQuote(priced!, signal),
+    enabled: !!priced,
     staleTime: 0,
     gcTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 20_000 : false),
+    refetchInterval: 20_000,
   });
-  const indicative = !query?.payer || !query?.recipient;
-  const guard = useGuardContext();
-  const options = q.data ? pickOptions(q.data, { indicative, accept: (r, mode) => routeOffered(q.data!, r, mode, { payer: query?.payer, recipient: query?.recipient, guard }) }) : [];
+  // priced only: a card's route is read in full when Review swap has it built (namedOption, routeOffered there)
+  const options = q.data ? pickOptions(q.data, { indicative: true }) : [];
   const error = q.error ? userMessage(q.error) : null;
   const icpPaused = icpSwapsPaused(f.from?.chain_type === 'ICP', q.data, q.error);
   // over the canister's per swap cap (422 no_route, reasonCode aboveSwapCap): its own line and button, with the cap
@@ -91,5 +101,5 @@ export function useSwapQuote() {
   const picked = findByTag(options, f.tag) ?? options[0];
   // updatedAt: when the price on screen was fetched (the quote timer counts from it and starts again with every refresh);
   // fetching: a fresh price is loading ("Updating price")
-  return { query, quote: q.data as Quote | undefined, state, options, picked, error, indicative, cap, updatedAt: q.dataUpdatedAt, fetching: q.isFetching };
+  return { query, quote: q.data as Quote | undefined, state, options, picked, error, cap, updatedAt: q.dataUpdatedAt, fetching: q.isFetching };
 }
