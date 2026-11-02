@@ -1,12 +1,31 @@
-/** Every value here ships in the site and is public (spec section 3). */
+/**
+ * Every value here ships in the site and is public (spec section 3). Each environment's deploy values (API host, the Swapic
+ * canister, the site and its asset canister) live in ONE file, sites.json; next.config.mjs hands a build its own
+ * environment's entry as NEXT_PUBLIC_SWAPIC_SITE, so a build holds no other environment's hosts or canister. The contracts
+ * are never configured here: the app reads every contract address from the canister's get_config (guards/context.ts).
+ */
 export type SwapicEnv = 'test' | 'prod' | 'e2e';
+
+/** One environment's entry in sites.json. */
+export interface Site {
+  apiBase: string;
+  icpHost: string;
+  /** The Swapic canister, the spender of every ICP approval; a placeholder until it is created (check-build refuses it). */
+  swapicCanisterId: string;
+  sentryDsn: string | null;
+  siteOrigin: string;
+  derivationOrigin: string | null;
+  /** The asset canister serving the site; its raw hosts send the visitor to siteOrigin. */
+  assetCanister: string | null;
+  /** The custom domain the asset canister answers for (.well-known/ic-domains). */
+  domain: string | null;
+}
 
 export interface AppConfig {
   env: SwapicEnv;
   /** Quoter and watcher behind one host, by path (contract 1.1). */
   apiBase: string;
   icpHost: string;
-  /** The Swapic canister (hfisl), the spender of every ICP approval. */
   swapicCanisterId: string;
   /** Public by design (platform-v2 src/lib/configs/wagmi.tsx:15). */
   reownProjectId: string;
@@ -25,54 +44,30 @@ export interface AppConfig {
 
 export const ICP_CHAIN = 'icp:737ba355e855bd4b61279056603e0550';
 const CHAINS = ['eip155:8453', 'eip155:42161', 'eip155:1', 'eip155:137', ICP_CHAIN] as const;
-
-const shared = {
-  icpHost: 'https://icp-api.io',
-  swapicCanisterId: 'hfisl-ayaaa-aaaar-qch3q-cai',
-  reownProjectId: '77560e246a64e6b8843d098a5e802306',
-  icpChain: ICP_CHAIN,
-  chains: CHAINS,
-};
+const REOWN_PROJECT_ID = '77560e246a64e6b8843d098a5e802306';
 
 const rawHosts = (id: string) => [`${id}.icp0.io`, `${id}.ic0.app`, `${id}.raw.icp0.io`, `${id}.raw.ic0.app`];
 
-const CONFIGS: Record<SwapicEnv, AppConfig> = {
-  test: {
-    ...shared,
-    env: 'test',
-    // staging: Jeff's VPS behind nginx (contract 1.1); it runs on the one real canister, so the test site moves real money
-    apiBase: 'https://api-test.swapic.xyz',
-    sentryDsn: null,
-    siteOrigin: 'https://test.swapic.xyz',
-    derivationOrigin: null,
-    redirectHosts: rawHosts('ib67n-yiaaa-aaaao-qjwca-cai'),
-  },
-  prod: {
-    ...shared,
-    env: 'prod',
-    apiBase: 'https://api.swapic.xyz',
-    sentryDsn: null,
-    siteOrigin: 'https://swapic.xyz',
-    derivationOrigin: 'https://swapic.xyz',
-    redirectHosts: rawHosts('dduc6-3yaaa-aaaal-ai63a-cai'),
-  },
-  e2e: {
-    ...shared,
-    env: 'e2e',
-    apiBase: 'https://api.e2e.swapic.invalid',
-    sentryDsn: null,
-    siteOrigin: 'http://localhost:3100',
-    derivationOrigin: null,
-    redirectHosts: [],
-  },
-};
-
-export function configFor(env: string | undefined): AppConfig {
-  if (env === 'test' || env === 'prod' || env === 'e2e') return CONFIGS[env];
+export function envOf(env: string | undefined): SwapicEnv {
+  if (env === 'test' || env === 'prod' || env === 'e2e') return env;
   throw new Error('NEXT_PUBLIC_SWAPIC_ENV must be test, prod or e2e');
 }
 
-export const config: AppConfig = configFor(process.env.NEXT_PUBLIC_SWAPIC_ENV);
+export function appConfig(env: SwapicEnv, site: Site): AppConfig {
+  return {
+    env, apiBase: site.apiBase, icpHost: site.icpHost, swapicCanisterId: site.swapicCanisterId, reownProjectId: REOWN_PROJECT_ID,
+    sentryDsn: site.sentryDsn, siteOrigin: site.siteOrigin, derivationOrigin: site.derivationOrigin,
+    redirectHosts: site.assetCanister ? rawHosts(site.assetCanister) : [], icpChain: ICP_CHAIN, chains: CHAINS,
+  };
+}
+
+function buildSite(): Site {
+  const raw = process.env.NEXT_PUBLIC_SWAPIC_SITE;
+  if (!raw) throw new Error('NEXT_PUBLIC_SWAPIC_SITE is unset: build through next.config.mjs (the npm scripts)');
+  return JSON.parse(raw) as Site;
+}
+
+export const config: AppConfig = appConfig(envOf(process.env.NEXT_PUBLIC_SWAPIC_ENV), buildSite());
 
 /**
  * True only in the e2e build. For reading only: a site that picks a fake (client, signer) writes

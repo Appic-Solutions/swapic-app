@@ -1,0 +1,32 @@
+{
+  "test": {
+    "apiBase": "https://api-test.swapic.xyz",
+    "icpHost": "https://icp-api.io",
+    "swapicCanisterId": "hfisl-ayaaa-aaaar-qch3q-cai",
+    "sentryDsn": null,
+    "siteOrigin": "https://test.swapic.xyz",
+    "derivationOrigin": null,
+    "assetCanister": "ib67n-yiaaa-aaaao-qjwca-cai",
+    "domain": "test.swapic.xyz"
+  },
+  "prod": {
+    "apiBase": "https://api.swapic.xyz",
+    "icpHost": "https://icp-api.io",
+    "swapicCanisterId": "PROD-CANISTER-PLACEHOLDER",
+    "sentryDsn": null,
+    "siteOrigin": "https://swapic.xyz",
+    "derivationOrigin": "https://swapic.xyz",
+    "assetCanister": "dduc6-3yaaa-aaaal-ai63a-cai",
+    "domain": "swapic.xyz"
+  },
+  "e2e": {
+    "apiBase": "https://api.e2e.swapic.invalid",
+    "icpHost": "https://icp-api.io",
+    "swapicCanisterId": "hfisl-ayaaa-aaaar-qch3q-cai",
+    "sentryDsn": null,
+    "siteOrigin": "http://localhost:3100",
+    "derivationOrigin": null,
+    "assetCanister": null,
+    "domain": null
+  }
+}

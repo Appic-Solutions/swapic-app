@@ -15,6 +15,8 @@
 // with pool.html and pool/index.html each claiming /pool, the asset canister certified /pool for one of them only, and
 // the gateway refused /pool, /history and /swap with a response verification error (staging 2026-11-01). The URL style of
 // the app (no trailing slash) does not change. Tests: scripts/ic-assets.test.mjs.
+// The hosts and the custom domain come from src/config/sites.json, the one file the app's build reads too; ic-domains
+// lists that environment's domain alone, one per line (the asset canister answers for nothing else).
 // Usage: node scripts/ic-assets.mjs test|prod   (after `next build`, writes out/.ic-assets.json5 and out/.well-known/ic-domains)
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -26,7 +28,6 @@ const WALLETCONNECT = [
   'https://pulse.walletconnect.org', 'https://api.web3modal.org', 'https://api.web3modal.com',
   'https://verify.walletconnect.org', 'https://verify.walletconnect.com', 'https://echo.walletconnect.com',
 ];
-const DOMAINS = { test: 'test.swapic.xyz', prod: 'swapic.xyz' };
 
 export function sentryHost(dsn) {
   const u = new URL(dsn);
@@ -87,13 +88,19 @@ export function inlineScriptHashes(outDir) {
   return [...set].sort();
 }
 
+/** One environment's entry of src/config/sites.json; only a deployable one (with a domain). */
+export function siteFor(env) {
+  const sites = JSON.parse(readFileSync(new URL('../src/config/sites.json', import.meta.url), 'utf8'));
+  const site = sites[env];
+  if (!site?.domain) throw new Error('usage: ic-assets.mjs test|prod');
+  return site;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const env = process.argv[2];
-  if (!(env in DOMAINS)) throw new Error('usage: ic-assets.mjs test|prod');
+  const cfg = siteFor(env);
   const root = fileURLToPath(new URL('..', import.meta.url));
   const out = join(root, 'out');
-  const { configFor } = await import(new URL('./config-json.mjs', import.meta.url));
-  const cfg = configFor(env);
   const aliases = slashAliases(out);
   const csp = cspFor(cfg, inlineScriptHashes(out));
   const headers = {
@@ -112,6 +119,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   ];
   writeFileSync(join(out, '.ic-assets.json5'), JSON.stringify(assets, null, 2) + '\n');
   mkdirSync(join(out, '.well-known'), { recursive: true });
-  writeFileSync(join(out, '.well-known', 'ic-domains'), DOMAINS[env] + '\n');
-  console.log(`headers for ${env}: ${inlineScriptHashes(out).length} inline script hashes; ic-domains ${DOMAINS[env]}; ${aliases.length} trailing slash pages`);
+  writeFileSync(join(out, '.well-known', 'ic-domains'), cfg.domain + '\n');
+  console.log(`headers for ${env}: ${inlineScriptHashes(out).length} inline script hashes; ic-domains ${cfg.domain}; ${aliases.length} trailing slash pages`);
 }

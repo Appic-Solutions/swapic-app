@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configFor } from '@/config';
+import { configFor } from '@/config/sites';
 import { redirectTarget } from './host-redirect';
 
 const at = (host: string, pathname = '/pool', search = '?x=1', hash = '') => ({ host, pathname, search, hash });

@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cspFor, slashAliases, sentryHost } from './ic-assets.mjs';
-import { configFor as jsConfig } from './config-json.mjs';
-import { configFor as tsConfig } from '../src/config/index.ts';
+import { cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
 
 describe('the CSP', () => {
   it('lists exactly the hosts the environment needs', () => {
@@ -22,11 +20,15 @@ describe('the CSP', () => {
     const csp = cspFor({ apiBase: 'https://api.swapic.xyz', icpHost: 'https://icp-api.io', sentryDsn: 'https://k@o123.ingest.de.sentry.io/456' }, []);
     expect(csp).toContain('https://o123.ingest.de.sentry.io');
   });
-  it('takes the same public values as src/config (two small files kept equal by this test)', () => {
-    for (const env of ['test', 'prod']) {
-      const ts = tsConfig(env);
-      expect(jsConfig(env)).toEqual({ apiBase: ts.apiBase, icpHost: ts.icpHost, sentryDsn: ts.sentryDsn });
-    }
+  it('takes prod\'s hosts and domain from src/config/sites.json, the file the app build reads', () => {
+    const prod = siteFor('prod');
+    expect(prod.domain).toBe('swapic.xyz');
+    expect(prod.apiBase).toBe('https://api.swapic.xyz');
+    expect(prod.assetCanister).toBe('dduc6-3yaaa-aaaal-ai63a-cai');
+    const connect = cspFor(prod, []).split('; ').find((d) => d.startsWith('connect-src'));
+    expect(connect).toContain('https://api.swapic.xyz');
+    expect(connect).not.toMatch(/api-test|test\.swapic/);
+    expect(() => siteFor('e2e')).toThrow(/usage/);
   });
 });
 
