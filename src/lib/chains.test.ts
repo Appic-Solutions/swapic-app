@@ -16,8 +16,8 @@ describe('the one chain table', () => {
     const payouts = ['eip155:137', 'eip155:1', 'eip155:8453', 'eip155:42161'].sort((a, b) => payoutPlace(a) - payoutPlace(b));
     expect(payouts).toEqual(['eip155:8453', 'eip155:1', 'eip155:42161', 'eip155:137']);
   });
-  it('lists which logo files are still missing (Jeff to supply them)', () => {
+  it('has a logo file for every chain but the five still owed (they draw as a skeleton until added)', () => {
     const missing = CHAINS.filter((c) => !existsSync(`public${c.logo}`)).map((c) => c.name);
-    expect(missing).toEqual(['Unichain', 'Monad', 'HyperEVM', 'World Chain', 'Plasma']);
+    expect(['Unichain', 'Monad', 'HyperEVM', 'World Chain', 'Plasma']).toEqual(expect.arrayContaining(missing));
   });
 });
