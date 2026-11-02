@@ -20,11 +20,11 @@ export function poolErrorMessage(err: PoolError): string {
   if ('Closed' in err) return 'The pool is paused right now';
   if ('Halted' in err) return 'Swaps are paused right now';
   if ('Sanctioned' in err) return 'This wallet cannot use Swapic.';
-  if ('TokenNotListed' in err) return 'This token cannot go through the pool right now';
+  if ('TokenNotListed' in err) return "This token can't be swapped this way right now. Try another option.";
   if ('Ledger' in err) return /insufficient|balance/i.test(err.Ledger) ? 'Your wallet does not hold enough for this and its fees' : 'The token ledger refused this. Try again.';
   if ('Unavailable' in err) return 'The network is busy. Try again in a minute.';
   if ('Expired' in err) return 'This quote expired. Get a new one.';
   if ('ShortShares' in err) return 'Your stake changed. Try again.';
-  if ('PremiumTooLow' in err || 'BadArrival' in err || 'BadRef' in err || 'Unknown' in err || 'Known' in err || 'AlreadyCredited' in err) return 'Swapic refused this request. Get a new quote and try again.';
+  if ('PremiumTooLow' in err || 'BadArrival' in err || 'BadRef' in err || 'Unknown' in err || 'Known' in err || 'AlreadyCredited' in err) return "This swap can't start right now. Get a new quote and try again.";
   return 'Something went wrong, try again';
 }

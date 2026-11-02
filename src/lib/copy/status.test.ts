@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { problems } from '../../../scripts/check-copy.mjs';
-import { reasonSentence, refundLine, short, stepViews, tokenAmountText, tookText } from './status';
+import { endingOf, endSentence, endTitle, pillOf, refundLine, short, stepViews, tokenAmountText, tookText, type EndInput } from './status';
 
 const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const META: Record<string, { symbol: string; decimals: number }> = {
@@ -23,21 +23,38 @@ describe('status words', () => {
     expect(refundLine(row.refund)).toBe('Refunded 119.80 USDC to 0xf00e…89ac on Polygon');
     expect(refundLine({ ...row.refund, chain: null })).toBe('Your stake is back');
   });
-  it('turns each closed reason word into its sentence, never the backend text (Review Focus 5)', () => {
-    const same = { refundChain: 'eip155:137', fromChain: 'eip155:137' };
-    const away = { refundChain: 'icp:737ba355e855bd4b61279056603e0550', fromChain: 'eip155:1' };
-    expect(reasonSentence('expired', away)).toBe('The swap ran out of time');
-    expect(reasonSentence('timedOut', away)).toBe('The swap ran out of time');
-    expect(reasonSentence('priceMoved', away)).toBe('The price moved past your limit');
-    expect(reasonSentence('notFilled', same)).toBe('The swap could not be filled');
-    expect(reasonSentence('poolShort', away)).toBe('The pool could not pay it right now');
-    expect(reasonSentence('stopped', away)).toBe('Stopped, our team is on it');
-    expect(reasonSentence('other', same)).toBe('The swap could not be filled');
-    expect(reasonSentence(null, away)).toBe('The swap could not finish');
-    // the contract's row carries the text and the word: only the word is read
+  it('reads each end as the approved table does', () => {
+    const at = (x: Partial<EndInput>) => endingOf({ id: '0xabc', outcome: 'failed', stage: 'failed', reasonCode: null, gasMode: 'userPays', ...x });
+    expect(at({})).toBe('didntStart');
+    expect(at({ gasMode: 'gasless', reasonCode: 'expired' })).toBe('notSent');
+    expect(at({ gasMode: 'userPays', reasonCode: 'expired' })).toBe('didntStart');
+    expect(at({ reasonCode: 'stopped' })).toBe('onHold');
+    expect(at({ id: 'payout-7' })).toBe('onHold');
+    expect(at({ outcome: 'refunded', reasonCode: 'deliveredAsUsdc' })).toBe('deliveredAsUsdc');
+    expect(at({ outcome: 'refunded', reasonCode: 'priceMoved' })).toBe('refunded');
+    expect(at({ outcome: 'pending', stage: 'queued' })).toBe('queued');
+    // the hold flag (services S11, not final) wins over a pending order
+    expect(at({ outcome: 'pending', stage: 'arrived', onHold: true })).toBe('onHold');
+    expect(pillOf('deliveredAsUsdc')).toBe('delivered');
+    expect(pillOf('notSent')).toBe('didntStart');
+    expect(endTitle('notSent')).toBe("Swap didn't start");
+  });
+  it('says what happened in one sentence, from the closed word, naming the amount and chain', () => {
     const row = contract('scanner-search-tx.json').items[0];
-    expect(reasonSentence(row.reasonCode, { refundChain: row.refund.chain, fromChain: row.from.chain })).toBe('The swap could not be filled');
-    expect(reasonSentence('the intent was not filled before its deadline', away)).toBe('The swap could not finish');
+    const r = row.refund;
+    const say = (code: string | null) => endSentence('refunded', { reasonCode: code, refund: r, toSymbol: 'WBTC' });
+    expect(say('expired')).toBe('Took too long, so you got 119.80 USDC back on Polygon.');
+    expect(say('timedOut')).toBe('Took too long, so you got 119.80 USDC back on Polygon.');
+    expect(say('priceMoved')).toBe('The price moved more than you allowed, so you got 119.80 USDC back on Polygon.');
+    expect(say('notFilled')).toBe("This swap couldn't be filled, so you got 119.80 USDC back on Polygon.");
+    expect(say('poolShort')).toBe("Swapic couldn't complete this one right now, so you got 119.80 USDC back.");
+    expect(say('the intent was not filled before its deadline')).toBe("This swap couldn't finish, so you got 119.80 USDC back on Polygon.");
+    expect(endSentence('refunded', { reasonCode: null, refund: { ...r, chain: null }, toSymbol: null })).toBe('Your stake is back.');
+    expect(endSentence('deliveredAsUsdc', { reasonCode: 'deliveredAsUsdc', refund: r, toSymbol: 'WBTC' })).toBe("WBTC couldn't be bought on Polygon, so you got 119.80 USDC instead.");
+    expect(endSentence('didntStart', { reasonCode: null, refund: null, toSymbol: null })).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
+    expect(endSentence('notSent', { reasonCode: 'expired', refund: null, toSymbol: null })).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
+    expect(endSentence('onHold', { reasonCode: 'stopped', refund: null, toSymbol: null })).toBe("Your money is safe. We're checking this swap and will finish or refund it.");
+    expect(endSentence('delivered', { reasonCode: null, refund: null, toSymbol: null })).toBeNull();
   });
   it('formats amounts, addresses and durations as the design does', () => {
     expect(tokenAmountText(119_800_000n, 6, 'USDC')).toBe('119.80');
@@ -48,7 +65,12 @@ describe('status words', () => {
   });
   it('every word it can produce passes the copy check', () => {
     const v = stepViews(contract('steps-delivered.json'), { gasMode: 'gasless', refund: null, token });
-    const texts = [...v.map((s) => s.label), 'Waiting in line', 'Refunding', 'Your stake is back', ...['expired', 'priceMoved', 'notFilled', 'poolShort', 'stopped', null].map((w) => reasonSentence(w, { refundChain: null, fromChain: null }))];
+    const ends = ['refunded', 'deliveredAsUsdc', 'didntStart', 'notSent', 'onHold'] as const;
+    const words = ['expired', 'priceMoved', 'notFilled', 'poolShort', 'deliveredAsUsdc', 'stopped', null];
+    const texts = [
+      ...v.map((s) => s.label), 'Waiting in line', 'Refunding', 'Your stake is back',
+      ...ends.flatMap((e) => [endTitle(e)!, ...words.map((w) => endSentence(e, { reasonCode: w, refund: null, toSymbol: 'WBTC' })!)]),
+    ];
     expect(problems(texts)).toEqual([]);
   });
 });

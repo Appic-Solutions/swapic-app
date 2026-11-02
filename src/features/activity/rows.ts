@@ -6,7 +6,7 @@ import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { chainLogo, chainName } from '@/lib/explorer';
 import { formatUsd } from '@/lib/money';
 import { clockText, dayText, short, tokenAmountText, tookText } from '@/lib/copy/format';
-import { pillOf, reasonSentence, refundLine, stageText } from '@/lib/copy/status';
+import { endingOf, endSentence, endTitle, neverRan, pillOf, refundLine, stageText, type Ending, type Pill } from '@/lib/copy/status';
 
 export type LogoFor = (chain: string | null, token: string | null, symbol: string | null) => string;
 const STABLE = new Set(['USDC', 'USDT', 'ckUSDC', 'ckUSDT']);
@@ -27,9 +27,13 @@ function sideView(s: Side, logo: LogoFor, pending: boolean): SideView {
 }
 
 export interface OrderView {
-  id: string; kind: 'swap' | 'stake' | 'withdraw'; status: 'delivered' | 'pending' | 'queued' | 'refunded' | 'failed';
+  id: string; kind: 'swap' | 'stake' | 'withdraw'; status: Pill; ending: Ending;
+  /** The end's title (Delivered as USDC, Didn't start, On hold); null while it moves. */
+  title: string | null;
   stageText: string | null; day: string; time: string; ago: string; took: string | null;
-  from: SideView; to: SideView; refund: (SideView & { toText: string }) | null; refundLine: string | null; reason: string | null;
+  from: SideView; to: SideView; refund: (SideView & { toText: string }) | null; refundLine: string | null;
+  /** The one sentence that says what happened (a refund's amount, chain and why; Didn't start; On hold). */
+  reason: string | null;
   gas: 'Gasless' | 'You paid gas' | 'No gas'; feeText: string | null; payer: string | null; recipient: string | null;
   direction: 'sent' | 'received' | 'self' | null; createdAt: number; endedAt: number | null;
   /** When it arrived, by the chain (unix s), or null (pending, or a row written before chain times). */
@@ -60,8 +64,9 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
   const r: ActivityRow = raw.kind === 'stake' ? { ...raw, to: { ...raw.to, chain: null, token: null, symbol: 'USDC', decimals: 6 } } : raw;
   const pending = r.outcome === 'pending';
   const rf = r.refund;
+  const ending = endingOf(r);
   return {
-    id: r.id, kind: r.kind, status: pillOf(r.outcome, r.stage),
+    id: r.id, kind: r.kind, status: pillOf(ending), ending, title: endTitle(ending),
     stageText: pending ? stageText(r, nowSec) : null,
     day: dayText(r.createdAt * 1000, nowSec * 1000), time: clockText(r.createdAt * 1000).slice(0, 5), ago: agoText(r.createdAt, nowSec),
     took: tookOf(r),
@@ -71,9 +76,9 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
       : null,
     refundLine: rf ? refundLine(rf) : null,
     // the closed word only (contract 5.7 `reasonCode`); the backend's own `reason` text may name a rail and is never read
-    reason: r.outcome === 'refunded' || r.outcome === 'failed' ? reasonSentence(r.reasonCode, { refundChain: rf?.chain ?? null, fromChain: r.from.chain }) : null,
+    reason: endSentence(ending, { reasonCode: r.reasonCode, refund: rf, toSymbol: r.to.symbol }),
     gas: r.gasMode === 'gasless' ? 'Gasless' : r.gasMode === 'userPays' ? 'You paid gas' : 'No gas',
-    feeText: r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
+    feeText: neverRan(ending) ? 'None' : r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
     payer: r.from.wallet, recipient: r.to.wallet, direction: r.direction ?? null, createdAt: r.createdAt, endedAt: r.endedAt,
     deliveredAt: pending ? null : r.deliveredAt ?? null,
   };

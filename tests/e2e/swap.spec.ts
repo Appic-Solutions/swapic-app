@@ -53,14 +53,14 @@ test.describe('Swap', () => {
     // the wallet toggle beside the button: one per layout, the visible one
     await page.locator('.min-w-12').locator('visible=true').first().click();
     await page.getByPlaceholder(/0x0f70e/).fill('0x3A9c2E07b5F81dC4');
-    await expect(button(page, 'Enter Valid Address')).toBeDisabled();
+    await expect(button(page, 'Enter a valid address')).toBeDisabled();
   });
 
   test('a smart wallet types the address that receives on another chain (plan 2 Smart wallets)', async ({ page }) => {
     await open(page, 'smart-wallet');
     await pickTokens(page);
     await expect(page.getByText('You are using a smart wallet. Type the address that should receive on Polygon, and make sure it is yours there.')).toBeVisible();
-    await expect(button(page, 'Enter Valid Address')).toBeDisabled();
+    await expect(button(page, 'Enter a valid address')).toBeDisabled();
     await page.getByPlaceholder(/0x0f70e/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
     await expect(button(page, 'Review swap')).toBeEnabled();
   });

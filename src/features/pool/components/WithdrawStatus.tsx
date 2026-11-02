@@ -31,9 +31,9 @@ export function withdrawRows(p: PayoutAnswer | undefined, nowSec: number): Row[]
   const rows: Row[] = [['done', 'Withdrawal signed', 'One signature, no gas']];
   // until the payout record answers, only the signature is known
   if (!p) return rows;
-  // contract 5.10: refunded is an undone withdrawal (its shares came back); failed is stopped for a human, nothing more is known
+  // contract 5.10: refunded is an undone withdrawal (its shares came back); failed is held by the canister for a person's check
   if (p.outcome === 'refunded') return [...rows, ['done', 'Your stake is back', 'You can try again later']];
-  if (p.outcome === 'failed') return [...rows, ['todo', 'Stopped, our team is on it', '']];
+  if (p.outcome === 'failed' || p.onHold === true) return [...rows, ['todo', 'On hold', "Your money is safe. We're checking it and will finish or refund it."]];
   if (p.stage === 'queued') {
     const etaAt = p.queue?.etaAt ?? null;
     const sub = etaAt === null ? 'Pays out by itself' : `Pays out in about ${Math.max(1, Math.round((etaAt - nowSec) / 60))} min`;

@@ -11,8 +11,8 @@ describe('userMessage', () => {
     expect(userMessage(e('timeout'))).toBe(userMessage(e('timedOut')));
   });
   it('reads the no route reasons the app must name (frontend-interface-2026-10-23.md section 3)', () => {
-    expect(userMessage(e('no_route', 'no route could carry this swap: payerIsContract'))).toBe('This route needs a regular wallet');
-    expect(userMessage(e('no_route', 'no route could carry this swap: saleToleranceTooWide'))).toBe('This token cannot go through the pool right now');
+    expect(userMessage(e('no_route', 'no route could carry this swap: payerIsContract'))).toBe("This route doesn't work with smart wallets. Pick another option.");
+    expect(userMessage(e('no_route', 'no route could carry this swap: saleToleranceTooWide'))).toBe("This token can't be swapped this way right now. Try another option.");
     expect(userMessage(e('no_route', 'no route could carry this swap: eco did not answer'))).toBe('No route found for this amount');
     expect(userMessage(e('no_route', 'no route could carry this swap: the canister is halted'))).toBe('Swaps are paused right now');
   });
@@ -38,7 +38,7 @@ describe('userMessage', () => {
     expect(seen).toHaveBeenCalledTimes(2);
   });
   it('names a route reason only when it is one the user can act on', () => {
-    expect(routeReasonMessage('payerIsContract')).toBe('This route needs a regular wallet');
+    expect(routeReasonMessage('payerIsContract')).toBe("This route doesn't work with smart wallets. Pick another option.");
     expect(routeReasonMessage('ecoFeeAboveQuote')).toBeNull();
   });
 });

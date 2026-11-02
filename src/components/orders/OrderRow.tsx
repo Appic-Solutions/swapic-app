@@ -25,9 +25,8 @@ export const where = (s: SideView) => `${s.symbol} ${s.chain === 'Swapic Pool' ?
 const centerText = (o: OrderView) => {
   const took = o.took ? ` in ${o.took}` : '';
   if (o.status === 'pending' || o.status === 'queued') return o.stageText ?? '';
-  if (o.status === 'refunded') return `Refunded${took}`;
-  if (o.status === 'failed') return 'Failed';
-  return `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
+  if (o.ending === 'delivered') return `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
+  return `${o.title ?? ''}${o.ending === 'refunded' || o.ending === 'deliveredAsUsdc' ? took : ''}`;
 };
 const kindText = (o: OrderView) => (o.kind === 'stake' ? 'Stake' : o.kind === 'withdraw' ? 'Withdraw' : o.direction === 'received' ? 'Received' : 'Swap');
 
@@ -59,7 +58,10 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
   const ok = o.status === 'delivered';
   const live = o.status === 'pending' || o.status === 'queued';
   const refund = o.status === 'refunded';
-  const lineTone = ok ? 'border-green-500' : refund ? 'border-yellow-500' : o.status === 'failed' ? 'border-red-500' : 'border-green-500';
+  // as USDC: the money arrived, as the USDC side shows
+  const asUsdc = o.ending === 'deliveredAsUsdc' && !!o.refund;
+  const stopTone = o.status === 'didntStart' ? 'border-white/30' : o.status === 'onHold' ? 'border-amber-400' : null;
+  const lineTone = ok ? 'border-green-500' : refund ? 'border-yellow-500' : stopTone ?? 'border-green-500';
   const Icon = o.kind === 'swap' ? ParkOutlineBridgeIcon : PoolIcon;
   return (
     <div
@@ -91,7 +93,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
             className={cn(
               'relative z-10 rounded-full p-2.5',
               'bg-[linear-gradient(81.4deg,_#000000_-15.41%,_#1D1D1D_113.98%)]',
-              refund ? 'border-2 border-solid border-yellow-500' : o.status === 'failed' ? 'border-2 border-solid border-red-500' : 'before:absolute before:inset-0 before:rounded-full before:border-2 before:border-green-500',
+              refund ? 'border-2 border-solid border-yellow-500' : stopTone ? `border-2 border-solid ${stopTone}` : 'before:absolute before:inset-0 before:rounded-full before:border-2 before:border-green-500',
               live && 'before:animate-spin before:border-t-transparent',
             )}
           >
@@ -99,7 +101,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           </div>
           <div className={cn('flex-1 border-t-[3px] transition-colors duration-500', live ? 'border-dashed border-white/30' : lineTone, refund && 'border-dashed')} />
         </div>
-        <TokenAvatar side={refund && o.refund ? o.refund : o.to} fly={fly.to} />
+        <TokenAvatar side={(refund || asUsdc) && o.refund ? o.refund : o.to} fly={fly.to} />
       </div>
       {/* Amounts */}
       <div className="mb-4 flex items-start justify-between gap-x-4 text-xs font-bold text-[#898989] *:flex *:flex-1 *:flex-col *:justify-center">
@@ -110,7 +112,18 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
         </div>
         <motion.div key={centerText(o)} className="items-center self-center text-center max-md:hidden" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}>{centerText(o)}</motion.div>
         <div className="items-end text-right">
-          {refund && o.refund ? (
+          {asUsdc ? (
+            <>
+              <p>{where(o.refund!)}</p>
+              <p className="text-xl leading-7 text-white">{o.refund!.amountText} {o.refund!.symbol}</p>
+              <p className="font-normal">{o.title}</p>
+            </>
+          ) : stopTone ? (
+            <>
+              <p>{where(o.to)}</p>
+              <p className="text-xl leading-7 text-white/40">{o.title}</p>
+            </>
+          ) : refund && o.refund ? (
             <>
               <p>Refunded on {o.refund.chain}</p>
               <p className="text-xl leading-7 text-yellow-500">{o.refund.amountText} {o.refund.symbol}</p>

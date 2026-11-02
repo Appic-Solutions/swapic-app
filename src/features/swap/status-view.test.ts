@@ -21,7 +21,34 @@ describe('statusView', () => {
     const v = statusView({ status: { ...c('order-status-delivered.json'), outcome: 'refunded', stage: 'refunded', refund: row.refund, reason: row.reason }, steps, pay: side, get: side, nowSec: 0, feeText: '', gasText: '', toWallet: '', orderId: '', token });
     expect(v.phase).toBe('refunded');
     expect(v.text).toBe('Refunded 119.80 USDC to 0xf00e…89ac on Polygon');
-    expect(v.reason).toBe('The swap ran out of time');
+    expect(v.reason).toBe('Took too long, so you got 119.80 USDC back on Polygon.');
+  });
+});
+
+describe('statusView, the approved ends', () => {
+  const base = c('order-status-delivered.json');
+  const d = c('steps-delivered.json');
+  const at = (outcome: string, reason: string | null, gasText: string, extra: object = {}) => statusView({
+    status: { ...base, outcome, stage: outcome, refund: null, ...extra },
+    steps: { ...d, outcome, steps: [d.steps[0], { step: 'failed', state: 'fail', chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason }] },
+    pay: side, get: side, nowSec: 0, feeText: '$0.18', gasText, toWallet: '', orderId: '0xabc', token,
+  });
+  it('a gasless signature never sent in time: Swap didn\'t start, nothing taken, no fee', () => {
+    const v = at('failed', 'expired', 'None, Swapic paid it');
+    expect(v.phase).toBe('stopped');
+    expect(v.title).toBe("Swap didn't start");
+    expect(v.text).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
+    expect(v.fee).toBe('None');
+  });
+  it('an order refused before anything moved: Didn\'t start', () => {
+    const v = at('failed', 'other', 'You paid gas');
+    expect(v.title).toBe("Didn't start");
+    expect(v.fee).toBe('None');
+  });
+  it('money the canister holds: On hold, from the hold flag even while pending', () => {
+    const v = at('pending', null, 'You paid gas', { onHold: true });
+    expect(v.phase).toBe('held');
+    expect(v.title).toBe('On hold');
   });
 });
 

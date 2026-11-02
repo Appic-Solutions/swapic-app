@@ -21,4 +21,5 @@ export interface StepView {
   tx?: { text: string; href: string };
 }
 
-export type OrderStatus = 'delivered' | 'pending' | 'queued' | 'refunded' | 'failed';
+/** The pill (lib/copy/status Pill): grey for an order that never ran, amber while the canister holds its money. */
+export type OrderStatus = 'delivered' | 'pending' | 'queued' | 'refunded' | 'didntStart' | 'onHold';

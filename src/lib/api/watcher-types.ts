@@ -9,8 +9,12 @@ export interface Refund {
   chain: string | null; token: string | null; symbol: string | null; decimals: number | null;
   amount: string | null; receiver: string; tx: string | null; block: number | null;
 }
-/** contract 5.14's closed words; the backend may add one, which the app reads as `other` */
-export type ReasonCode = 'expired' | 'timedOut' | 'priceMoved' | 'notFilled' | 'poolShort' | 'stopped' | 'other';
+/** contract 5.14's closed words; the backend may add one, which the app reads as `other`. `deliveredAsUsdc` (services
+ *  77af0f9): on a `refunded` order, its arrival could not buy the token, so the recipient got the USDC itself. */
+export type ReasonCode = 'expired' | 'timedOut' | 'priceMoved' | 'deliveredAsUsdc' | 'notFilled' | 'poolShort' | 'stopped' | 'other';
+/** NOT FINAL (services task S11): true while the canister holds the order's money for a person to resolve (an orphan).
+ *  Left out by today's watcher, which reads as not held. */
+export interface HoldFlag { onHold?: boolean | null }
 /** contract 5.7. `reason` is the backend's own text and is never shown (it may name a rail, contract 6); the app reads `reasonCode`.
  *  A side whose `chain` is null is the Swapic Pool: every stake's `to` (an EVM stake's too), every withdrawal's `from`. */
 /**
@@ -21,7 +25,7 @@ export type ReasonCode = 'expired' | 'timedOut' | 'priceMoved' | 'notFilled' | '
  * times, the watcher's clock only for rows written before them.
  */
 export interface ChainTimes { startedAt?: number | null; deliveredAt?: number | null; tookS?: number | null }
-export interface ActivityRow extends ChainTimes {
+export interface ActivityRow extends ChainTimes, HoldFlag {
   id: string; kind: 'swap' | 'stake' | 'withdraw'; outcome: Outcome; stage: string;
   createdAt: number; endedAt: number | null; etaAt: number | null; gasMode: 'gasless' | 'userPays' | null;
   from: Side; to: Side; feeUsdc: string | null; payoutId: number | null; reason: string | null;
@@ -29,7 +33,7 @@ export interface ActivityRow extends ChainTimes {
   direction?: 'sent' | 'received' | 'self';
 }
 /** contract 5.8, plus today's fields (api/mod.rs:801-817) */
-export interface OrderStatusAnswer extends ChainTimes {
+export interface OrderStatusAnswer extends ChainTimes, HoldFlag {
   orderId: string; status: string; srcTx: string | null; dstTx: string | null; amountOut: string | null;
   token: string | null; refunded: boolean; reason?: string; signedTxId?: number;
   pool?: { kind: string; status: string; arrived: string | null; paid: string | null; sharesMinted: string | null };
@@ -38,7 +42,7 @@ export interface OrderStatusAnswer extends ChainTimes {
 /** contract 5.9 */
 export interface OrdersPage { orders: ActivityRow[]; nextCursor: string | null }
 /** contract 5.10, plus today's fields (withdraw/mod.rs:172-207) */
-export interface PayoutAnswer {
+export interface PayoutAnswer extends HoldFlag {
   id: number; kind: string;
   terms: { dstChain: number; recipient: string; tokenOut: string; minOut: string; deadlineNs: string };
   amount: string | null; received: string | null; planned: string | null; status: string;

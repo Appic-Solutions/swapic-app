@@ -11,7 +11,7 @@ describe('orderView', () => {
     expect(v.status).toBe('refunded');
     expect(v.from).toMatchObject({ symbol: 'USDT', chain: 'Polygon', amountText: '120.00', usdText: '$120.00' });
     expect(v.refundLine).toBe('Refunded 119.80 USDC to 0xf00e…89ac on Polygon');
-    expect(v.reason).toBe('The swap could not be filled'); // its reasonCode, notFilled; the backend's text is never read
+    expect(v.reason).toBe("This swap couldn't be filled, so you got 119.80 USDC back on Polygon."); // its reasonCode, notFilled; the backend's text is never read
     expect(v.gas).toBe('Gasless');
     expect(v.feeText).toBe('$0.69');
     expect(v.took).toBe('4 min');

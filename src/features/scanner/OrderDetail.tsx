@@ -34,9 +34,13 @@ const clock = (sec: number) => { const d = new Date(sec * 1000); return `${Strin
 export function OrderDetail({ order: o, steps, loading, onBack }: { order: OrderView | null; steps: StepView[] | undefined; loading: boolean; onBack: () => void }) {
   const [copied, copy] = useCopied();
   const live = !!o && (o.status === 'pending' || o.status === 'queued');
-  const refund = o?.status === 'refunded';
+  const refund = o?.ending === 'refunded';
+  // as USDC: what arrived is the USDC side; an order that never ran shows nothing received
+  const asUsdc = o?.ending === 'deliveredAsUsdc' && !!o.refund;
+  const stopped = o?.status === 'didntStart' || o?.status === 'onHold';
   const took = o?.took ? ` in ${o.took}` : '';
-  const headline = !o ? '' : refund ? `Refunded${took}` : live ? o.stageText ?? '' : o.status === 'failed' ? 'Failed' : `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
+  const headline = !o ? '' : live ? o.stageText ?? '' : o.ending === 'delivered' ? `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`
+    : `${o.title ?? ''}${refund || asUsdc ? took : ''}`;
   const busy = loading || !o;
   const fly = o ? flyNames(o.id) : { from: undefined, to: undefined, pill: undefined };
   // Motion (approved 2026-10-29, part 2): inside the History or Scanner panel (MorphFrame) the parts fade in place and the
@@ -66,7 +70,9 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
                 <div className="flex w-full flex-1 flex-col justify-center gap-4">
                   <SideBlock label="Sent" side={o.from} amount={`${o.from.amountText} ${o.from.symbol}`} fly={fly.from} />
                   <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
-                  {refund && o.refund ? (
+                  {asUsdc ? (
+                    <SideBlock label="Received as USDC" side={o.refund!} amount={`${o.refund!.amountText} ${o.refund!.symbol}`} fly={fly.to} />
+                  ) : stopped ? null : refund && o.refund ? (
                     <SideBlock label={`Refunded to ${o.refund.toText}`} side={o.refund} amount={`${o.refund.amountText} ${o.refund.symbol}`} tone="text-yellow-500" fly={fly.to} />
                   ) : (
                     <SideBlock label={live ? 'Receiving' : 'Received'} side={o.to} amount={`${o.to.amountText} ${o.to.symbol}`} tone={live ? 'text-white/60' : undefined} fly={fly.to} />
@@ -93,10 +99,10 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
               <Steps steps={steps} gap="gap-y-6" line="after:h-[24px]" />
             )}
           </div>
-          {!busy && refund && (
-            <div className="flex animate-slide-in-from-top items-start gap-x-3 rounded-2xl bg-yellow-500/20 p-4 text-sm text-white">
-              <span className="mt-0.5 shrink-0 text-yellow-500"><ClockIcon width={18} height={18} /></span>
-              <p>{o.reason}, so nothing was swapped. {o.refundLine ? `${o.refundLine}. ` : ''}A swap pays out in full or comes back as USDC, never a mix.</p>
+          {!busy && o.reason && !live && (
+            <div className={cn('flex animate-slide-in-from-top items-start gap-x-3 rounded-2xl p-4 text-sm text-white', o.status === 'didntStart' ? 'bg-white/10' : o.status === 'onHold' ? 'bg-amber-500/20' : asUsdc ? 'bg-[#12B76A33]' : 'bg-yellow-500/20')}>
+              <span className={cn('mt-0.5 shrink-0', o.status === 'didntStart' ? 'text-[#B5B3B3]' : o.status === 'onHold' ? 'text-amber-400' : asUsdc ? 'text-[#12b76a]' : 'text-yellow-500')}><ClockIcon width={18} height={18} /></span>
+              <p>{o.reason}</p>
             </div>
           )}
           {!busy && live && (
@@ -120,7 +126,7 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
               <InfoRow k="Fee">{o.feeText ?? ''}</InfoRow>
               <InfoRow k="Created">{fullDay(o.createdAt)}, {steps?.[0]?.at ?? clock(o.createdAt)}</InfoRow>
               {/* when it arrived: the chain's time (deliveredAt); before chain times, the last step's or the watcher's */}
-              <InfoRow k={refund ? 'Refunded' : 'Finished'}>{live || o.endedAt === null ? 'Not yet' : o.deliveredAt !== null ? `${fullDay(o.deliveredAt)}, ${clock(o.deliveredAt)}` : `${fullDay(o.endedAt)}, ${steps?.at(-1)?.at ?? clock(o.endedAt)}`}</InfoRow>
+              <InfoRow k={refund ? 'Refunded' : stopped ? 'Ended' : 'Finished'}>{live || o.endedAt === null ? 'Not yet' : o.deliveredAt !== null ? `${fullDay(o.deliveredAt)}, ${clock(o.deliveredAt)}` : `${fullDay(o.endedAt)}, ${steps?.at(-1)?.at ?? clock(o.endedAt)}`}</InfoRow>
             </>
           )}
       </motion.div>

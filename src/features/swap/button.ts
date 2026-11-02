@@ -23,8 +23,8 @@ export function swapButton(i: ButtonInput): { text: string | undefined; enabled:
   // as Stake's over the cap: how much fits right now, never a button that cannot work
   if (i.quote === 'capped' && i.cap !== undefined && i.cap !== null) return { text: `Up to ${formatUsdWhole(i.cap)} right now`, enabled: false };
   if (i.quote === 'empty' || i.quote === 'error' || !i.hasOptions) return { text: 'No route found', enabled: false };
-  if (i.recipientShown && i.recipientError) return { text: 'Enter Valid Address', enabled: false };
+  if (i.recipientShown && i.recipientError) return { text: 'Enter a valid address', enabled: false };
   if (!i.fromWallet) return { text: 'Connect wallet', enabled: true };
-  if (!i.recipient) return { text: 'Enter Valid Address', enabled: false };
+  if (!i.recipient) return { text: 'Enter a valid address', enabled: false };
   return { text: 'Review swap', enabled: !i.overBalance };
 }

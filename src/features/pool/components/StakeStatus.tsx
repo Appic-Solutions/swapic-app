@@ -70,7 +70,7 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
     data = v.phase === 'delivered' ? { ...v, title: 'Staked', text: earning, ringLogo: SWAPIC_LOGO } : v;
   } else if (evm) {
     data = {
-      phase: 'progress', failed: false, pay, get, refundText: null, reason: null, refund: null, steps: [], when: '', title: 'On its way', text: 'Updating live',
+      phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: [], when: '', title: 'On its way', text: 'Updating live',
       ringLogo: chainLogo(start.from.chain), to: start.owner, fee: review.feeText, gas: review.gasText, orderId: started.orderId, totalText: 'Updating live',
     };
   } else {
@@ -80,7 +80,7 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
     const stakedAt = icpStarted.staked ? icpStarted.stakedAt : null;
     const took = stakedAt !== null ? stakedAt - icpStarted.signedAt : null;
     data = {
-      phase: staked ? 'delivered' : 'progress', failed: false, pay, get, refundText: null, reason: null, refund: null,
+      phase: staked ? 'delivered' : 'progress', ending: staked ? 'delivered' : 'pending', pay, get, refundText: null, reason: null, refund: null,
       steps: [
         { key: 'approve', label: `Approved ${start.from.symbol}`, sub: 'No gas', state: 'done', at: clockText(approvedAt) },
         staked

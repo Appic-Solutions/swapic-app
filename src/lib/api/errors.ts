@@ -27,8 +27,8 @@ const SENTENCES: Record<string, string> = {
   store: SAME.busy, unavailable: SAME.busy, edgeUnavailable: SAME.busy,
   network: 'The server did not answer. Check your connection and try again.',
   no_route: 'No route found for this amount',
-  gaslessRefused: 'This swap cannot be gasless. Pick another option.',
-  notGasless: 'This swap cannot be gasless. Pick another option.',
+  gaslessRefused: 'This swap needs you to pay a little gas. Pick that option.',
+  notGasless: 'This swap needs you to pay a little gas. Pick that option.',
   gaslessPaused: 'Gasless swaps are paused right now. Pick another option.',
   payerBusy: 'You have a swap starting already. Wait for it, then try again.',
   expired: 'This quote expired. Get a new one.',
@@ -40,9 +40,9 @@ const SENTENCES: Record<string, string> = {
 
 /** Route reasons (order/mod.rs:38-100) the person can act on; every other reason means "no route". */
 const ROUTE_REASONS: Record<string, string> = {
-  payerIsContract: 'This route needs a regular wallet',
-  saleToleranceTooWide: 'This token cannot go through the pool right now',
-  badRecipient: 'Enter Valid Address',
+  payerIsContract: "This route doesn't work with smart wallets. Pick another option.",
+  saleToleranceTooWide: "This token can't be swapped this way right now. Try another option.",
+  badRecipient: 'Enter a valid address',
 };
 
 export function routeReasonMessage(reason: string): string | null {
@@ -71,11 +71,11 @@ export function userMessage(e: unknown): string {
     if (cap !== null) return `Swaps are limited to ${formatUsdWhole(cap)} for now. Try a smaller amount.`;
     if (e.code === 'no_route') {
       for (const [reason, sentence] of Object.entries(ROUTE_REASONS)) if (e.message.includes(reason)) return sentence;
-      if (/cap\b|above the per swap/i.test(e.message)) return 'The pool cannot take this swap now, try a smaller amount';
+      if (/cap\b|above the per swap/i.test(e.message)) return 'This swap is too large right now. Try a smaller amount.';
       if (/halt|paused/i.test(e.message)) return 'Swaps are paused right now';
       return SENTENCES.no_route!;
     }
-    if (e.code === 'refused') return /halt/i.test(e.message) ? 'Swaps are paused right now' : 'Swapic refused this request. Get a new quote and try again.';
+    if (e.code === 'refused') return /halt/i.test(e.message) ? 'Swaps are paused right now' : "This swap can't start right now. Get a new quote and try again.";
     const s = SENTENCES[e.code];
     if (s) return s;
   }

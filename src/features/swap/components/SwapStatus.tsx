@@ -17,7 +17,7 @@ import { statCard } from '@/components/design/stat-card';
 import { CopyButton, useCopied } from '@/components/orders/CopyButton';
 import { StatusPill } from '@/components/orders/StatusPill';
 import { Steps } from '@/components/orders/Steps';
-import type { SideView } from '@/components/orders/types';
+import type { OrderStatus, SideView } from '@/components/orders/types';
 import { ArrowDownIcon, CheckIcon, ClockIcon, HistoryIcon } from '@/components/icons';
 import { DrawCheck, MotionCard, shrinkInto, useFrame } from '@/components/motion/parts';
 import { short } from '@/lib/copy/format';
@@ -27,7 +27,13 @@ import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import type { StatusData } from '../status-view';
 
 type Phase = StatusData['phase'];
-const PILL: Record<Phase, 'pending' | 'delivered' | 'refunded'> = { progress: 'pending', delivered: 'delivered', refunded: 'refunded' };
+const PILL: Record<Phase, OrderStatus> = { progress: 'pending', delivered: 'delivered', refunded: 'refunded', held: 'onHold', stopped: 'didntStart' };
+/** The closed ring's colour: green delivered, yellow refunded, amber held for a check, grey never ran. */
+const RING: Record<Phase, { stroke: string; border: string }> = {
+  progress: { stroke: '#16a34a', border: 'border-green-500' }, delivered: { stroke: '#16a34a', border: 'border-green-500' },
+  refunded: { stroke: '#eab308', border: 'border-yellow-500' }, held: { stroke: '#f59e0b', border: 'border-amber-500' },
+  stopped: { stroke: '#6b7280', border: 'border-gray-500' },
+};
 
 export interface LiveRingProps {
   phase: Phase;
@@ -48,8 +54,8 @@ export interface LiveRingProps {
 // Delivered a check draws in on its edge and a soft glow appears behind it.
 export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badge }: LiveRingProps) {
   const closed = phase !== 'progress';
-  const yellow = refunding || phase === 'refunded';
-  const color = yellow ? '#eab308' : '#16a34a';
+  const tone = refunding && phase === 'progress' ? RING.refunded : RING[phase];
+  const color = tone.stroke;
   const firstLogo = React.useRef(logo);
   const ring = React.useRef<HTMLDivElement>(null);
   const frame = useFrame();
@@ -97,7 +103,7 @@ export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badg
       </motion.svg>
       {/* A closed ring at rest is the static one: a 2 px border. */}
       <motion.div
-        className={cn('absolute inset-0 rounded-full border-2', yellow ? 'border-yellow-500' : 'border-green-500')}
+        className={cn('absolute inset-0 rounded-full border-2', tone.border)}
         initial={false}
         animate={{ opacity: closed ? 1 : 0 }}
         transition={{ ...T.enter, delay: closed ? DUR.big : 0 }}
@@ -159,6 +165,9 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
   const [copied, copy] = useCopied();
   const done = d.steps.filter((s) => s.state === 'done').length;
   const refundSide: (SideView & { amount: string }) | null = d.phase === 'refunded' && d.refund ? { ...d.refund, amount: `${d.refund.amountText} ${d.refund.symbol}` } : null;
+  // delivered as USDC: what arrived is the USDC side; held or never ran: nothing is shown as coming
+  const asUsdc = d.ending === 'deliveredAsUsdc' && d.refund ? { ...d.refund, amount: `${d.refund.amountText} ${d.refund.symbol}` } : null;
+  const nothingComes = d.phase === 'held' || d.phase === 'stopped';
   return (
     <TwoColumn
       inPlace
@@ -166,7 +175,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
       left={
         <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-5 hover:bg-[#000000]/0 lg:flex-1">
           <motion.div variants={fade} className="flex w-full items-center justify-between gap-3">
-            <motion.span key={d.phase} variants={fade} className="flex"><StatusPill status={d.failed ? 'failed' : PILL[d.phase]} /></motion.span>
+            <motion.span key={d.phase} variants={fade} className="flex"><StatusPill status={PILL[d.phase]} /></motion.span>
             <p className="text-sm font-semibold text-[#898989]">{d.when}</p>
           </motion.div>
           <div className="flex w-full flex-col items-center gap-2 text-center">
@@ -178,10 +187,12 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
             </motion.div>
           </div>
           <motion.div variants={fade} className="flex w-full flex-col gap-4">
-            <SideBlock label={text?.paid ?? 'You paid'} side={d.pay} amount={`${d.pay.amountText} ${d.pay.symbol}`} />
-            <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
+            <SideBlock label={text?.paid ?? (d.phase === 'stopped' ? 'Amount' : 'You paid')} side={d.pay} amount={`${d.pay.amountText} ${d.pay.symbol}`} />
+            {!nothingComes && <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>}
             <motion.div key={refundSide ? 'refund' : d.phase} variants={fade}>
-              {refundSide ? (
+              {nothingComes ? null : asUsdc ? (
+                <SideBlock label="You got" side={asUsdc} amount={asUsdc.amount} />
+              ) : refundSide ? (
                 <SideBlock label={`Refunded to ${d.refund!.toText}`} side={refundSide} amount={refundSide.amount} tone="text-yellow-500" />
               ) : (
                 <SideBlock label={text?.get ?? (d.phase === 'delivered' ? 'You got' : 'You get')} side={d.get} amount={`${d.get.amountText} ${d.get.symbol}`} tone={d.phase === 'progress' ? 'text-white/60' : undefined} />
@@ -213,13 +224,10 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
             )}
           </motion.div>
           <motion.div key={d.phase} variants={fade}>
-            {text ? text.note : d.failed ? (
-              // stopped for a human (contract 5.10): nothing more is known, so nothing more is said
-              <Note tone="yellow" icon={<AlertTriangle className="h-[18px] w-[18px]" />}>{d.reason ?? 'Stopped, our team is on it'}.</Note>
-            ) : d.phase === 'refunded' ? (
-              <Note tone="yellow" icon={<AlertTriangle className="h-[18px] w-[18px]" />}>
-                {d.reason ? `Why: ${d.reason.charAt(0).toLowerCase() + d.reason.slice(1)}, so nothing was swapped. ` : ''}A swap pays out in full or comes back as USDC.
-              </Note>
+            {text ? text.note : nothingComes ? null : d.phase === 'refunded' ? (
+              <Note tone="yellow" icon={<AlertTriangle className="h-[18px] w-[18px]" />}>{d.reason}</Note>
+            ) : asUsdc ? (
+              <Note icon={<CheckIcon />}>{d.reason}</Note>
             ) : d.phase === 'delivered' ? (
               <Note icon={<CheckIcon />}>All {d.get.amountText} {d.get.symbol} arrived in your {d.get.chain === 'ICP' ? 'ICP' : 'EVM'} wallet {short(d.to)}.</Note>
             ) : (
@@ -236,7 +244,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
           >
             <HistoryIcon width={20} height={20} />History
           </button>
-          <ActionButton isDisabled={false} onClick={onNew}>Make another swap</ActionButton>
+          <ActionButton isDisabled={false} onClick={onNew}>{d.phase === 'stopped' ? 'Try again' : 'Make another swap'}</ActionButton>
         </div>
       )}
     />

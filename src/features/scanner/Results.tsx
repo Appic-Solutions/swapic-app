@@ -32,8 +32,13 @@ function Route({ o }: { o: OrderView }) {
 
 const live = (o: OrderView) => o.status === 'pending' || o.status === 'queued';
 /** What came out: the refund when refunded, else the token out (a pending side already reads `~<least>`). */
-const out = (o: OrderView) => (o.status === 'refunded' ? (o.refund ? `${o.refund.amountText} ${o.refund.symbol} refunded` : 'Refunded') : `${o.to.amountText} ${o.to.symbol}`.trim());
-const outSub = (o: OrderView) => (o.status === 'refunded' || o.status === 'failed' ? o.reason ?? '' : live(o) ? o.stageText ?? '' : o.took ? `in ${o.took}` : '');
+const out = (o: OrderView) => {
+  if (o.ending === 'refunded') return o.refund ? `${o.refund.amountText} ${o.refund.symbol} refunded` : 'Refunded';
+  if (o.ending === 'deliveredAsUsdc' && o.refund) return `${o.refund.amountText} ${o.refund.symbol}`;
+  if (o.status === 'didntStart' || o.status === 'onHold') return o.title ?? '';
+  return `${o.to.amountText} ${o.to.symbol}`.trim();
+};
+const outSub = (o: OrderView) => (live(o) ? o.stageText ?? '' : o.reason ?? (o.took ? `in ${o.took}` : ''));
 
 // Motion (approved 2026-10-29, part 2): rows glide to their new places, a new order slides down into the top, rows sink
 // a little when pressed; their tokens and status pill fly to the order page when one opens (data-fly).

@@ -8,7 +8,8 @@ const PILL: Record<OrderStatus, [string, string]> = {
   pending: ['In progress', 'bg-blue-600/35 text-white'],
   queued: ['Queued', 'bg-blue-600/35 text-white'],
   refunded: ['Refunded', 'bg-yellow-500/20 text-yellow-500'],
-  failed: ['Failed', 'bg-[#FF0000]/35 text-[#FF0000]'],
+  didntStart: ["Didn't start", 'bg-white/10 text-[#B5B3B3]'],
+  onHold: ['On hold', 'bg-amber-500/20 text-amber-400'],
 };
 
 /** fly: a name for the in place change (the same name on the next view's pill makes it fly there). */
