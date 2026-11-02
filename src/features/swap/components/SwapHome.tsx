@@ -25,9 +25,9 @@ import { Footer } from '@/features/home/Footer';
 import { AnimatePresence } from 'motion/react';
 import { Enter } from '@/components/motion/parts';
 import { fade, useFirstRender } from '@/lib/motion';
+import { DEFAULT_FROM_CHAIN } from '@/lib/chains';
 
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
-const ARBITRUM = 'eip155:42161';
 
 /** A token named in the link by its exact key, looked up in that chain's list (an unlisted one comes back unverified). */
 function useLinkedToken(ref: TokenRef | null): { token: UiToken | undefined; done: boolean } {
@@ -104,7 +104,7 @@ export function SwapHome() {
 
   const tokenPage = view === 'from' || view === 'to' ? (() => {
     const current = view === 'from' ? f.from : f.to;
-    const start = unlisted.find((u) => u.side === view)?.chain ?? current?.chain ?? (view === 'from' ? (evm?.chainId ? `eip155:${evm.chainId}` : ARBITRUM) : config.icpChain);
+    const start = unlisted.find((u) => u.side === view)?.chain ?? current?.chain ?? (view === 'from' ? (evm?.chainId ? `eip155:${evm.chainId}` : DEFAULT_FROM_CHAIN) : config.icpChain);
     return (
       <TokenSelect
         key={view}

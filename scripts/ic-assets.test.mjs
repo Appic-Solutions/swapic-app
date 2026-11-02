@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
+import { chainRpcHosts, cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
 
 describe('the CSP', () => {
   it('lists exactly the hosts the environment needs', () => {
@@ -29,6 +29,13 @@ describe('the CSP', () => {
     expect(connect).toContain('https://api.swapic.xyz');
     expect(connect).not.toMatch(/api-test|test\.swapic/);
     expect(() => siteFor('e2e')).toThrow(/usage/);
+  });
+  it('lets the wallet read the chains WalletConnect\'s RPC does not serve, and only those hosts', () => {
+    const hosts = chainRpcHosts();
+    expect(hosts).toContain('https://rpc.monad.xyz');
+    expect(hosts.every((h) => /^https:\/\/[a-z0-9.-]+$/.test(h))).toBe(true);
+    const connect = cspFor(siteFor('prod'), [], hosts).split('; ').find((d) => d.startsWith('connect-src'));
+    for (const h of hosts) expect(connect).toContain(h);
   });
 });
 

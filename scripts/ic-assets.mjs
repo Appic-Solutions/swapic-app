@@ -15,6 +15,8 @@
 // with pool.html and pool/index.html each claiming /pool, the asset canister certified /pool for one of them only, and
 // the gateway refused /pool, /history and /swap with a response verification error (staging 2026-11-01). The URL style of
 // the app (no trailing slash) does not change. Tests: scripts/ic-assets.test.mjs.
+// connect-src also names the public RPC hosts of the chains WalletConnect's RPC does not serve (src/config/chains.json, the
+// app's one chain table), where the wallet reads receipts and fees.
 // The hosts and the custom domain come from src/config/sites.json, the one file the app's build reads too; ic-domains
 // lists that environment's domain alone, one per line (the asset canister answers for nothing else).
 // Usage: node scripts/ic-assets.mjs test|prod   (after `next build`, writes out/.ic-assets.json5 and out/.well-known/ic-domains)
@@ -34,8 +36,14 @@ export function sentryHost(dsn) {
   return `${u.protocol}//${u.host}`;
 }
 
-export function cspFor(cfg, scriptHashes) {
-  const connect = ["'self'", cfg.apiBase, cfg.icpHost, ...WALLETCONNECT, ...(cfg.sentryDsn ? [sentryHost(cfg.sentryDsn)] : [])];
+/** The public RPC hosts the wallet's reads need on chains WalletConnect's RPC does not serve (src/config/chains.json). */
+export function chainRpcHosts() {
+  const chains = JSON.parse(readFileSync(new URL('../src/config/chains.json', import.meta.url), 'utf8'));
+  return [...new Set(chains.flatMap((c) => c.rpcHosts))];
+}
+
+export function cspFor(cfg, scriptHashes, rpcHosts = []) {
+  const connect = ["'self'", cfg.apiBase, cfg.icpHost, ...WALLETCONNECT, ...rpcHosts, ...(cfg.sentryDsn ? [sentryHost(cfg.sentryDsn)] : [])];
   return [
     "default-src 'self'",
     `script-src 'self' ${scriptHashes.join(' ')}`.trim(),
@@ -102,7 +110,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const out = join(root, 'out');
   const aliases = slashAliases(out);
-  const csp = cspFor(cfg, inlineScriptHashes(out));
+  const csp = cspFor(cfg, inlineScriptHashes(out), chainRpcHosts());
   const headers = {
     'Content-Security-Policy': csp,
     'X-Content-Type-Options': 'nosniff',

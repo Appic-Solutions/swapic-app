@@ -4,6 +4,8 @@
  * environment's entry as NEXT_PUBLIC_SWAPIC_SITE, so a build holds no other environment's hosts or canister. The contracts
  * are never configured here: the app reads every contract address from the canister's get_config (guards/context.ts).
  */
+import chains from './chains.json';
+
 export type SwapicEnv = 'test' | 'prod' | 'e2e';
 
 /** One environment's entry in sites.json. */
@@ -43,7 +45,8 @@ export interface AppConfig {
 }
 
 export const ICP_CHAIN = 'icp:737ba355e855bd4b61279056603e0550';
-const CHAINS = ['eip155:8453', 'eip155:42161', 'eip155:1', 'eip155:137', ICP_CHAIN] as const;
+/** Every chain of the one chain table (chains.json, lib/chains.ts). */
+const CHAINS: readonly string[] = chains.map((c) => c.id);
 const REOWN_PROJECT_ID = '77560e246a64e6b8843d098a5e802306';
 
 const rawHosts = (id: string) => [`${id}.icp0.io`, `${id}.ic0.app`, `${id}.raw.icp0.io`, `${id}.raw.ic0.app`];

@@ -33,7 +33,8 @@ import { StakePanel } from './StakePanel';
 import { StakeReview, type StakeStart, type StakeStarted } from './StakeReview';
 import { StakeStatus } from './StakeStatus';
 import { WithdrawReview, type WithdrawStart } from './WithdrawReview';
-import { PAYOUT_ORDER, WithdrawPanel } from './WithdrawPanel';
+import { WithdrawPanel } from './WithdrawPanel';
+import { payoutPlace } from '@/lib/chains';
 import { WithdrawPick } from './WithdrawPick';
 import { WithdrawStatus } from './WithdrawStatus';
 
@@ -114,7 +115,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const from = stakePicked ?? linked ?? defaultStakeFrom(stakeTokens, evmChain);
 
   // Withdraw: a stake pays out where its wallet lives; with both wallets holding one, the pick comes first
-  const payoutTokens = React.useMemo(() => [...evmTokens].sort((x, y) => PAYOUT_ORDER.indexOf(x.chain) - PAYOUT_ORDER.indexOf(y.chain)), [evmTokens]);
+  const payoutTokens = React.useMemo(() => [...evmTokens].sort((x, y) => payoutPlace(x.chain) - payoutPlace(y.chain)), [evmTokens]);
   const live = stakes.filter((s) => s.shares > 0n);
   const both = live.length > 1;
   const [kind, setKind] = React.useState<MyStake['kind']>('evm');

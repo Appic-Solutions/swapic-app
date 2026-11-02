@@ -28,6 +28,7 @@ import { chainNumber } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
+import { POOL_CHAIN } from '@/lib/chains';
 import { fade, tw } from '@/lib/motion';
 import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
@@ -41,9 +42,7 @@ import { usedNonces } from '../used-nonces';
 import { checkWithdrawQuote, type CheckedWithdraw } from '../withdraw-sig';
 import { SlidingPill, STAKE_CARD } from './parts';
 
-const BASE = 'eip155:8453';
-/** The design's order of an EVM stake's payout chains: Base first (the payout leaves from Base, so it is the quickest). */
-export const PAYOUT_ORDER = ['eip155:8453', 'eip155:42161', 'eip155:1', 'eip155:137'];
+const BASE = POOL_CHAIN;
 const PCTS = [25, 50, 75, 100] as const;
 
 function useDebounced<T>(value: T, ms: number): T {

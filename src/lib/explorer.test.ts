@@ -10,6 +10,7 @@ describe('explorer', () => {
   it('names chains and links transactions per chain', () => {
     expect(chainName('eip155:42161')).toBe('Arbitrum');
     expect(txLink('eip155:137', '0xab')).toBe('https://polygonscan.com/tx/0xab');
-    expect(isKnownChain('eip155:10')).toBe(false);
+    expect(isKnownChain('eip155:10')).toBe(true);
+    expect(isKnownChain('eip155:56')).toBe(false);
   });
 });

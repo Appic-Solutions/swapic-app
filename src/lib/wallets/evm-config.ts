@@ -11,10 +11,13 @@
 import { createAppKit } from '@reown/appkit/react-core';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { baseAccount, coinbaseWallet } from '@wagmi/connectors';
-import { arbitrum, base, mainnet, polygon, type AppKitNetwork } from '@reown/appkit/networks';
+import { arbitrum, base, hyperEvm, mainnet, monad, optimism, plasma, polygon, unichain, worldchain, type AppKitNetwork } from '@reown/appkit/networks';
 import { config } from '@/config';
+import { CHAIN_IDS } from '@/lib/chains';
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base, arbitrum, mainnet, polygon];
+/** AppKit's network for every EVM chain of the one chain table (lib/chains.ts), Base first: the default network. */
+export const APPKIT_NETWORKS: readonly AppKitNetwork[] = [base, arbitrum, mainnet, polygon, optimism, unichain, monad, hyperEvm, worldchain, plasma];
+export const networks = APPKIT_NETWORKS.filter((n) => CHAIN_IDS.includes(`eip155:${n.id}`)) as [AppKitNetwork, ...AppKitNetwork[]];
 
 // Coinbase Wallet and Base Account are given here with their SDK telemetry off: on, each SDK injects an inline analytics
 // script (Coinbase's ClientAnalytics) that the site's Content-Security-Policy blocks (plan 4 Task 6). The adapter adds its own
