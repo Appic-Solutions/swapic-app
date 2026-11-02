@@ -16,6 +16,13 @@ describe('isUserRejection', () => {
     expect(isUserRejection(signer(3001))).toBe(true);
     expect(isUserRejection(new Error('wrapped', { cause: signer(3001) }))).toBe(true);
   });
+  it('reads Plug\'s no: ICRC-25 3000 with exactly "User rejected", and no other 3000', () => {
+    expect(isUserRejection(new SignerError({ code: 3000, message: 'User rejected' }))).toBe(true);
+    expect(isUserRejection(new Error('wrapped', { cause: new SignerError({ code: 3000, message: 'User rejected' }) }))).toBe(true);
+    expect(isUserRejection(new SignerError({ code: 3000, message: 'Canister call failed' }))).toBe(false);
+    expect(isUserRejection(new SignerError({ code: 3000, message: 'User rejected the transfer but it was sent' }))).toBe(false);
+    expect(isLostSignerAnswer(new SignerError({ code: 3000, message: 'User rejected' }))).toBe(false);
+  });
   it('never reads a closed signer channel or a signer network error as a no', () => {
     expect(isUserRejection(signer(4001))).toBe(false);
     expect(isUserRejection(signer(4000))).toBe(false);
