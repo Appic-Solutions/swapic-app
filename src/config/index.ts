@@ -4,7 +4,7 @@
  * environment's entry as NEXT_PUBLIC_SWAPIC_SITE, so a build holds no other environment's hosts or canister. The contracts
  * are never configured here: the app reads every contract address from the canister's get_config (guards/context.ts).
  */
-import chains from './chains.json';
+import { CHAIN_IDS } from '@/lib/chains';
 
 export type SwapicEnv = 'test' | 'prod' | 'e2e';
 
@@ -45,8 +45,7 @@ export interface AppConfig {
 }
 
 export const ICP_CHAIN = 'icp:737ba355e855bd4b61279056603e0550';
-/** Every chain of the one chain table (chains.json, lib/chains.ts). */
-const CHAINS: readonly string[] = chains.map((c) => c.id);
+
 const REOWN_PROJECT_ID = '77560e246a64e6b8843d098a5e802306';
 
 const rawHosts = (id: string) => [`${id}.icp0.io`, `${id}.ic0.app`, `${id}.raw.icp0.io`, `${id}.raw.ic0.app`];
@@ -60,7 +59,7 @@ export function appConfig(env: SwapicEnv, site: Site): AppConfig {
   return {
     env, apiBase: site.apiBase, icpHost: site.icpHost, swapicCanisterId: site.swapicCanisterId, reownProjectId: REOWN_PROJECT_ID,
     sentryDsn: site.sentryDsn, siteOrigin: site.siteOrigin, derivationOrigin: site.derivationOrigin,
-    redirectHosts: site.assetCanister ? rawHosts(site.assetCanister) : [], icpChain: ICP_CHAIN, chains: CHAINS,
+    redirectHosts: site.assetCanister ? rawHosts(site.assetCanister) : [], icpChain: ICP_CHAIN, chains: CHAIN_IDS,
   };
 }
 

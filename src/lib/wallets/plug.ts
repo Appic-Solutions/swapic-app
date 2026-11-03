@@ -11,9 +11,9 @@
 // not listed. How the design proves it: Plug is listed only when plugInstalled() saw its answer at load (Plug's page
 // script registers its listener at document_start, before ours runs, and answers in the same tick), and a stored Plug id
 // is dropped when Plug is not there (forgetMissingPlug). Without Plug the menu offers its install page instead.
-// Known limits: Plug answers a "no" with ICRC-25 code 3000 and the text "User rejected", not 3001, so rejection.ts does
-// not read it as a no yet (an approval then shows as failed, a canister call goes to the records check); Plug returns
-// every account it holds and IdentityKit takes the first (identitykit issue 393). Tested in plug.test.ts.
+// Plug answers a "no" with ICRC-25 code 3000 and the text "User rejected", not 3001; rejection.ts reads exactly that pair
+// as a no ("You cancelled"), every other 3000 as before. Known limit: Plug returns every account it holds and IdentityKit
+// takes the first (identitykit issue 393). Tested in plug.test.ts and rejection.test.ts.
 
 /** The uuid Plug's ICRC-94 provider announces; IdentityKit uses it as the signer id (its EXTENSION transport finds it by it). */
 export const PLUG_UUID = '71edc834-bab2-4d59-8860-c36a01fee7b8';
