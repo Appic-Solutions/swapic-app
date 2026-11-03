@@ -6,8 +6,8 @@
   { "id": "eip155:137", "name": "Polygon", "logo": "/images/logo/chains-logos/polygon.svg", "explorer": "https://polygonscan.com", "rpcHosts": [] },
   { "id": "eip155:10", "name": "OP Mainnet", "logo": "/images/logo/chains-logos/optimism.svg", "explorer": "https://optimistic.etherscan.io", "rpcHosts": [] },
   { "id": "eip155:130", "name": "Unichain", "logo": "/images/logo/chains-logos/unichain.svg", "explorer": "https://uniscan.xyz", "rpcHosts": ["https://mainnet.unichain.org"] },
-  { "id": "eip155:143", "name": "Monad", "logo": "/images/logo/chains-logos/monad.png", "explorer": "https://monadscan.com", "rpcHosts": ["https://rpc.monad.xyz", "https://rpc1.monad.xyz"] },
-  { "id": "eip155:999", "name": "HyperEVM", "logo": "/images/logo/chains-logos/hyperevm.png", "explorer": "https://hyperevmscan.io", "rpcHosts": ["https://rpc.hyperliquid.xyz"] },
+  { "id": "eip155:143", "name": "Monad", "logo": "/images/logo/chains-logos/monad.svg", "explorer": "https://monadscan.com", "rpcHosts": ["https://rpc.monad.xyz", "https://rpc1.monad.xyz"] },
+  { "id": "eip155:999", "name": "HyperEVM", "logo": "/images/logo/chains-logos/hyperevm.svg", "explorer": "https://hyperevmscan.io", "rpcHosts": ["https://rpc.hyperliquid.xyz"] },
   { "id": "eip155:480", "name": "World Chain", "logo": "/images/logo/chains-logos/worldchain.svg", "explorer": "https://worldscan.org", "rpcHosts": ["https://worldchain-mainnet.g.alchemy.com"] },
-  { "id": "eip155:9745", "name": "Plasma", "logo": "/images/logo/chains-logos/plasma.png", "explorer": "https://plasmascan.to", "rpcHosts": ["https://rpc.plasma.to"] }
+  { "id": "eip155:9745", "name": "Plasma", "logo": "/images/logo/chains-logos/plasma.svg", "explorer": "https://plasmascan.to", "rpcHosts": ["https://rpc.plasma.to"] }
 ]
