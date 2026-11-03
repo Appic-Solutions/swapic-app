@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHAINS, chainPlace, payoutPlace } from './chains';
 import { chainLogo, chainName, txLink } from './explorer';
+import { APPKIT_NETWORKS, networks } from './wallets/networks';
 
 describe('the one chain table', () => {
   it('names, logos and explorers come from it', () => {
@@ -15,6 +16,12 @@ describe('the one chain table', () => {
     expect(chainPlace('eip155:5')).toBe(CHAINS.length);
     const payouts = ['eip155:137', 'eip155:1', 'eip155:8453', 'eip155:42161'].sort((a, b) => payoutPlace(a) - payoutPlace(b));
     expect(payouts).toEqual(['eip155:8453', 'eip155:1', 'eip155:42161', 'eip155:137']);
+  });
+  it('has an AppKit network for every EVM chain, so the wallet can switch to each and read its receipts', () => {
+    const evm = CHAINS.filter((c) => c.id.startsWith('eip155:')).map((c) => c.id);
+    expect(evm.filter((id) => !APPKIT_NETWORKS.some((n) => `eip155:${n.id}` === id))).toEqual([]);
+    expect(networks.map((n) => `eip155:${n.id}`).sort()).toEqual([...evm].sort());
+    expect(networks[0]!.id).toBe(8453);
   });
   it('has a logo file for every chain', () => {
     expect(CHAINS.filter((c) => !existsSync(`public${c.logo}`)).map((c) => c.name)).toEqual([]);
