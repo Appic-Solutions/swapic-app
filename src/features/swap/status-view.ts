@@ -26,12 +26,14 @@ export interface StatusData {
 export function statusView(i: {
   status: OrderStatusAnswer | PayoutAnswer; steps: StepsAnswer | undefined; pay: SideView; get: SideView; nowSec: number;
   feeText: string; gasText: string; toWallet: string; orderId: string; token: Meta;
+  /** Who paid the source's gas: the route's own mode (an ICP sale reads as gasless: the person pays no gas). */
+  gasMode: 'gasless' | 'userPays';
   /** A token's logo (the refund side); defaults to the USDC logo. */
   logo?: (chain: string | null, token: string | null, symbol: string | null) => string;
 }): StatusData {
   const s = i.status;
   const refund = s.refund ?? null;
-  const gasMode = i.gasText.startsWith('None') ? 'gasless' : 'userPays';
+  const gasMode = i.gasMode;
   const steps = i.steps ? stepViews(i.steps, { gasMode, refund, token: i.token }) : [];
   const rows = i.steps?.steps ?? [];
   const current = rows.findIndex((r) => r.state === 'wait');

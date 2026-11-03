@@ -312,7 +312,7 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
     return null;
   };
   const data: StatusData = status
-    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, toWallet: rv.recipient, orderId: activity.id, token, logo })
+    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode: rv.option.mode === 'userPays' ? 'userPays' : 'gasless', toWallet: rv.recipient, orderId: activity.id, token, logo })
     : {
         phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: [], when: '', title: 'On its way', text: 'Updating live',
         ringLogo: chainLogo(rv.from.chain), to: rv.recipient, fee, gas, orderId: activity.id, totalText: 'Updating live',

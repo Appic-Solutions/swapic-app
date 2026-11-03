@@ -66,7 +66,7 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
   if (evm && status) {
     const token = (chain: string | null, address: string | null) =>
       chain === start.from.chain && address !== null && address.toLowerCase() === start.from.address.toLowerCase() ? { symbol: start.from.symbol, decimals: start.from.decimals } : null;
-    const v = statusView({ status: status as OrderStatusAnswer, steps, pay, get, nowSec, feeText: review.feeText, gasText: review.gasText, toWallet: start.owner, orderId: started.orderId, token });
+    const v = statusView({ status: status as OrderStatusAnswer, steps, pay, get, nowSec, feeText: review.feeText, gasText: review.gasText, gasMode: review.gasMode, toWallet: start.owner, orderId: started.orderId, token });
     data = v.phase === 'delivered' ? { ...v, title: 'Staked', text: earning, ringLogo: SWAPIC_LOGO } : v;
   } else if (evm) {
     data = {

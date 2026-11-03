@@ -36,6 +36,8 @@ export interface StakeReview {
   steps: WalletStep[];
   /** Your stake's Gas row once it has started. */
   gasText: string;
+  /** Who pays the source's gas (from ICP there is none: gasless). */
+  gasMode: 'gasless' | 'userPays';
 }
 
 /** What the wallet will be asked for a checked stake route: exactly what sendCheckedEvm runs on it. */
@@ -60,6 +62,7 @@ export function evmStakeReview(i: { option: PickedOption; checked: CheckedEvmRou
     withdrawText: 'Anytime',
     steps: evmStakeSteps(i.checked, i.option, i.from, i.native),
     gasText: i.checked.sign ? 'None, Swapic paid it' : gasText(i.option, i.native).replace('you pay it', 'you paid it'),
+    gasMode: i.checked.sign ? 'gasless' : 'userPays',
   };
 }
 
@@ -79,6 +82,7 @@ export function icpStakeReview(amount: bigint, ledgerFee: bigint, moveFee: bigin
       { label: 'Confirm stake', sub: 'No gas' },
     ],
     gasText: 'None',
+    gasMode: 'gasless',
   };
 }
 
