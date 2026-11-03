@@ -23,17 +23,43 @@ const LOOKALIKE: Record<string, string> = {
 };
 /** A symbol as it reads: compatibility forms folded, lookalike letters made Latin, invisible characters dropped, capitals. */
 export const symbolReading = (s: string) =>
-  [...s.normalize('NFKC').replace(/[​-‏⁠﻿]/g, '')].map((ch) => LOOKALIKE[ch] ?? ch).join('').toUpperCase();
+  [...s.normalize('NFKC').replace(/[\u200b-\u200f\u2060\ufeff]/g, '')].map((ch) => LOOKALIKE[ch] ?? ch).join('').toUpperCase();
 
-const sameAddress = (chain: string, a: string, b: string) => (chain.startsWith('eip155:') ? a.toLowerCase() === b.toLowerCase() : a === b);
+const addressKey = (chain: string, a: string) => (chain.startsWith('eip155:') ? a.toLowerCase() : a);
+
+/** One chain's listed tokens by address and by the reading of their symbol (the first listed wins a reading). */
+interface ChainIndex { byAddress: Map<string, ListedToken>; byReading: Map<string, ListedToken> }
+
+function indexLists(lists: TokenLists): Map<string, ChainIndex> {
+  const out = new Map<string, ChainIndex>();
+  for (const [chain, listed] of Object.entries(lists)) {
+    const byAddress = new Map<string, ListedToken>();
+    const byReading = new Map<string, ListedToken>();
+    for (const l of listed) {
+      byAddress.set(addressKey(chain, l.address), l);
+      const reading = symbolReading(l.symbol);
+      if (!byReading.has(reading)) byReading.set(reading, l);
+    }
+    out.set(chain, { byAddress, byReading });
+  }
+  return out;
+}
+
+// built once per list (the repo's at module load), never per row or render
+const INDEXES = new WeakMap<TokenLists, Map<string, ChainIndex>>([[TOKEN_LISTS, indexLists(TOKEN_LISTS)]]);
+function indexFor(lists: TokenLists): Map<string, ChainIndex> {
+  let index = INDEXES.get(lists);
+  if (!index) INDEXES.set(lists, (index = indexLists(lists)));
+  return index;
+}
 
 /** The listed token `t` is, or pretends to be (same reading of its symbol, another address); null when neither. */
 export function listedFor(t: Pick<UiToken, 'chain' | 'address' | 'symbol'>, lists: TokenLists = TOKEN_LISTS): { token: ListedToken; same: boolean } | null {
-  const listed = lists[t.chain] ?? [];
-  const same = listed.find((l) => sameAddress(t.chain, l.address, t.address));
+  const index = indexFor(lists).get(t.chain);
+  if (!index) return null;
+  const same = index.byAddress.get(addressKey(t.chain, t.address));
   if (same) return { token: same, same: true };
-  const reading = symbolReading(t.symbol);
-  const imitated = listed.find((l) => symbolReading(l.symbol) === reading);
+  const imitated = index.byReading.get(symbolReading(t.symbol));
   return imitated ? { token: imitated, same: false } : null;
 }
 

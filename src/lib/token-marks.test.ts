@@ -16,7 +16,7 @@ describe('token marks', () => {
     expect(markOf(t(other, 'USDC'), lists)).toBe('fake');
     expect(markOf(t(other, 'USDС'), lists)).toBe('fake'); // Cyrillic Es
     expect(markOf(t(other, 'usdc'), lists)).toBe('fake');
-    expect(markOf(t(other, 'US​DC'), lists)).toBe('fake');
+    expect(markOf(t(other, 'US\u200bDC'), lists)).toBe('fake');
     expect(listedFor(t(other, 'USDС'), lists)?.token.address).toBe(USDC);
     // the same symbol on another chain is that chain's business
     expect(markOf(t(other, 'USDC', true, 'eip155:42161'), lists)).toBe('plain');
