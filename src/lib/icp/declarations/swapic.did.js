@@ -57,6 +57,7 @@ export const idlFactory = ({ IDL }) => {
     'simulate_before_sign' : IDL.Bool,
     'backstop_interval_s' : IDL.Nat64,
     'eco_enabled' : IDL.Bool,
+    'finalized_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'cctp_domains' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'cctp_min_fees' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'evm_chains' : IDL.Vec(IDL.Tuple(IDL.Nat64, EvmChainConfig)),
@@ -200,6 +201,11 @@ export const idlFactory = ({ IDL }) => {
     'index' : IDL.Nat64,
     'time_ns' : IDL.Nat64,
     'payload' : EventType,
+  });
+  const FinalizedSeen = IDL.Record({
+    'stalled' : IDL.Bool,
+    'moved_at_ns' : IDL.Nat64,
+    'number' : IDL.Opt(IDL.Nat64),
   });
   const Recipe = IDL.Record({
     'scaler' : IDL.Opt(IDL.Text),
@@ -545,6 +551,7 @@ export const idlFactory = ({ IDL }) => {
       'field' : IDL.Text,
       'interval_s' : IDL.Nat64,
     }),
+    'NotFinalizable' : IDL.Record({ 'chain_id' : IDL.Nat64 }),
     'CctpMinFeeTooHigh' : IDL.Record({
       'ceiling' : IDL.Nat32,
       'min_fee' : IDL.Nat32,
@@ -559,112 +566,23 @@ export const idlFactory = ({ IDL }) => {
     'DurationTooLong' : IDL.Record({ 'field' : IDL.Text }),
     'EmptyRpcUrl' : IDL.Record({ 'chain_id' : IDL.Nat64 }),
   });
-  const SwapStatus = IDL.Variant({
-    'PaidInStable' : IDL.Null,
-    'Refunding' : IDL.Null,
-    'WaitingForUser' : IDL.Null,
-    'FundsReceived' : IDL.Null,
-    'Delivering' : IDL.Null,
-    'Refunded' : IDL.Null,
-    'Done' : IDL.Null,
-    'Executing' : IDL.Null,
-    'Frozen' : IDL.Null,
-  });
-  const PocketError = IDL.Variant({
-    'Overflow' : IDL.Null,
-    'InsufficientReserved' : IDL.Record({
-      'requested' : IDL.Nat,
-      'reserved' : IDL.Nat,
-    }),
-    'InsufficientAvailable' : IDL.Record({
-      'requested' : IDL.Nat,
-      'available' : IDL.Nat,
-    }),
-  });
-  const QuoteError = IDL.Variant({
-    'NotUtf8' : IDL.Record({ 'field' : IDL.Text }),
-    'TextTooLong' : IDL.Record({ 'len' : IDL.Nat64, 'field' : IDL.Text }),
-    'EmptyRefundAddress' : IDL.Null,
-    'UnknownRail' : IDL.Text,
-    'NotABool' : IDL.Record({ 'field' : IDL.Text, 'value' : IDL.Nat8 }),
-    'NotAGasMode' : IDL.Nat8,
-    'UnsupportedVersion' : IDL.Nat8,
-    'EmptyText' : IDL.Record({ 'field' : IDL.Text }),
-    'TrailingBytes' : IDL.Record({ 'len' : IDL.Nat64, 'consumed' : IDL.Nat64 }),
-    'Truncated' : IDL.Record({
-      'at' : IDL.Nat64,
-      'len' : IDL.Nat64,
-      'field' : IDL.Text,
-      'wanted' : IDL.Nat64,
-    }),
-    'AmountTooLarge' : IDL.Record({ 'field' : IDL.Text }),
-  });
   const TransitionError = IDL.Variant({
-    'NoUnsignedNonce' : IDL.Record({
-      'quote_hash' : IDL.Vec(IDL.Nat8),
-      'chain_id' : IDL.Nat64,
-    }),
-    'FundsChainNotTheQuotes' : IDL.Record({
-      'logged' : IDL.Nat64,
-      'quoted' : IDL.Nat64,
-    }),
-    'CannotAskWhileRefunding' : IDL.Null,
     'NonceNeverAllocated' : IDL.Record({
       'next' : IDL.Nat64,
       'chain_id' : IDL.Nat64,
       'nonce' : IDL.Nat64,
     }),
-    'WaitingForUser' : IDL.Null,
-    'NotRefunding' : SwapStatus,
-    'Pocket' : PocketError,
     'Flow' : IDL.Text,
     'Pool' : IDL.Text,
-    'SwapExists' : IDL.Vec(IDL.Nat8),
-    'AttemptStillOpen' : IDL.Nat32,
     'Books' : IDL.Text,
-    'UnknownSwap' : IDL.Vec(IDL.Nat8),
     'NonceStillUnsigned' : IDL.Vec(IDL.Nat8),
-    'NotExecuting' : SwapStatus,
-    'NoOpenAttempt' : IDL.Vec(IDL.Nat8),
-    'QuoteHashMismatch' : IDL.Record({
-      'computed' : IDL.Vec(IDL.Nat8),
-      'declared' : IDL.Vec(IDL.Nat8),
-    }),
-    'UnparseableQuote' : QuoteError,
     'NonceOutOfSequence' : IDL.Record({
       'expected' : IDL.Nat64,
       'chain_id' : IDL.Nat64,
       'nonce' : IDL.Nat64,
     }),
     'NonceExhausted' : IDL.Record({ 'chain_id' : IDL.Nat64 }),
-    'SwapClosed' : SwapStatus,
-    'FeesOverflow' : IDL.Null,
-    'AttemptOutOfSequence' : IDL.Record({
-      'attempt' : IDL.Nat32,
-      'expected' : IDL.Opt(IDL.Nat32),
-    }),
     'NonceNotUnsigned' : IDL.Record({
-      'chain_id' : IDL.Nat64,
-      'nonce' : IDL.Nat64,
-    }),
-    'AmountOutOfRange' : IDL.Nat,
-    'AttemptNotOpen' : IDL.Nat32,
-    'CannotStartRefund' : SwapStatus,
-    'NotInFlight' : SwapStatus,
-    'NotWaitingForUser' : SwapStatus,
-    'FeeAlreadyAccrued' : IDL.Vec(IDL.Nat8),
-    'FundsTokenNotTheQuotes' : IDL.Record({
-      'logged' : IDL.Text,
-      'quoted' : IDL.Text,
-    }),
-    'FundsAmountNotTheQuotes' : IDL.Record({
-      'logged' : IDL.Nat,
-      'quoted' : IDL.Nat,
-    }),
-    'AlreadyPaid' : IDL.Null,
-    'UnknownPocket' : IDL.Nat64,
-    'NonceNotHeldForPull' : IDL.Record({
-      'quote_hash' : IDL.Vec(IDL.Nat8),
       'chain_id' : IDL.Nat64,
       'nonce' : IDL.Nat64,
     }),
@@ -818,6 +736,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'evm_address' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+    'finalized_seen' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Nat64, FinalizedSeen))],
+        ['query'],
+      ),
     'finish_cctp' : IDL.Func(
         [
           IDL.Nat64,
@@ -1003,6 +926,7 @@ export const init = ({ IDL }) => {
     'simulate_before_sign' : IDL.Bool,
     'backstop_interval_s' : IDL.Nat64,
     'eco_enabled' : IDL.Bool,
+    'finalized_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'cctp_domains' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'cctp_min_fees' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'evm_chains' : IDL.Vec(IDL.Tuple(IDL.Nat64, EvmChainConfig)),

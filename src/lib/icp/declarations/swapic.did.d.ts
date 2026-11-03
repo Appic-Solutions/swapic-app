@@ -161,6 +161,12 @@ export interface Config {
    */
   'eco_enabled' : boolean,
   /**
+   * The chains whose transactions are final at the chain's own finalized block (the
+   * `finalized` tag) instead of a block count; their depths decide nothing. Only Polygon
+   * (137) may be named (`NotFinalizable`). Absent or empty: block counts everywhere.
+   */
+  'finalized_chains' : [] | [BigUint64Array | bigint[]],
+  /**
    * CCTP's domain id per chain: Circle's own numbering, never a chain id.
    */
   'cctp_domains' : Array<[bigint, number]>,
@@ -256,6 +262,12 @@ export type ConfigError = {
     }
   } |
   { 'TimerIntervalTooLong' : { 'field' : string, 'interval_s' : bigint } } |
+  {
+    /**
+     * `finalized_chains` names a chain that may not wait for a finalized block.
+     */
+    'NotFinalizable' : { 'chain_id' : bigint }
+  } |
   {
     /**
      * The minimum fee listed for `chain_id` is at or above `ceiling`, the whole amount in
@@ -642,6 +654,23 @@ export interface FieldsDisplay {
   'intent' : string,
 }
 /**
+ * A chain that waits for its finalized block, as the outbox last read it.
+ */
+export interface FinalizedSeen {
+  /**
+   * It has stood still ten minutes or more: nothing on the chain closes until it moves.
+   */
+  'stalled' : boolean,
+  /**
+   * When it last moved, IC time in nanoseconds (or when the first read was tried).
+   */
+  'moved_at_ns' : bigint,
+  /**
+   * The last finalized block a read gave; none before any did.
+   */
+  'number' : [] | [bigint],
+}
+/**
  * Why a flow door refused. Nothing moved.
  */
 export type FlowCallError = {
@@ -884,7 +913,7 @@ export interface PayPayoutOk { 'tx_id' : bigint }
 export type PayoutKind = { 'IcpSwap' : null } |
   { 'Withdrawal' : null };
 /**
- * The payout plan (2026-10-23): the quoter's ready-made Swapic order for the expected
+ * The payout plan: the quoter's ready-made Swapic order for the expected
  * payout (its `amountIn`), as `abi.encode(order)`, and the gas it is signed with, as
  * `pay_payout` takes them. Its one delivery names the chain, the recipient, the token and
  * the least out.
@@ -993,17 +1022,11 @@ export interface PayoutWaiting {
   'kind' : PayoutKind,
   'amount' : bigint,
   /**
-   * Micro USDC, the payout's own network fee (P11e): the watcher chooses CCTP only when it
+   * Micro USDC, the payout's own network fee: the watcher chooses CCTP only when it
    * covers the canister's CCTP costs.
    */
   'network_fee' : [] | [bigint],
 }
-/**
- * Why a pocket cannot make a move.
- */
-export type PocketError = { 'Overflow' : null } |
-  { 'InsufficientReserved' : { 'requested' : bigint, 'reserved' : bigint } } |
-  { 'InsufficientAvailable' : { 'requested' : bigint, 'available' : bigint } };
 export interface PocketView {
   'free' : bigint,
   'reserved' : bigint,
@@ -1106,7 +1129,7 @@ export type PoolError = { 'NotDeep' : { 'have' : bigint, 'needed' : bigint } } |
   { 'AboveTvlCap' : { 'cap' : bigint, 'would_be' : bigint } } |
   {
     /**
-     * No longer answered (2026-10-23): the canister enforces no per swap cap; kept, the wire
+     * No longer answered: the canister enforces no per swap cap; kept, the wire
      * being append-only.
      */
     'AboveSwapCap' : { 'cap' : bigint }
@@ -1158,7 +1181,7 @@ export type PoolRail = { 'Eco' : null } |
 export interface PoolSettings {
   /**
    * Micro USDC, launch 1_000_000_000 ($1,000): the quoter's per swap cap, which the
-   * canister stores and shows but enforces nowhere (2026-10-23).
+   * canister stores and shows but enforces nowhere.
    */
   'per_swap_cap' : bigint,
   'ckusdc_ledger' : Principal,
@@ -1185,8 +1208,7 @@ export interface PoolSettings {
    */
   'pool_open_for_swaps' : boolean,
   /**
-   * The canister's own Base read, its backup of the reports (default 300). (P11d drops
-   * the registrations' knobs: `deposit_grace_s`, `max_open_per_payer`, `max_held_bps`.)
+   * How often the canister reads Base itself, its backup of the reports (default 3,600).
    */
   'arrival_backup_s' : bigint,
   /**
@@ -1215,27 +1237,6 @@ export interface PoolStateView {
   'total_assets' : bigint,
   'closed_reason' : [] | [string],
 }
-/**
- * Why a quote was refused, naming the field wherever one is at fault.
- */
-export type QuoteError = { 'NotUtf8' : { 'field' : string } } |
-  { 'TextTooLong' : { 'len' : bigint, 'field' : string } } |
-  { 'EmptyRefundAddress' : null } |
-  { 'UnknownRail' : string } |
-  { 'NotABool' : { 'field' : string, 'value' : number } } |
-  { 'NotAGasMode' : number } |
-  { 'UnsupportedVersion' : number } |
-  { 'EmptyText' : { 'field' : string } } |
-  { 'TrailingBytes' : { 'len' : bigint, 'consumed' : bigint } } |
-  {
-    'Truncated' : {
-      'at' : bigint,
-      'len' : bigint,
-      'field' : string,
-      'wanted' : bigint,
-    }
-  } |
-  { 'AmountTooLarge' : { 'field' : string } };
 export interface RebalanceSettings {
   'max_move' : bigint,
   'standard_when_idle' : boolean,
@@ -1371,18 +1372,6 @@ export interface SupportedStandard { 'url' : string, 'name' : string }
  */
 export interface SwapFromIcpOk { 'id' : bigint, 'status' : PayoutStatus }
 /**
- * Where a swap is in its lifecycle. Plan 3 and the indexer read a swap's progress from it.
- */
-export type SwapStatus = { 'PaidInStable' : null } |
-  { 'Refunding' : null } |
-  { 'WaitingForUser' : null } |
-  { 'FundsReceived' : null } |
-  { 'Delivering' : null } |
-  { 'Refunded' : null } |
-  { 'Done' : null } |
-  { 'Executing' : null } |
-  { 'Frozen' : null };
-/**
  * What a logged sweep sent.
  */
 export type SweepAsset = { 'Icp' : null } |
@@ -1480,29 +1469,12 @@ export interface TimestampSeconds { 'amount' : bigint }
  * Why an event cannot move the state it was offered to.
  */
 export type TransitionError = {
-    'NoUnsignedNonce' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-    }
-  } |
-  {
-    /**
-     * The line says the funds arrived on `logged`, and the quote it carries is for
-     * `quoted`.
-     */
-    'FundsChainNotTheQuotes' : { 'logged' : bigint, 'quoted' : bigint }
-  } |
-  { 'CannotAskWhileRefunding' : null } |
-  {
     'NonceNeverAllocated' : {
       'next' : bigint,
       'chain_id' : bigint,
       'nonce' : bigint,
     }
   } |
-  { 'WaitingForUser' : null } |
-  { 'NotRefunding' : SwapStatus } |
-  { 'Pocket' : PocketError } |
   {
     /**
      * A flow step refused, with the domain's reason.
@@ -1510,20 +1482,8 @@ export type TransitionError = {
     'Flow' : string
   } |
   { 'Pool' : string } |
-  { 'SwapExists' : Uint8Array | number[] } |
-  { 'AttemptStillOpen' : number } |
   { 'Books' : string } |
-  { 'UnknownSwap' : Uint8Array | number[] } |
   { 'NonceStillUnsigned' : Uint8Array | number[] } |
-  { 'NotExecuting' : SwapStatus } |
-  { 'NoOpenAttempt' : Uint8Array | number[] } |
-  {
-    'QuoteHashMismatch' : {
-      'computed' : Uint8Array | number[],
-      'declared' : Uint8Array | number[],
-    }
-  } |
-  { 'UnparseableQuote' : QuoteError } |
   {
     'NonceOutOfSequence' : {
       'expected' : bigint,
@@ -1532,44 +1492,7 @@ export type TransitionError = {
     }
   } |
   { 'NonceExhausted' : { 'chain_id' : bigint } } |
-  { 'SwapClosed' : SwapStatus } |
-  { 'FeesOverflow' : null } |
-  {
-    'AttemptOutOfSequence' : { 'attempt' : number, 'expected' : [] | [number] }
-  } |
-  { 'NonceNotUnsigned' : { 'chain_id' : bigint, 'nonce' : bigint } } |
-  { 'AmountOutOfRange' : bigint } |
-  { 'AttemptNotOpen' : number } |
-  { 'CannotStartRefund' : SwapStatus } |
-  { 'NotInFlight' : SwapStatus } |
-  { 'NotWaitingForUser' : SwapStatus } |
-  {
-    /**
-     * The swap already holds its platform fee: one fee line per swap.
-     */
-    'FeeAlreadyAccrued' : Uint8Array | number[]
-  } |
-  {
-    /**
-     * The line says `logged` arrived, and the quote it carries is for `quoted`.
-     */
-    'FundsTokenNotTheQuotes' : { 'logged' : string, 'quoted' : string }
-  } |
-  {
-    /**
-     * The line says `logged` arrived, and the quote it carries is for `quoted`.
-     */
-    'FundsAmountNotTheQuotes' : { 'logged' : bigint, 'quoted' : bigint }
-  } |
-  { 'AlreadyPaid' : null } |
-  { 'UnknownPocket' : bigint } |
-  {
-    'NonceNotHeldForPull' : {
-      'quote_hash' : Uint8Array | number[],
-      'chain_id' : bigint,
-      'nonce' : bigint,
-    }
-  };
+  { 'NonceNotUnsigned' : { 'chain_id' : bigint, 'nonce' : bigint } };
 /**
  * How a transaction the canister signed ended.
  */
@@ -1668,7 +1591,7 @@ export interface WithdrawIcpArgs {
 export interface WithdrawIcpOk { 'paid' : bigint, 'burned' : bigint }
 export interface _SERVICE {
   /**
-   * The book lines of every chain, in micro-USDC, with the last balance check.
+   * The book lines of every chain, in micro-USDC, with the last balance read.
    */
   'books' : ActorMethod<[], Array<[bigint, BookLines]>>,
   /**
@@ -1692,6 +1615,13 @@ export interface _SERVICE {
    * is fixed for the life of the canister. `derive_evm_address` is the door that derives it.
    */
   'evm_address' : ActorMethod<[], [] | [string]>,
+  /**
+   * Each chain that waits for its finalized block: the last finalized block a read gave, when
+   * it last moved (IC time in nanoseconds, or of the first read tried before any gave one),
+   * and whether it has stood still long enough to be a stall. Nothing on a stalled chain
+   * closes until it moves.
+   */
+  'finalized_seen' : ActorMethod<[], Array<[bigint, FinalizedSeen]>>,
   /**
    * Watcher-only, refused while halted. Finishes a CCTP arrival on `chain_id`, the
    * destination. `message` and `attestation` are Circle's, the message 696 bytes with the
@@ -1767,7 +1697,7 @@ export interface _SERVICE {
    * `src_chain`; an empty `src_tx` names none). The canister reads the receipts itself, proves
    * the transfer carries the move's own ref (its CCTP envelope, or the Eco source's
    * `OrderStarted`), and credits the move once. A caller other than the watcher is held to 10
-   * reports a minute in total and 3 an hour per `base_tx` (P11e), refused `Unavailable` before
+   * reports a minute in total and 3 an hour per `base_tx`, refused `Unavailable` before
    * any outcall.
    */
   'note_move_arrival' : ActorMethod<
@@ -1836,7 +1766,7 @@ export interface _SERVICE {
   'pool_approve_ck_helper' : ActorMethod<[], Result_4>,
   /**
    * Controller-only, refused while halted, once per deploy and chain (Base, and Ethereum for
-   * the moves to Base, P11c): reads the canister's USDC allowance to Swapic on `chain_id` and,
+   * the moves to Base): reads the canister's USDC allowance to Swapic on `chain_id` and,
    * below 2^255, signs `USDC.approve(Swapic, 2^256 - 1)`, so every pool payout and move is one
    * signature of `Swapic.run`. Safe because `run` pulls only from `payer == msg.sender`. An
    * allowance already in place answers `Known`; an approval on its way answers `Unavailable`.
@@ -1922,7 +1852,7 @@ export interface _SERVICE {
    */
   'rescue_eco_intent' : ActorMethod<[Uint8Array | number[]], Result_6>,
   /**
-   * Controller-only, refused while halted (Jeff, 2026-10-24): an EVM to ICP deposit held for a
+   * Controller-only, refused while halted: an EVM to ICP deposit held for a
    * human (`PayoutFailed`: a payout stopped after its tenth failure, a queued one that never
    * started, a stake whose mint kept failing), resolved once by its ref (its 32 bytes).
    * `Retry`: back to its payout with fresh attempts. A started one whose transfer cannot land
@@ -1958,7 +1888,7 @@ export interface _SERVICE {
    */
   'resolve_move' : ActorMethod<[bigint, MoveResolution], Result_5>,
   /**
-   * Controller-only, refused while halted (Jeff, 2026-10-19: orphans are ALWAYS held for a
+   * Controller-only, refused while halted (orphans are ALWAYS held for a
    * controller): resolves the orphan under `key` (its 48 bytes, as `pool_orphans` lists it)
    * once. `Refund { to }` signs `USDC.transfer(to, amount - min_network_fee)` on Base, the
    * fee kept for its gas; `Book` books it to the Base books' unattributed line.
@@ -1968,7 +1898,7 @@ export interface _SERVICE {
     Result_5
   >,
   /**
-   * Controller-only, refused while halted (Jeff, 2026-10-23): a payout stopped for a human
+   * Controller-only, refused while halted: a payout stopped for a human
    * (`Failed`), resolved once. `Refund`: back on its undo, an ICP swap's refund asked next (all
    * its ckUSDC less one ledger fee, or its token), a withdrawal's shares minted back at once;
    * the controller checked no refund went out before. `MarkPaid`: its signed order ran after
@@ -1976,7 +1906,7 @@ export interface _SERVICE {
    */
   'resolve_payout' : ActorMethod<[bigint, PayoutResolution], Result_5>,
   /**
-   * Controller-only, refused while halted (Jeff, 2026-10-24): an ICP stake whose pull's answer
+   * Controller-only, refused while halted: an ICP stake whose pull's answer
    * was lost, past the ledger's deduplication window (23 hours after it started; the canister
    * stops asking its pull again then), resolved once by its op id (its 32 bytes, as its
    * `StakeStarted` line names it). `Pulled { block }`: the controller saw the pull in that
@@ -2004,9 +1934,9 @@ export interface _SERVICE {
   /**
    * Controller-only, both ways: `true` is an emergency stop, `false` lifts it.
    * 
-   * Lifting the halt wakes the outbox: a halted canister's pass does not re-arm itself,
-   * so this is what puts it back on the window when a queued transaction or an allocation
-   * waiting for its cancel was held back by the halt.
+   * Lifting the halt wakes the outbox and the engine's backstop: neither re-arms itself on a
+   * halted canister, so this is what puts them back when a queued transaction, an allocation
+   * waiting for its cancel or an open payout was held back by the halt.
    */
   'set_halted' : ActorMethod<[boolean], Result_9>,
   /**
@@ -2092,7 +2022,8 @@ export interface _SERVICE {
    * at a gas price the canister reads itself:
    * 
    * - `Native`: the chain's gas coin, refused while any transaction of the canister on that
-   * chain is still open (it may need the gas for a fee bump).
+   * chain is still open (it may need the gas for a fee bump), and past the balance less the
+   * sweep's own gas (the chain's `sweep` budget, or the worst L2 cost if that is more).
    * - `FeeUsdc`: `USDC.transfer` of booked fee income only: at most the chain books' fee
    * income, plus the pool's Base fee line on the pool chain. The amount leaves the books
    * as the transaction is signed and comes back if it reverts or is cancelled.
