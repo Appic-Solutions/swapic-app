@@ -5,7 +5,7 @@ import type { UiToken } from '@/components/ui/token-types';
 import { verifyEvmRoute, type CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { CANISTER, GUARD, PAYER, executable, forge, load } from '@/features/swap/guards/forge.fixture';
 import { memoRef } from '@/features/swap/guards/memo';
-import { encodeMemo } from '@/features/swap/guards/memo.fixture';
+import { encodeMemo, poolTerms } from '@/features/swap/guards/memo.fixture';
 import type { PickedOption } from '@/features/swap/options';
 import { tokenAmountText } from '@/lib/copy/format';
 import { evmStakeReview, evmStakeSteps, evmWithdrawReview, icpStakeReview, icpWithdrawReview } from './review';
@@ -21,7 +21,7 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
   const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
   const memo = encodeMemo({ kind: 'stake', salt: `0x${'55'.repeat(32)}`, minUsdc: BigInt(q.amountIn), owner: { evm: PAYER }, moveFee: 35_827n });
   const ref = memoRef(memo);
-  const route: Route = { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: CANISTER, minOut: BigInt(q.amountIn) } })), pool: { ref, kind: 'stake' }, envelope: undefined };
+  const route: Route = { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: CANISTER, minOut: BigInt(q.amountIn) } })), pool: poolTerms(ref, memo, 'stake'), envelope: undefined };
   const stakeQuote: Quote = { ...q, toChain: 'icp:737ba355e855bd4b61279056603e0550', toToken: { address: CKUSDC, symbol: 'ckUSDC', decimals: 6, verified: true } };
   const amount = BigInt(q.amountIn);
   const checked = verifyEvmRoute({

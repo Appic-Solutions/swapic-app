@@ -37,15 +37,20 @@ export type Warning =
   | 'highPriceImpact' | 'severePriceImpact' | 'priceImpactUnknown' | 'bridgeFeeEstimated' | 'bridgeFeeUnknown'
   | 'arrivalSwapNotRunnable' | 'dynamicEcoUntested' | 'unverifiedToken' | 'symbolLooksLikeListed' | 'symbolNotAscii';
 
-/** answer/mod.rs:166-195, micro USDC each */
+/** answer/mod.rs Fees, micro USDC each. `moveFee`: a stake's move to the pool's other side (Swapic's); network, bridge and
+ *  platform never include it. */
 export interface Fees {
   network: string; bridge: string; platform: string;
-  premium?: string; icpFees?: string; poolRebalancing?: string;
+  premium?: string; icpFees?: string; moveFee?: string;
 }
 
-/** A pool route's terms as the quoter shows them. Never trusted: the app reads the terms from the order's own memo, whose
- *  keccak is the order's ref (guards/memo.ts); only the presence of this object marks a route into the pool. */
-export interface PoolTerms { ref: string; kind: 'swap' | 'stake' }
+/** A pool route's terms as the quoter shows them (answer/mod.rs PoolTerms, micro USDC). Never trusted: the app reads the
+ *  terms from the order's own memo, whose keccak is the order's ref (guards/memo.ts); only the presence of this object
+ *  marks a route into the pool. */
+export interface PoolTerms {
+  ref: string; kind: 'swap' | 'stake'; account: string; tokenOut?: string; minOut?: string;
+  minUsdc: string; premium: string; icpFees: string; moveFee: string; salt: string; memo: string;
+}
 
 /** answer/mod.rs:281-305: swap_from_icp's argument, sent as is */
 export interface IcpSwapTermsAnswer {
@@ -159,9 +164,9 @@ export interface PoolAnswer {
   totalAssets: string; totalShares: string; sharePrice?: string | null; tvlCap: string; perSwapCap: string;
   premiumBps: number; ckusdcLedger: string; icpTokens: { ledger: string; icpswapPool: string }[];
   stats?: PoolStats | null;
-  /** NOT FINAL (services task S8): the full cost of one move between the pool's two sides at live gas, micro USDC, which an
-   *  ICP stake (`icpToBase`) and an ICP withdrawal (`baseToIcp`) pay Swapic as their `move_fee`. Left out by today's quoter:
-   *  the app then offers neither. */
+  /** One move between the pool's two sides at live gas, at least the canister's least for its direction, micro USDC
+   *  (api/pool.rs MoveFeesAnswer): what an ICP stake (`icpToBase`) and an ICP withdrawal (`baseToIcp`) pay Swapic as their
+   *  `move_fee`. Null while the quoter has no price or gas reading: the app then offers neither. */
   moveFees?: { baseToIcp: string; icpToBase: string } | null;
 }
 /** contract 5.2. `points[].sharePrice` is null while no shares exist (before the first stake; staging answers so, recorded

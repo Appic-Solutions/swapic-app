@@ -21,7 +21,7 @@ export function gasText(p: PickedOption, native: NativeCoin): string {
 
 /** Every fee line in micro USDC (answer/mod.rs:166-195). `platform` is in the output token on a same chain swap with no USDC side. */
 export function sumFees(f: Fees, platformInTokenOut?: { decimals: number; priceUsd: string | null }): bigint {
-  const lines = [f.network, f.bridge, f.premium, f.icpFees, f.poolRebalancing].reduce((a, x) => a + (x ? BigInt(x) : 0n), 0n);
+  const lines = [f.network, f.bridge, f.premium, f.icpFees, f.moveFee].reduce((a, x) => a + (x ? BigInt(x) : 0n), 0n);
   const platform = BigInt(f.platform);
   if (!platformInTokenOut) return lines + platform;
   return lines + (usdMicro(platform, platformInTokenOut.decimals, platformInTokenOut.priceUsd) ?? 0n);

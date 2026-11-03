@@ -1,6 +1,7 @@
 // Test only. Terms written as the canister's memo encoder writes them (canister/types/src/pool/memo), to build pool orders.
 import { Principal } from '@icp-sdk/core/principal';
 import { bytesToHex, concat, hexToBytes, numberToBytes, type Hex } from 'viem';
+import type { PoolTerms } from '@/lib/api';
 import type { MemoAccount, MemoTerms } from './memo';
 
 const word = (v: bigint) => numberToBytes(v, { size: 16 });
@@ -17,3 +18,8 @@ export function encodeMemo(t: MemoTerms): Hex {
     : ['evm' in t.owner ? concat([new Uint8Array([1]), hexToBytes(t.owner.evm)]) : concat([new Uint8Array([2]), account(t.owner.icp)]), word(t.moveFee)];
   return bytesToHex(concat([...head, ...tail]));
 }
+
+/** A route's `pool` as the quoter shows it, around a memo (shown only: the check reads the memo itself). */
+export const poolTerms = (ref: Hex, memo: Hex, kind: 'swap' | 'stake'): PoolTerms => ({
+  ref, kind, account: '', minUsdc: '0', premium: '0', icpFees: '0', moveFee: '0', salt: `0x${'00'.repeat(32)}`, memo,
+});

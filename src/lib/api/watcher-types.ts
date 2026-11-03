@@ -12,8 +12,8 @@ export interface Refund {
 /** contract 5.14's closed words; the backend may add one, which the app reads as `other`. `deliveredAsUsdc` (services
  *  77af0f9): on a `refunded` order, its arrival could not buy the token, so the recipient got the USDC itself. */
 export type ReasonCode = 'expired' | 'timedOut' | 'priceMoved' | 'deliveredAsUsdc' | 'notFilled' | 'poolShort' | 'stopped' | 'other';
-/** NOT FINAL (services task S11): true while the canister holds the order's money for a person to resolve (an orphan).
- *  Left out by today's watcher, which reads as not held. */
+/** True while the canister holds the order's money for a person to resolve, as an orphan (watcher c00d864). An older
+ *  watcher leaves it out, which reads as not held. */
 export interface HoldFlag { onHold?: boolean | null }
 /** contract 5.7. `reason` is the backend's own text and is never shown (it may name a rail, contract 6); the app reads `reasonCode`.
  *  A side whose `chain` is null is the Swapic Pool: every stake's `to` (an EVM stake's too), every withdrawal's `from`. */
@@ -76,5 +76,9 @@ export interface GaslessSubmit {
   auth: { door: 'auth3009' | 'permit2612' | 'permit2'; validAfter: string; validBefore: string; nonce: string; deadline: string; signature: string; acceptance: string };
   signedAt: number;
 }
+/** POST /v2/deposits/find (watcher find.rs): a paid transaction the history does not show, asked for by chain and hash.
+ *  `queued`: it started an order of ours (or paid the pool) and is being filed; `filed`: done, `orders` filed from it;
+ *  `nothing`: no order of ours in it (or no such transaction yet). `why` is the backend's own text and never shown. */
+export interface FindAnswer { chain: string; tx: string; state: 'queued' | 'filed' | 'nothing' | (string & {}); orders: number | null; why: string | null }
 /** withdraw/mod.rs:50-56 */
 export interface WithdrawSubmit { withdrawal: import('./quoter-types').WithdrawalJson; signature: string }

@@ -1,6 +1,7 @@
 // Moved from the design's scanner-screens.tsx NotFound: names only the short form of what was searched.
 import * as React from 'react';
 import { short } from '@/lib/copy/format';
+import { FindSwap } from './FindSwap';
 
 export function NotFound({ query }: { query: string }) {
   return (
@@ -11,6 +12,7 @@ export function NotFound({ query }: { query: string }) {
       <p className="max-w-[460px] text-sm leading-6 text-[#898989]">
         Try a full EVM address (0x and 40 characters), an ICP principal, a Swapic order ID or the hash of a transaction on any chain.
       </p>
+      <FindSwap query={query} />
     </div>
   );
 }

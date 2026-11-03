@@ -10,7 +10,7 @@ const WOOF = '0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07';
 
 // A stake quote built from the request (no real one exists yet: plan 4 Task 5 records one on staging): the StakeQuote shape
 // (services/quoter/src/api/answer/mod.rs, stake routes), one you pay gas route whose numbers follow the design's sample,
-// a $0.18 network fee and the rebalancing share at 0.1% of the amount (fees.poolRebalancing, pool.rebalanceShare); derived, manifest
+// a $0.18 network fee and the rebalancing share at 0.1% of the amount (fees.moveFee, pool.moveFee); derived, manifest
 const stakeQuote = (_u, req) => {
   const b = req.postDataJSON();
   const amount = BigInt(b.amount);
@@ -20,8 +20,8 @@ const stakeQuote = (_u, req) => {
   const route = {
     routeId: 'cctpFast', bridge: 'cctpFast', path: ['cctpFast'], rank: 1, slow: false, priceImpactPct: '0', etaSeconds: 12, etaSource: 'estimate',
     warnings: [], amountOut: String(min), amountOutMin: String(min), amountOutText: String(min), executable: true,
-    fees: { network: String(network), bridge: '0', platform: '0', poolRebalancing: String(share) },
-    pool: { ref: `0x${'00'.repeat(32)}`, salt: `0x${'55'.repeat(32)}`, kind: 'stake', account: b.owner.toLowerCase(), premium: '0', icpFees: '0', rebalanceShare: String(share), candid: '0x' },
+    fees: { network: String(network), bridge: '0', platform: '0', moveFee: String(share) },
+    pool: { ref: `0x${'00'.repeat(32)}`, salt: `0x${'55'.repeat(32)}`, kind: 'stake', account: b.owner.toLowerCase(), minUsdc: '0', premium: '0', icpFees: '0', moveFee: String(share), memo: '0x' },
   };
   return { status: 200, json: {
     quoteId: 'q-stake-e2e', fromChain: b.fromChain, fromToken: { address: b.fromToken, symbol: 'USDC', decimals: 6, verified: true }, amountIn: b.amount,
@@ -38,7 +38,7 @@ const CFG = JSON.parse(readFileSync(new URL('../fixtures/derived/swapic-config.j
 const WITHDRAWAL_TYPES = {
   Withdrawal: [
     { name: 'staker', type: 'address' }, { name: 'usdc', type: 'uint256' }, { name: 'maxShares', type: 'uint256' },
-    { name: 'rebalanceShare', type: 'uint256' }, { name: 'networkFee', type: 'uint256' }, { name: 'dstChain', type: 'uint64' },
+    { name: 'moveFee', type: 'uint256' }, { name: 'networkFee', type: 'uint256' }, { name: 'dstChain', type: 'uint64' },
     { name: 'recipient', type: 'address' }, { name: 'tokenOut', type: 'address' }, { name: 'minOut', type: 'uint256' },
     { name: 'deadline', type: 'uint64' }, { name: 'nonce', type: 'uint64' },
   ],
@@ -53,12 +53,12 @@ const withdrawQuote = (queued) => (_u, req) => {
   const burn = ceilDiv(usdc * POOL_S, POOL_A);
   const maxShares = burn + ceilDiv(burn * 5n, 1000n);
   const networkFee = 50_000n;
-  const rebalanceShare = 1_000n;
-  const expectedOut = usdc - networkFee - rebalanceShare;
+  const moveFee = 1_000n;
+  const expectedOut = usdc - networkFee - moveFee;
   const until = POOL_CLOCK + 6 * 3600;
   const dst = Number(b.dstChain.split(':')[1]);
   const record = {
-    staker: b.staker, usdc: b.usdc, maxShares: String(maxShares), rebalanceShare: String(rebalanceShare), networkFee: String(networkFee),
+    staker: b.staker, usdc: b.usdc, maxShares: String(maxShares), moveFee: String(moveFee), networkFee: String(networkFee),
     payout: { dstChain: dst, recipient: b.recipient, tokenOut: CFG.chains[String(dst)].usdc, minOut: String(expectedOut), deadlineNs: `${until}000000000` },
     nonce: String(1 + Math.floor(Math.random() * 2 ** 52)),
   };
@@ -66,14 +66,14 @@ const withdrawQuote = (queued) => (_u, req) => {
   const typedData = {
     domain: { name: 'Swapic Pool', version: '1', chainId: CFG.poolChain, verifyingContract: swapic }, types: WITHDRAWAL_TYPES, primaryType: 'Withdrawal',
     message: {
-      staker: getAddress(record.staker), usdc, maxShares, rebalanceShare, networkFee, dstChain: BigInt(dst), recipient: getAddress(record.payout.recipient),
+      staker: getAddress(record.staker), usdc, maxShares, moveFee, networkFee, dstChain: BigInt(dst), recipient: getAddress(record.payout.recipient),
       tokenOut: getAddress(record.payout.tokenOut), minOut: expectedOut, deadline: BigInt(until), nonce: BigInt(record.nonce),
     },
   };
   const json = (o) => JSON.parse(JSON.stringify(o, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
   return { status: 200, json: {
     withdrawal: record, typedData: json(typedData), digest: hashTypedData(typedData), verifyingContract: swapic,
-    fees: { networkFee: String(networkFee), rebalanceShare: String(rebalanceShare), moveCost: '0', networkLines: [] },
+    fees: { networkFee: String(networkFee), moveFee: String(moveFee) },
     payout: { route: 'cctp', amount: String(expectedOut), expectedOut: String(expectedOut), minOut: String(expectedOut) },
     shares: { burn: String(burn), maxShares: String(maxShares), label: 'estimated' }, etaSeconds: 20, quotedAt: POOL_CLOCK, expiresAt: until,
     queue: queued ? { place: 2, aheadUsdc: '1200000000', etaAt: POOL_CLOCK + 2400 } : null,

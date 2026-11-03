@@ -7,7 +7,7 @@ import type { GuardError } from './errors';
 import { routeOffered, verifyEvmRoute, type EvmCheckInput } from './evm';
 import { ATTACKER, CANISTER, GUARD, ICP_ME, PAYER, clone, executable, forge, load } from './forge.fixture';
 import { memoRef, type MemoTerms } from './memo';
-import { encodeMemo } from './memo.fixture';
+import { encodeMemo, poolTerms } from './memo.fixture';
 
 function input(q: Quote, route: Route, mode: 'gasless' | 'userPays', over: Partial<EvmCheckInput> = {}): EvmCheckInput {
   const env = route.envelope;
@@ -123,7 +123,7 @@ describe('pool routes: the order memo commits the terms on screen, its keccak th
     const ref = o.ref ?? memoRef(memo);
     return {
       ...forge(q, base, (v) => ({ ...v, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: o.to ?? CANISTER, minOut: BigInt(q.amountIn) } })),
-      pool: { ref, kind: t.kind }, amountOutMin: '240300', envelope: undefined,
+      pool: poolTerms(ref, memo, t.kind), amountOutMin: '240300', envelope: undefined,
     };
   };
   const check = (r: Route) => rule(() => verifyEvmRoute(input(poolQuote, r, 'userPays', { recipient: ICP_ME, toToken: CKBTC })));
@@ -208,7 +208,7 @@ describe('verifyEvmRoute, stake (a real Base order made into a stake, its memo a
   const route = (t: MemoTerms = terms, to: Hex = CANISTER): Route => {
     const memo = encodeMemo(t);
     const ref = memoRef(memo);
-    return { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })), pool: { ref, kind: 'stake' }, envelope: undefined };
+    return { ...forge(q, base, (o) => ({ ...o, ref, memo, steps: [], payout: { token: q.fromToken.address as Hex, recipient: to, minOut: BigInt(q.amountIn) } })), pool: poolTerms(ref, memo, 'stake'), envelope: undefined };
   };
   const check = (r: Route, over: Partial<EvmCheckInput> = {}) => rule(() => verifyEvmRoute(input(stakeQuote, r, 'userPays', { recipient: PAYER, toToken: CKUSDC, stakeOwner: PAYER, ...over })));
   it('passes when the shares go to the payer and the USDC to the canister', () => expect(check(route())).toBe('passed'));

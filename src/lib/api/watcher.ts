@@ -14,3 +14,4 @@ export const getScannerLatest = (cursor?: string, kind?: 'swap' | 'stake' | 'wit
 export const getScannerStats = () => getJson<W.ScannerStats>('/v2/scanner/stats');
 export const searchScanner = (q: string, cursor?: string) => getJson<W.SearchAnswer>('/v2/scanner/search', { q, cursor });
 export const getSteps = (id: string) => getJson<W.StepsAnswer>(`/v2/orders/${enc(id)}/steps`);
+export const findDeposit = (b: { chain: string; tx: string }) => postJson<W.FindAnswer>('/v2/deposits/find', b);
