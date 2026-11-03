@@ -54,7 +54,7 @@
 // through. It shows in Your stake in a minute." ShortShares asks one new quote and one new signature, shown to the person
 // (spec 11: retry once with fresh numbers). The wallet moves to the pool chain before signing (the domain names it).
 import { bytesToHex } from 'viem';
-import { ApiError, userMessage, type PoolAnswer, type Quote, type StakeQuote, postStakeQuote, postWithdraw as postWithdrawFn, postWithdrawQuote as postWithdrawQuoteFn } from '@/lib/api';
+import { ApiError, userMessage, type PoolAnswer, type Quote, type StakeQuote, type StakeRequest, postStakeQuote, postWithdraw as postWithdrawFn, postWithdrawQuote as postWithdrawQuoteFn } from '@/lib/api';
 import { PoolErrorFailure, poolErrorMessage, stakeRoom as roomAfterCap, type IcpCaller, type IcpClient } from '@/lib/icp';
 import { Principal } from '@icp-sdk/core/principal';
 import { ICP_CHAIN } from '@/config';
@@ -126,6 +126,21 @@ export function checkStakeRoute(i: { quote: StakeQuote; option: PickedOption; fr
     quote: asQuote(i.quote), route: i.option.route, mode: i.option.mode as 'gasless' | 'userPays', payer: i.owner, recipient: i.owner,
     fromToken: i.from.address, toToken: CKUSDC, amountIn: i.amount, guard: i.guard, nowSec: i.nowSec, stakeOwner: i.owner,
   });
+}
+
+/**
+ * Stake's live check: the route read against the amount its own quote was asked for (the request), never the amount being
+ * typed while a new quote is on its way, so a quote is never refused for an amount it was not asked for. Returns the
+ * checked route or the plain sentence of why not.
+ */
+export function stakeCheckOf(i: { quote: StakeQuote; option: PickedOption; requested: StakeRequest; from: UiToken; guard: GuardContext | undefined; nowSec: number }):
+  { checked: CheckedEvmRoute; error: null } | { checked: null; error: string } {
+  try {
+    const owner = i.requested.owner as `0x${string}`;
+    return { checked: checkStakeRoute({ quote: i.quote, option: i.option, from: i.from, amount: BigInt(i.requested.amount), owner, guard: i.guard, nowSec: i.nowSec }), error: null };
+  } catch (e) {
+    return { checked: null, error: e instanceof GuardError ? GUARD_MESSAGE : userMessage(e) };
+  }
 }
 
 /** The stake answer has no toChain/toToken (always into the pool, ckUSDC on ICP: api/mod.rs:563-564); the check reads them. */

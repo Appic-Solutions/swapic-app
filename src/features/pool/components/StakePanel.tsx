@@ -35,7 +35,7 @@ import { evmStakeReview, icpStakeReview } from '../review';
 import type { StakeStart } from './StakeReview';
 import { USDC_LOGO } from '../usdc';
 import { STAKE_CARD, StakeAvatar } from './parts';
-import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, POOL_PAUSED, stakeRoom, stakeView, usdcText } from '../flows';
+import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, POOL_PAUSED, stakeCheckOf, stakeRoom, stakeView, usdcText } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
 const ICP_STAKE_OFF = 'Staking from ICP is not available right now. Try again soon.';
@@ -110,19 +110,18 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   });
   // from ICP: the pool takes the amount itself; the person pays two ledger fees (the approval and the pull)
   const fee = useQuery({ queryKey: ['ledger-fee', CKUSDC], queryFn: () => icpClient().ledgerFee(CKUSDC), enabled: fromIcp, staleTime: 600_000 }).data;
-  const option = q.data ? pickStakeOption(q.data) : undefined;
+  const option = React.useMemo(() => (q.data ? pickStakeOption(q.data) : undefined), [q.data]);
   // from ICP, Swapic's move fee as the quoter prices it; without it no ICP stake is offered
   const moveFee = fromIcp ? icpMoveFee(pool, 'stake') : null;
-  // from an EVM chain, the route checked exactly as it will be signed: a quote that fails here never shows numbers
-  let checked: ReturnType<typeof checkStakeRoute> | null = null;
-  let checkError: string | null = null;
-  if (!fromIcp && q.data && option && evm && from && amount !== null && guard) {
-    try {
-      checked = checkStakeRoute({ quote: q.data, option, from, amount, owner: evm.address, guard, nowSec: Math.floor(Date.now() / 1000) });
-    } catch (e) {
-      checkError = e instanceof GuardError ? GUARD_MESSAGE : userMessage(e);
-    }
-  }
+  // from an EVM chain, the route checked exactly as it will be signed, against the amount its quote was asked for: a quote
+  // that fails here never shows numbers (once per answer; Review stake checks it again on the clock at the click)
+  const live = React.useMemo(
+    () => (!fromIcp && q.data && option && request && from ? stakeCheckOf({ quote: q.data, option, requested: request, from, guard, nowSec: Math.floor(Date.now() / 1000) }) : null),
+    // the request is keyed by value: a new object each render for the same ask
+    [q.data, option, guard, JSON.stringify(request), fromIcp, from], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const checked = live?.checked ?? null;
+  const checkError = live?.error ?? null;
   const view = fromIcp
     ? (amount !== null && amount > 0n && fee !== undefined && moveFee !== null && amount > moveFee
       ? { added: amount - moveFee, addedText: formatUsd(amount - moveFee).slice(1), feeText: usdcText(2n * fee + moveFee), readyText: '5 Sec' } : null)

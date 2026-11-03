@@ -9,6 +9,8 @@ import { encodeMemo, poolTerms } from '@/features/swap/guards/memo.fixture';
 import type { PickedOption } from '@/features/swap/options';
 import { tokenAmountText } from '@/lib/copy/format';
 import { evmStakeReview, evmStakeSteps, evmWithdrawReview, icpStakeReview, icpWithdrawReview } from './review';
+import { stakeCheckOf } from './flows';
+import type { StakeQuote } from '@/lib/api';
 import { checkWithdrawQuote, withdrawalTypedData } from './withdraw-sig';
 
 const USDC_BASE: UiToken = { key: 'eip155:8453|usdc', chain: 'eip155:8453', chain_type: 'EVM', address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', decimals: 6 } as UiToken;
@@ -42,6 +44,13 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
   it('a display field the check does not bind changes nothing', () => {
     const shown = evmStakeReview({ option: { ...option, route: { ...route, amountOut: '999999999999' } }, checked, from: USDC_BASE, amount, native: NATIVE });
     expect(shown.added).toBe(r.added);
+  });
+  it('checks the quote against the amount it was asked for, never the amount being typed', () => {
+    const requested = { fromChain: q.fromChain, fromToken: q.fromToken.address, amount: q.amountIn, owner: PAYER, payer: PAYER };
+    const live = (amount: string) => stakeCheckOf({ quote: stakeQuote as unknown as StakeQuote, option, requested: { ...requested, amount }, from: USDC_BASE, guard: GUARD, nowSec: q.quotedAt });
+    expect(live(q.amountIn).checked?.minOut).toBe(checked.minOut);
+    // a request for another amount than the quote answered is refused in plain words, not thrown
+    expect(live((BigInt(q.amountIn) + 1n).toString())).toEqual({ checked: null, error: 'This quote could not be checked. Get a new quote and try again.' });
   });
   it('asks for the steps the checked route runs: an approval first only when it carries one', () => {
     expect(r.steps.length).toBe(checked.approval ? 2 : 1);
