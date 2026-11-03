@@ -14,7 +14,8 @@ import Skeleton from '@/components/ui/skeleton';
 import type { UiToken } from '@/components/ui/token-types';
 import { chainLogo, chainNumber } from '@/lib/explorer';
 import { chainPlace } from '@/lib/chains';
-import { toUiToken, useChains, useTokenList } from '../tokens';
+import { useChains, useTokenList } from '../tokens';
+import { findReal } from '../real-token';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { listItem, openHeight, page, tw, useInPresence, useMounted, useReducedMotion } from '@/lib/motion';
@@ -69,15 +70,15 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const reduced = useReducedMotion();
   // the flagged row whose confirm is open
   const [confirming, setConfirming] = React.useState<string | null>(null);
-  /** A fake's "Use the real X": the listed token, from the rows on screen or asked for by its address. */
+  // a fake's "Use the real X" while it looks, and what it says when the real token cannot be found
+  const [real, setReal] = React.useState<{ busy: boolean; note: string | null }>({ busy: false, note: null });
+  const open = (key: string | null) => { setConfirming(key); setReal({ busy: false, note: null }); };
+  /** The confirm stays open until the real token is picked; when it cannot be found, it says so. */
   const pickReal = async (t: UiToken) => {
-    const real = listedFor(t)?.token;
-    if (!real) return;
-    const shown = tokens.find((x) => markOf(x) === 'verified' && x.address.toLowerCase() === real.address.toLowerCase());
-    if (shown) { onSelect(shown); return; }
-    const info = chains.find((c) => c.chainId === t.chain);
-    const found = info ? (await getTokens(t.chain, real.address).catch(() => null))?.tokens[0] : undefined;
-    if (found && info) onSelect(toUiToken(found, info));
+    setReal({ busy: true, note: null });
+    const found = await findReal(t, tokens, chains.find((c) => c.chainId === t.chain), getTokens);
+    if (found) { open(null); onSelect(found); return; }
+    setReal({ busy: false, note: `We couldn't find the real ${listedFor(t)?.token.symbol ?? t.symbol} right now. Search for it by name, or try again.` });
   };
 
   // more tokens as the list scrolls to its end
@@ -137,17 +138,17 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
             {tokens.map((t, i) => {
               const mark = markOf(t);
               const isSelected = !!selected && selected.key === t.key;
-              const open = confirming === t.key;
+              const isOpen = confirming === t.key;
               return (
                 <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
                   <TokenListItem
                     token={t}
                     mark={mark}
                     isSelected={isSelected}
-                    onClick={() => (needsConfirm(mark) && !isSelected ? setConfirming(open ? null : t.key) : onSelect(t))}
+                    onClick={() => (needsConfirm(mark) && !isSelected ? open(isOpen ? null : t.key) : onSelect(t))}
                   />
                   <AnimatePresence initial={false}>
-                    {open && (mark === 'fake' || mark === 'unverified') && (
+                    {isOpen && (mark === 'fake' || mark === 'unverified') && (
                       <motion.div
                         className="overflow-hidden"
                         initial={{ opacity: 0, height: 0 }}
@@ -158,9 +159,11 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
                           token={t}
                           mark={mark}
                           realSymbol={mark === 'fake' ? listedFor(t)?.token.symbol : undefined}
-                          onCancel={() => setConfirming(null)}
-                          onConfirm={() => { setConfirming(null); onSelect(t); }}
-                          onReal={mark === 'fake' ? () => { setConfirming(null); void pickReal(t); } : undefined}
+                          onCancel={() => open(null)}
+                          onConfirm={() => { open(null); onSelect(t); }}
+                          onReal={mark === 'fake' ? () => void pickReal(t) : undefined}
+                          realBusy={real.busy}
+                          realNote={real.note}
                         />
                       </motion.div>
                     )}

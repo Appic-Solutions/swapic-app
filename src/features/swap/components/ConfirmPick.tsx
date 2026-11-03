@@ -10,13 +10,15 @@ import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
 import { tw } from '@/lib/motion';
 
-export function ConfirmPick({ token, mark, realSymbol, onCancel, onConfirm, onReal }: {
+export function ConfirmPick({ token, mark, realSymbol, onCancel, onConfirm, onReal, realBusy, realNote }: {
   token: UiToken; mark: 'fake' | 'unverified';
   /** A fake: the symbol of the listed token it imitates. */
   realSymbol?: string;
   onCancel: () => void; onConfirm: () => void;
-  /** A fake: picks the real token instead. */
+  /** A fake: picks the real token instead; `realBusy` while it looks, `realNote` when it could not be found. */
   onReal?: () => void;
+  realBusy?: boolean;
+  realNote?: string | null;
 }) {
   const [ok, setOk] = React.useState(false);
   const fake = mark === 'fake';
@@ -41,9 +43,10 @@ export function ConfirmPick({ token, mark, realSymbol, onCancel, onConfirm, onRe
       </div>
       {fake && onReal && (
         <div className={cn(tw.quick, tw.press)}>
-          <ActionButton isDisabled={false} onClick={onReal}>{`Use the real ${real}`}</ActionButton>
+          <ActionButton isDisabled={!!realBusy} onClick={realBusy ? undefined : onReal}>{realBusy ? undefined : `Use the real ${real}`}</ActionButton>
         </div>
       )}
+      {fake && realNote && <p className="text-[13px] leading-snug text-amber-200">{realNote}</p>}
       <label className="flex cursor-pointer items-center gap-x-2.5 text-[13px] text-[#C8C8C8]">
         <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="h-4 w-4 cursor-pointer accent-blue-500" />
         {fake ? `I know it is not the real ${real}` : 'I understand it is not verified'}
