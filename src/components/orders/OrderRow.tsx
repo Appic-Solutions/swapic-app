@@ -9,7 +9,7 @@ import { T, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
 import { ChevronDownIcon, FireIcon, ManageSearchIcon, ParkOutlineBridgeIcon, PoolIcon } from '@/components/icons';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
-import type { OrderView } from '@/features/activity/rows';
+import { endFlags, endText, type OrderView } from '@/features/activity/rows';
 import { CopyButton, useCopied } from './CopyButton';
 import { StatusPill } from './StatusPill';
 import { Steps } from './Steps';
@@ -22,12 +22,6 @@ export const flyNames = (id: string) => ({ from: `from-${short(id)}`, to: `to-${
 
 export const where = (s: SideView) => `${s.symbol} ${s.chain === 'Swapic Pool' ? 'in' : 'on'} ${s.chain}`;
 
-const centerText = (o: OrderView) => {
-  const took = o.took ? ` in ${o.took}` : '';
-  if (o.status === 'pending' || o.status === 'queued') return o.stageText ?? '';
-  if (o.ending === 'delivered') return `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
-  return `${o.title ?? ''}${o.ending === 'refunded' || o.ending === 'deliveredAsUsdc' ? took : ''}`;
-};
 const kindText = (o: OrderView) => (o.kind === 'stake' ? 'Stake' : o.kind === 'withdraw' ? 'Withdraw' : o.direction === 'received' ? 'Received' : 'Swap');
 
 /** The design's timeline skeleton while the steps load. */
@@ -56,10 +50,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
   const mounted = useMounted();
   const fly = flyNames(o.id);
   const ok = o.status === 'delivered';
-  const live = o.status === 'pending' || o.status === 'queued';
-  const refund = o.status === 'refunded';
-  // as USDC: the money arrived, as the USDC side shows
-  const asUsdc = o.ending === 'deliveredAsUsdc' && !!o.refund;
+  const { live, refund, asUsdc } = endFlags(o);
   const stopTone = o.status === 'didntStart' ? 'border-white/30' : o.status === 'onHold' ? 'border-amber-400' : null;
   const lineTone = ok ? 'border-green-500' : refund ? 'border-yellow-500' : stopTone ?? 'border-green-500';
   const Icon = o.kind === 'swap' ? ParkOutlineBridgeIcon : PoolIcon;
@@ -110,7 +101,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           <p className="text-xl leading-7 text-white">{o.from.amountText}</p>
           <p className="font-normal">{o.from.usdText}</p>
         </div>
-        <motion.div key={centerText(o)} className="items-center self-center text-center max-md:hidden" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}>{centerText(o)}</motion.div>
+        <motion.div key={endText(o)} className="items-center self-center text-center max-md:hidden" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}>{endText(o)}</motion.div>
         <div className="items-end text-right">
           {asUsdc ? (
             <>

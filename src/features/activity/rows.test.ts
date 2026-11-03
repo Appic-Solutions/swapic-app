@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { mergeRows, orderView, tookOf } from './rows';
+import { endFlags, endText, mergeRows, orderView, tookOf } from './rows';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const logo = () => '/x.png';
@@ -71,3 +71,28 @@ describe('how long it took (chain times, services d5e49ff)', () => {
   it('never shows a negative time', () => expect(tookOf({ outcome: 'delivered', createdAt: 0, endedAt: 1, tookS: -3 })).toBe('0 s'));
 });
 
+
+describe('endFlags and endText, one reading for the row, the Scanner and the order page', () => {
+  const refunded = c('scanner-search-tx.json').items[0];
+  const at = (over: object) => orderView({ ...refunded, ...over }, 1_793_220_800, logo);
+  it('a refund: its title and how long, the refund side shown', () => {
+    const v = at({});
+    expect(endText(v)).toBe('Refunded in 4 min');
+    expect(endFlags(v)).toEqual({ live: false, refund: true, asUsdc: false, stopped: false });
+  });
+  it('delivered as USDC: the USDC side, and how long', () => {
+    const v = at({ reasonCode: 'deliveredAsUsdc' });
+    expect(endText(v)).toBe('Delivered as USDC in 4 min');
+    expect(endFlags(v)).toMatchObject({ refund: false, asUsdc: true });
+  });
+  it('never ran or held: the title alone, nothing received to show', () => {
+    expect(endText(at({ outcome: 'failed', stage: 'failed', refund: null, reasonCode: 'other' }))).toBe("Didn't start");
+    expect(endFlags(at({ outcome: 'failed', stage: 'failed', refund: null, reasonCode: 'other' })).stopped).toBe(true);
+    expect(endText(at({ outcome: 'pending', stage: 'arrived', onHold: true }))).toBe('On hold');
+  });
+  it('a moving order reads its stage', () => {
+    const v = orderView(c('orders-page.json').orders[0], 1_793_397_300, logo);
+    expect(endFlags(v).live).toBe(true);
+    expect(endText(v)).toMatch(/^In line/);
+  });
+});

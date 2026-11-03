@@ -10,7 +10,7 @@ import { TokenAvatar } from '@/components/orders/TokenAvatar';
 import { ViaPill } from '@/components/orders/ViaPill';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
-import type { OrderView } from '@/features/activity/rows';
+import { endFlags, type OrderView } from '@/features/activity/rows';
 
 const th = 'border-b border-b-[#555555] h-12 bg-[#323232] font-semibold text-[#8D8D8D]';
 const tr = 'text-center text-sm text-white border-b border-b-[#393939] h-14 bg-[#272727] hover:bg-[#2C2C2C] cursor-pointer transition-all duration-200 ease-in-out';
@@ -30,12 +30,14 @@ function Route({ o }: { o: OrderView }) {
   );
 }
 
-const live = (o: OrderView) => o.status === 'pending' || o.status === 'queued';
-/** What came out: the refund when refunded, else the token out (a pending side already reads `~<least>`). */
+const live = (o: OrderView) => endFlags(o).live;
+/** What came out: the refund when refunded, the USDC when delivered as USDC, the title when nothing came, else the token out
+ *  (a pending side already reads `~<least>`). */
 const out = (o: OrderView) => {
-  if (o.ending === 'refunded') return o.refund ? `${o.refund.amountText} ${o.refund.symbol} refunded` : 'Refunded';
-  if (o.ending === 'deliveredAsUsdc' && o.refund) return `${o.refund.amountText} ${o.refund.symbol}`;
-  if (o.status === 'didntStart' || o.status === 'onHold') return o.title ?? '';
+  const f = endFlags(o);
+  if (f.refund) return o.refund ? `${o.refund.amountText} ${o.refund.symbol} refunded` : 'Refunded';
+  if (f.asUsdc) return `${o.refund!.amountText} ${o.refund!.symbol}`;
+  if (f.stopped) return o.title ?? '';
   return `${o.to.amountText} ${o.to.symbol}`.trim();
 };
 const outSub = (o: OrderView) => (live(o) ? o.stageText ?? '' : o.reason ?? (o.took ? `in ${o.took}` : ''));

@@ -84,6 +84,30 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
   };
 }
 
+/** What an order view's end draws by, for History rows, the Scanner and the order page alike. */
+export interface EndFlags {
+  live: boolean; refund: boolean;
+  /** Delivered as USDC, with the USDC side to show. */
+  asUsdc: boolean;
+  /** Never ran, or held by the canister: nothing received to show. */
+  stopped: boolean;
+}
+export const endFlags = (o: OrderView): EndFlags => ({
+  live: o.status === 'pending' || o.status === 'queued',
+  refund: o.ending === 'refunded',
+  asUsdc: o.ending === 'deliveredAsUsdc' && !!o.refund,
+  stopped: o.status === 'didntStart' || o.status === 'onHold',
+});
+
+/** The end in a few words: a moving order's stage; Staked, Paid out or Delivered with how long; else its title, with how
+ *  long after a refund or a delivery as USDC. */
+export function endText(o: OrderView): string {
+  if (endFlags(o).live) return o.stageText ?? '';
+  const took = o.took ? ` in ${o.took}` : '';
+  if (o.ending === 'delivered') return `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`;
+  return `${o.title ?? ''}${o.ending === 'refunded' || o.ending === 'deliveredAsUsdc' ? took : ''}`;
+}
+
 export function mergeRows(pages: ActivityRow[][]): ActivityRow[] {
   const by = new Map<string, ActivityRow>();
   for (const p of pages) for (const r of p) if (!by.has(r.id.toLowerCase())) by.set(r.id.toLowerCase(), r);

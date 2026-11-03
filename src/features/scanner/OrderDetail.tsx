@@ -22,7 +22,7 @@ import { motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
 import { flyNames } from '@/components/orders/OrderRow';
 import { T, fade, tw, useMounted } from '@/lib/motion';
-import type { OrderView } from '@/features/activity/rows';
+import { endFlags, endText, type OrderView } from '@/features/activity/rows';
 
 /** The order page's size, also the in place frame's when History or Scanner opens an order (motion part 2). */
 export const ORDER_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px] overflow-x-hidden';
@@ -33,14 +33,9 @@ const clock = (sec: number) => { const d = new Date(sec * 1000); return `${Strin
 
 export function OrderDetail({ order: o, steps, loading, onBack }: { order: OrderView | null; steps: StepView[] | undefined; loading: boolean; onBack: () => void }) {
   const [copied, copy] = useCopied();
-  const live = !!o && (o.status === 'pending' || o.status === 'queued');
-  const refund = o?.ending === 'refunded';
-  // as USDC: what arrived is the USDC side; an order that never ran shows nothing received
-  const asUsdc = o?.ending === 'deliveredAsUsdc' && !!o.refund;
-  const stopped = o?.status === 'didntStart' || o?.status === 'onHold';
-  const took = o?.took ? ` in ${o.took}` : '';
-  const headline = !o ? '' : live ? o.stageText ?? '' : o.ending === 'delivered' ? `${o.kind === 'stake' ? 'Staked' : o.kind === 'withdraw' ? 'Paid out' : 'Delivered'}${took}`
-    : `${o.title ?? ''}${refund || asUsdc ? took : ''}`;
+  // as USDC: what arrived is the USDC side; an order that never ran (or is held) shows nothing received
+  const { live, refund, asUsdc, stopped } = o ? endFlags(o) : { live: false, refund: false, asUsdc: false, stopped: false };
+  const headline = o ? endText(o) : '';
   const busy = loading || !o;
   const fly = o ? flyNames(o.id) : { from: undefined, to: undefined, pill: undefined };
   // Motion (approved 2026-10-29, part 2): inside the History or Scanner panel (MorphFrame) the parts fade in place and the
