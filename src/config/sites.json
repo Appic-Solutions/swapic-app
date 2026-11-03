@@ -12,7 +12,7 @@
   "prod": {
     "apiBase": "https://api.swapic.xyz",
     "icpHost": "https://icp-api.io",
-    "swapicCanisterId": "PROD-CANISTER-PLACEHOLDER",
+    "swapicCanisterId": "x4cav-kaaaa-aaaar-qciya-cai",
     "sentryDsn": null,
     "siteOrigin": "https://swapic.xyz",
     "derivationOrigin": "https://swapic.xyz",
