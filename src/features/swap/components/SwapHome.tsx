@@ -13,6 +13,7 @@ import { useChains, useTokenList } from '../tokens';
 import { linkAmount, parseSwapLink, swapLinkQuery, type TokenRef } from '../link';
 import { SwapFlow } from './SwapFlow';
 import { TokenSelect } from './TokenSelect';
+import { ALL_CHAINS } from './ChainPicker';
 import { ScrollHint } from '@/features/home/ScrollHint';
 import { HowItWorks } from '@/features/home/HowItWorks';
 import { Chains } from '@/features/home/Chains';
@@ -23,7 +24,6 @@ import { Footer } from '@/features/home/Footer';
 import { AnimatePresence } from 'motion/react';
 import { Enter } from '@/components/motion/parts';
 import { fade, useFirstRender } from '@/lib/motion';
-import { PICK_CHAIN } from '@/lib/chains';
 
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
 
@@ -101,9 +101,8 @@ export function SwapHome() {
 
   const tokenPage = view === 'from' || view === 'to' ? (() => {
     const current = view === 'from' ? f.from : f.to;
-    const other = view === 'from' ? f.to : f.from;
-    // the chain menu shows the picked token's chain, else the other side's, else Base (never All chains)
-    const start = unlisted.find((u) => u.side === view)?.chain ?? current?.chain ?? other?.chain ?? PICK_CHAIN;
+    // the chain menu opens on All chains (Jeff, 2026-11-04); a shared link's unlisted token opens on its own chain, where its warning shows
+    const start = unlisted.find((u) => u.side === view)?.chain ?? ALL_CHAINS;
     return (
       <TokenSelect
         key={view}
