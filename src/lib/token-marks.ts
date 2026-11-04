@@ -63,7 +63,10 @@ export function listedFor(t: Pick<UiToken, 'chain' | 'address' | 'symbol'>, list
   return imitated ? { token: imitated, same: false } : null;
 }
 
+/** Each chain's own coin as the quoter names it: the zero address on EVM, the ICP ledger on ICP. Ticked like the list. */
+const NATIVE_COINS = new Set(['0x0000000000000000000000000000000000000000', 'ryjl3-tyaaa-aaaaa-aaaba-cai']);
 export function markOf(t: Pick<UiToken, 'chain' | 'address' | 'symbol' | 'verified'>, lists: TokenLists = TOKEN_LISTS): TokenMark {
+  if (t.verified && NATIVE_COINS.has(addressKey(t.chain, t.address))) return 'verified';
   const l = listedFor(t, lists);
   if (l) return l.same ? 'verified' : 'fake';
   return t.verified ? 'plain' : 'unverified';

@@ -67,9 +67,9 @@ const TokenCard = ({
         </div>
       </div>
       {token.balanceText && (
-        <div className="flex flex-col">
-          <p className="truncate text-xl font-bold text-white">{token.balanceText}</p>
-          <p className="flex items-center gap-x-2 truncate text-sm font-semibold text-[#B5B3B3]">
+        <div className="flex shrink-0 flex-col items-end text-right">
+          <p className="truncate text-xl font-bold tabular-nums text-white">{token.balanceText}</p>
+          <p className="flex items-center gap-x-2 truncate text-sm font-semibold tabular-nums text-[#B5B3B3]">
             {token.usdBalanceText}
           </p>
         </div>

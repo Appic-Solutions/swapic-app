@@ -25,6 +25,11 @@ describe('token marks', () => {
     expect(markOf(t('0x71c3b9e04a2d86f5c1e7b30d9a4f62e85c0d17a3', 'ORBT'), lists)).toBe('plain');
     expect(markOf(t('0x71c3b9e04a2d86f5c1e7b30d9a4f62e85c0d17a3', 'WOOF', false), lists)).toBe('unverified');
   });
+  it('ticks each chain\'s own coin (the zero address on EVM, the ICP ledger)', () => {
+    expect(markOf(t('0x0000000000000000000000000000000000000000', 'POL', true, 'eip155:137'))).toBe('verified');
+    expect(markOf(t('ryjl3-tyaaa-aaaaa-aaaba-cai', 'ICP', true, 'icp:737ba355e855bd4b61279056603e0550'))).toBe('verified');
+    expect(markOf(t('0x0000000000000000000000000000000000000000', 'POL', false, 'eip155:137'))).toBe('unverified');
+  });
   it('asks to confirm only unverified and fake tokens', () => {
     expect(['verified', 'plain', 'unverified', 'fake'].map((m) => needsConfirm(m as never))).toEqual([false, false, true, true]);
     expect(symbolReading('ＵＳＤＣ')).toBe('USDC');

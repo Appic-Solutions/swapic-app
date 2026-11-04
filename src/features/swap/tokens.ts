@@ -5,7 +5,7 @@ import { config } from '@/config';
 import { getBalances, getChains, getTokens, type BalancesAnswer, type ChainInfo, type TokenAnswer } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { chainLogo, chainName, chainNumber, isKnownChain } from '@/lib/explorer';
-import { formatAmount, formatUsd, usdMicro } from '@/lib/money';
+import { formatListAmount, formatListUsd, usdMicro } from '@/lib/money';
 import { chainPlace } from '@/lib/chains';
 import { fallbackLogo } from '@/lib/token-logos';
 import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
@@ -27,7 +27,7 @@ export function toUiToken(t: TokenAnswer, chain: ChainInfo, balance?: bigint): U
 
 export function withBalance(t: UiToken, balance: bigint): UiToken {
   const usd = usdMicro(balance, t.decimals, t.priceUsd);
-  return { ...t, balance, balanceText: formatAmount(balance, t.decimals), usdBalanceText: usd === null ? undefined : formatUsd(usd) };
+  return { ...t, balance, balanceText: formatListAmount(balance, t.decimals), usdBalanceText: usd === null ? undefined : formatListUsd(usd) };
 }
 
 /** Balances joined by address; an answer for another chain is ignored. */

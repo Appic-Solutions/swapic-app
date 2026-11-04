@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AmountError, formatAmount, formatUnits, parseDecimal, parseSigned, parseUnits } from './index';
+import { AmountError, formatAmount, formatListAmount, formatListUsd, formatUnits, parseDecimal, parseSigned, parseUnits } from './index';
 
 describe('parseUnits', () => {
   it('reads what people type', () => {
@@ -45,5 +45,18 @@ describe('parseSigned and parseDecimal', () => {
     expect(parseDecimal('0.8636', 18)).toBe(863_600_000_000_000_000n);
     expect(parseDecimal('3920.10', 2)).toBe(392_010n);
     expect(parseDecimal('0.123456789', 4)).toBe(1_234n);
+  });
+});
+
+describe('a token list balance (one narrow column on a phone)', () => {
+  it('shows dust as <0.0001 and a worth under a cent as <$0.01, everything else as usual', () => {
+    expect(formatListAmount(1_124_000_000n, 18)).toBe('<0.0001'); // LINK 0.000000001124
+    expect(formatListAmount(100_000_000_000_000n, 18)).toBe('0.0001');
+    expect(formatListAmount(2_390n, 6)).toBe('0.00239');
+    expect(formatListAmount(61_053_900_000_000_000_000n, 18)).toBe('61.0539');
+    expect(formatListAmount(0n, 18)).toBe('0');
+    expect(formatListUsd(3n)).toBe('<$0.01');
+    expect(formatListUsd(0n)).toBe('$0.00');
+    expect(formatListUsd(301_300n)).toBe('$0.30');
   });
 });

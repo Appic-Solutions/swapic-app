@@ -45,6 +45,13 @@ export function formatUnits(value: bigint, decimals: number, maxFraction = decim
   return (neg ? '-' : '') + whole + (frac ? `.${frac}` : '');
 }
 
+/** A balance in a token list, where every row's figure must fit one narrow column: as [`formatAmount`], with anything
+ *  under 0.0001 shown as `<0.0001` rather than its every leading zero. */
+export function formatListAmount(value: bigint, decimals: number): string {
+  if (value > 0n && value * 10_000n < 10n ** BigInt(decimals)) return '<0.0001';
+  return formatAmount(value, decimals);
+}
+
 /** Four significant digits under one (0.002403), four decimals above (4.7472), truncated. */
 export function formatAmount(value: bigint, decimals: number): string {
   if (value === 0n) return '0';

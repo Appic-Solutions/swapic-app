@@ -18,6 +18,11 @@ export function formatUsd(micro: bigint): string {
   return `${neg ? '-' : ''}$${group((cents / 100n).toString())}.${(cents % 100n).toString().padStart(2, '0')}`;
 }
 
+/** As [`formatUsd`], with a worth above zero but under a cent shown as `<$0.01`, never as a bare `$0.00`. */
+export function formatListUsd(micro: bigint): string {
+  return micro > 0n && micro < 10_000n ? '<$0.01' : formatUsd(micro);
+}
+
 /** `$8,420`, floored to the dollar. */
 export function formatUsdWhole(micro: bigint): string {
   const neg = micro < 0n;
