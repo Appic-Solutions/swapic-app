@@ -10,10 +10,13 @@ const tokens: TokensAnswer = JSON.parse(readFileSync('tests/fixtures/contract/to
 const balances: BalancesAnswer = JSON.parse(readFileSync('tests/fixtures/contract/balances.json', 'utf8'));
 
 describe('tokens', () => {
-  it('builds the components token with the chain numbering and a placeholder logo', () => {
+  it('builds the components token with the chain numbering; a logo the list lacks comes from the app, else the placeholder', () => {
     const t = toUiToken(tokens.tokens[0]!, base);
     expect(t).toMatchObject({ chain: 'eip155:8453', chainId: 8453, chainName: 'Base', chain_type: 'EVM', contractAddress: t.address });
-    expect(t.logo).toBe('/images/logo/placeholder.png');
+    expect(t.logo).toBe('/images/logo/chains-logos/ethereum.svg');
+    expect(toUiToken({ ...tokens.tokens[0]!, logo: 'https://logo.example/eth.png' }, base).logo).toBe('https://logo.example/eth.png');
+    const usdbc = tokens.tokens.find((x) => x.symbol === 'USDbC')!;
+    expect(toUiToken(usdbc, base).logo).toBe('/images/logo/placeholder.png');
   });
   it('joins balances by lower case address and ignores an answer for another chain', () => {
     const list = tokens.tokens.map((x) => toUiToken(x, base));
