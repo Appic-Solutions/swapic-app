@@ -96,6 +96,14 @@ export function inlineScriptHashes(outDir) {
   return [...set].sort();
 }
 
+/** The ii-alternative-origins file an environment with a derivation origin serves at that origin: the origins allowed
+ *  to sign in as it (ICRC-95). The site itself is listed too, since a wallet such as OISY reads the file even when the
+ *  site is the derivation origin, and refuses the request when it answers anything else. Null without one. */
+export function alternativeOriginsFor(cfg) {
+  if (!cfg.derivationOrigin) return null;
+  return JSON.stringify({ alternativeOrigins: [cfg.siteOrigin] }) + '\n';
+}
+
 /** One environment's entry of src/config/sites.json; only a deployable one (with a domain). */
 export function siteFor(env) {
   const sites = JSON.parse(readFileSync(new URL('../src/config/sites.json', import.meta.url), 'utf8'));
@@ -124,9 +132,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     { match: '_next/static/**/*', headers: { ...headers, 'Cache-Control': 'public, max-age=31536000, immutable' } },
     { match: '**/*.html', headers: { ...headers, 'Cache-Control': 'no-cache' } },
     { match: '.well-known', ignore: false },
+    // wallets fetch it from the page's origin: JSON, readable cross-origin
+    { match: '.well-known/ii-alternative-origins', headers: { ...headers, 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } },
   ];
   writeFileSync(join(out, '.ic-assets.json5'), JSON.stringify(assets, null, 2) + '\n');
   mkdirSync(join(out, '.well-known'), { recursive: true });
   writeFileSync(join(out, '.well-known', 'ic-domains'), cfg.domain + '\n');
+  const alternatives = alternativeOriginsFor(cfg);
+  if (alternatives) writeFileSync(join(out, '.well-known', 'ii-alternative-origins'), alternatives);
   console.log(`headers for ${env}: ${inlineScriptHashes(out).length} inline script hashes; ic-domains ${cfg.domain}; ${aliases.length} trailing slash pages`);
 }

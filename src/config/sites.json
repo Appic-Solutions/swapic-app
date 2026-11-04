@@ -15,7 +15,7 @@
     "swapicCanisterId": "x4cav-kaaaa-aaaar-qciya-cai",
     "sentryDsn": null,
     "siteOrigin": "https://swapic.xyz",
-    "derivationOrigin": null,
+    "derivationOrigin": "https://swapic.xyz",
     "assetCanister": "dduc6-3yaaa-aaaal-ai63a-cai",
     "domain": "swapic.xyz"
   },

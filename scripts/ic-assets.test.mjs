@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chainRpcHosts, cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
+import { alternativeOriginsFor, chainRpcHosts, cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
 
 describe('the CSP', () => {
   it('lists exactly the hosts the environment needs', () => {
@@ -61,3 +61,10 @@ describe('deep links with a trailing slash', () => {
   });
 });
 
+
+describe('the ii-alternative-origins file', () => {
+  it('lists the site under prod\'s derivation origin, and is not written without one', () => {
+    expect(JSON.parse(alternativeOriginsFor(siteFor('prod')))).toEqual({ alternativeOrigins: ['https://swapic.xyz'] });
+    expect(alternativeOriginsFor(siteFor('test'))).toBeNull();
+  });
+});
