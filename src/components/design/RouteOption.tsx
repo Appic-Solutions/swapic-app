@@ -146,7 +146,8 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
       )}
       <div className="flex w-full items-end justify-end gap-x-4">
         <span className="flex w-max items-center gap-x-1">
-          <p className="text-xs font-thin text-primary">{option.totalFeeText}</p>
+          {/* Jeff 2026-11-04: a gasless card says so beside the gas icon, never a dollar figure */}
+          <p className="text-xs font-thin text-primary">{option.gasless ? 'Gasless' : option.totalFeeText}</p>
           <FireIcon width={15} height={15} className="text-primary" />
         </span>
         <span className="flex w-max items-center gap-x-1">
