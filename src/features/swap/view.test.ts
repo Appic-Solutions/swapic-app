@@ -18,6 +18,8 @@ describe('routeView', () => {
     const g = routeView(gasless!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
     expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 Sec', amountOutText: '0.00005976', totalFeeText: '$0.15', gasText: 'None, Swapic pays it' });
     expect(g.usdOutText).toBe('$6.20');
+    // the least the user receives, the quote's amountOutMin (5946 sats)
+    expect(g.minOutText).toBe('0.00005946 WBTC');
     const p = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
     expect(p.gasless).toBe(false);
     // the design's native amount: userGasUsd 0.016821 at $3,920.10 an ETH is 0.00000429 ETH

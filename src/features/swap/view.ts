@@ -52,6 +52,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     gasless: p.mode !== 'userPays',
     durationText: etaText(r.etaSeconds),
     amountOutText: formatAmount(amountOut, ctx.to.decimals),
+    minOutText: `${formatAmount(BigInt(r.amountOutMin), ctx.to.decimals)} ${ctx.to.symbol}`,
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
     totalFeeText: formatUsd(fee),
     gasText: gasText(p, ctx.native),

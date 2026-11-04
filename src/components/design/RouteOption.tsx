@@ -37,6 +37,8 @@ export interface RouteOptionView {
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
   totalFeeText: string;
+  /** The least the user receives (the quote's amountOutMin) with the token's symbol: the details' first row. */
+  minOutText: string;
   /** The Gas row of the details. */
   gasText: string;
   /** Yellow warning under the amount, e.g. when the price impact is big. */
@@ -160,6 +162,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
         <div className="space-y-3">
           <p className="text-sm font-medium">Option Details:</p>
           <div className="space-y-2">
+            <div className="flex justify-between text-sm"><span className="text-muted">Minimum Received:</span><span>{option.minOutText}</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted">Total Fee:</span><span>{option.totalFeeText}</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted">Gas:</span><span>{option.gasText}</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted">Estimated Time:</span><span>{option.durationText}</span></div>
