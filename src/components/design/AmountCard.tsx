@@ -36,9 +36,9 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
   return (
     // With a message the card grows to fit it: the design's message sat absolutely under the dollar line, sized for one
     // short line, so a longer one (the cap's) wrapped onto the dollar line (Jeff's screenshot, 2026-10-31).
-    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className={'mt-4 cursor-auto flex-col items-start justify-center hover:bg-[#000000]/0' + (message ? '' : ' max-h-[133px] md:max-h-[155px]')}>
+    <Card data-fly={fly} data-fly-fit={fly ? 'width' : undefined} className={'mt-4 cursor-auto flex-col items-start justify-center gap-2 py-5 hover:bg-[#000000]/0 md:rounded-3xl md:px-6 md:py-5' + (message ? '' : ' max-h-[133px] md:max-h-[155px]')}>
       <p className="text-sm font-semibold">{label}</p>
-      <div className="flex w-full items-center gap-4">
+      <div className="flex w-full items-start gap-4">
         <div className="relative">
           <Avatar src={token.logo} className="h-12 w-12" />
           <Avatar src={token.chainLogo} className={'absolute -bottom-1 -right-1 h-5 w-5 shadow-[0_0_3px_0_rgba(255,255,255,0.5)]' + (token.chainLogo === SWAPIC_LOGO ? ' bg-black p-0.5' : '')} />
