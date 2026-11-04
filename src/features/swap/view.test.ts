@@ -28,6 +28,16 @@ describe('routeView', () => {
     const noPrice = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { ...eth, priceUsd: null } });
     expect(noPrice.gasText).toBe('You pay it');
   });
+  it('the gasless card says Just sign, or that the wallet has none of the coin; the paid card says nothing', () => {
+    const [gasless, paid] = pickOptions(q, { indicative: false });
+    const from = { ...tok('USDC', 6, '1'), chainName: 'Arbitrum' };
+    const view = (p: typeof gasless, held?: boolean | null) =>
+      routeView(p!, { from, to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { symbol: 'ETH', decimals: 18, priceUsd: '3920.10', held } });
+    expect(view(gasless, true).gaslessNote).toBe('Just sign, no ETH needed');
+    expect(view(gasless, null).gaslessNote).toBe('Just sign, no ETH needed');
+    expect(view(gasless, false).gaslessNote).toBe('You have no ETH on Arbitrum. Gasless works anyway');
+    expect(view(paid, false).gaslessNote).toBeUndefined();
+  });
   it('writes times the way the design does', () => {
     expect(etaText(12)).toBe('12 Sec');
     expect(etaText(1200)).toBe('20 Mins');

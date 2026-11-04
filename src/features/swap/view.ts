@@ -4,7 +4,20 @@ import type { UiToken } from '@/components/ui/token-types';
 import { dollarsToMicro, formatAmount, formatUsd, parseDecimal, usdMicro } from '@/lib/money';
 import type { PickedOption } from './options';
 
-export interface NativeCoin { symbol: string; decimals: number; priceUsd: string | null }
+export interface NativeCoin {
+  symbol: string;
+  decimals: number;
+  priceUsd: string | null;
+  /** False when the wallet holds none of the coin on the From chain; null or absent when unknown (no wallet, still loading). */
+  held?: boolean | null;
+}
+
+/** The gasless card's line under the amount (Jeff 2026-11-04): a wallet with none of the From chain's coin is told it
+ *  needs none; any other wallet reads "Just sign". Only EVM sources: an ICP wallet pays no gas coin anyway. */
+export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin): string | undefined {
+  if (p.mode === 'userPays' || from.chain_type !== 'EVM' || !native.symbol) return undefined;
+  return native.held === false ? `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway` : `Just sign, no ${native.symbol} needed`;
+}
 
 /** The design's gas row: the user's gas in the source chain's coin. The quote gives it in dollars (`userGasUsd`,
  *  answer/mod.rs:440-443); it is turned into the coin at the coin's price: wei = microUsd * 10^(decimals + 12) / priceE18. */
@@ -56,6 +69,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
     totalFeeText: formatUsd(fee),
     gasText: gasText(p, ctx.native),
+    gaslessNote: gaslessNote(p, ctx.from, ctx.native),
     warning: impactWarning(p, ctx),
   };
 }

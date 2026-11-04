@@ -77,10 +77,13 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   const { chains } = useChains();
   const fromChain = chains.find((c) => c.chainId === from?.chain);
   const coinRow = useTokenList(from && from.chain_type === 'EVM' ? from.chain : '', '').tokens.find((t) => t.address === ZERO);
+  // the wallet's coin on the From chain: the gasless card says "You have no ETH on Arbitrum" when it is zero
+  const { balance: coinBalance } = useBalance(coinRow ?? null);
   const native: NativeCoin = {
     symbol: fromChain?.nativeToken.symbol ?? '',
     decimals: fromChain?.nativeToken.decimals ?? 18,
     priceUsd: coinRow?.priceUsd ?? null,
+    held: coinBalance === undefined ? null : coinBalance > 0n,
   };
   const sameChainNoUsdc = quote ? isSameChainNoUsdc(quote, fromChain?.usdc.address) : false;
   const views = from && to && amount !== null ? options.map((o) => routeView(o, { from, to, amountIn: amount!, sameChainNoUsdc, native })) : [];

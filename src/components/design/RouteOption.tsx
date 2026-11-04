@@ -17,7 +17,7 @@
 // shows the countdown label in its top row (timer); new numbers arrive in place: the old amount fades out, the new one
 // fades in rising 8 px (arrive, the design's rise).
 import * as React from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDownIcon, ClockIcon, FireIcon } from '@/components/icons';
 import { MotionCard } from '@/components/motion/parts';
@@ -43,6 +43,8 @@ export interface RouteOptionView {
   gasText: string;
   /** Yellow warning under the amount, e.g. when the price impact is big. */
   warning?: string;
+  /** Green line under the amount on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
+  gaslessNote?: string;
 }
 
 export interface RouteOptionProps {
@@ -140,6 +142,12 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           <img src={SWAPIC_LOGO} alt="" width={16} height={16} className="min-h-4 min-w-4 rounded-full bg-black p-0.5" />
         </div>
       </div>
+      {option.gaslessNote && (
+        <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-emerald-300">
+          <Sparkles className="h-4 w-4 shrink-0" />
+          {option.gaslessNote}
+        </p>
+      )}
       {option.warning && (
         <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-yellow-600">
           <AlertTriangle className="h-4 w-4 shrink-0" />
