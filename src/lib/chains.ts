@@ -10,8 +10,10 @@ export const CHAINS: readonly ChainRow[] = table;
 export const CHAIN_IDS: readonly string[] = CHAINS.map((c) => c.id);
 /** The pool's chain: payouts leave from it, so it is the quickest place to receive. */
 export const POOL_CHAIN = 'eip155:8453';
-/** The From chain the token page opens on with no wallet connected. */
+/** Stake From's chain when the wallet's own chain holds no USDC the pool takes (stake-from.ts). */
 export const DEFAULT_FROM_CHAIN = 'eip155:42161';
+/** The chain the token page opens on when neither side of the swap has a token yet. */
+export const PICK_CHAIN = 'eip155:8453';
 
 export const chainRow = (caip2: string): ChainRow | undefined => CHAINS.find((c) => c.id === caip2);
 /** Where a chain shows in a list: its row's place, after every known chain when unknown. */

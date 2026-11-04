@@ -1,7 +1,7 @@
 'use client';
 // The token page: moved from the design's swap-screens.tsx TokenSelect (the approved static look, as the design bundle
-// built 2026-10-29 14:46 holds it), wired to data: chain circles from GET /v2/chains, tokens from GET /v2/tokens (50 a
-// page, more as the list scrolls), balances beside them. Each row carries its mark (lib/token-marks): the tick on Swapic's
+// built 2026-10-29 14:46 holds it), wired to data: the chain menu from GET /v2/chains (ChainPicker.tsx, Jeff's pick of
+// 2026-11-04), tokens from GET /v2/tokens (50 a page, more as the list scrolls), balances beside them. Each row carries its mark (lib/token-marks): the tick on Swapic's
 // own list, "Unverified" on a token Swapic does not know, "Fake" on one that takes a listed token's symbol; a flagged
 // row opens a confirm under it before it is picked, and a fake's confirm offers the real token first.
 import * as React from 'react';
@@ -13,7 +13,7 @@ import Skeleton from '@/components/ui/skeleton';
 import type { UiToken } from '@/components/ui/token-types';
 import { chainPlace } from '@/lib/chains';
 import { useAllTokens, useChains, useTokenList } from '../tokens';
-import { ALL_CHAINS, ChainGrid, ChainMenu, ChainColumn, ChainRow, searchPlaceholder, type ChainPickerKind } from './ChainPicker';
+import { ALL_CHAINS, ChainMenu, searchPlaceholder } from './ChainPicker';
 import { findReal } from '../real-token';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/cn';
@@ -38,8 +38,6 @@ export interface TokenSelectProps {
   note?: React.ReactNode;
   /** The search box starts with this (a token address from a shared link: an unlisted one shows its warning first). */
   initialQuery?: string;
-  /** How the chains show (ChainPicker.tsx): today's grid unless a design layout is asked for. */
-  chainPicker?: ChainPickerKind;
 }
 
 
@@ -52,23 +50,19 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note, initialQuery, chainPicker: kind = 'grid' }: TokenSelectProps) {
+export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note, initialQuery }: TokenSelectProps) {
   const [chain, setChain] = React.useState(start);
   const [query, setQuery] = React.useState(initialQuery ?? '');
   const searched = useDebounced(query.trim(), 300);
   const { chains } = useChains();
-  // "All chains": the new layouts only, and only on the quoter's lists (a fixed list is per chain)
-  const offerAll = kind !== 'grid' && !fixedTokens;
+  const shown = chains.filter((c) => !only || only.includes(c.chainId)).sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId));
+  // "All chains" loads only once picked (the quoter's lists, a few requests at a time); a fixed list merges its own
   const isAll = chain === ALL_CHAINS;
   const list = useTokenList(isAll ? '' : chain, fixedTokens ? '' : searched);
-  const every = useAllTokens(searched, offerAll && isAll, only);
-  const fixed = fixedTokens?.[chain];
+  const every = useAllTokens(searched, isAll && !fixedTokens, only);
+  const fixed = fixedTokens && (isAll ? shown.flatMap((c) => fixedTokens[c.chainId] ?? []) : fixedTokens[chain]);
   const tokens = fixed ?? (isAll ? every.tokens : list.tokens);
   const loading = fixed ? false : isAll ? every.isLoading : list.isLoading;
-  // the token's chain on its logo: always when the picker hides the chain (menu), else when the list mixes chains
-  const badges = kind === 'menu' || isAll;
-  const shown = chains.filter((c) => !only || only.includes(c.chainId)).sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId));
-  const pickerProps = { chains: shown, value: chain, onChange: setChain, all: offerAll };
   // Rows that show after the first render (after loading, a chain switch) fade up one after another.
   const mounted = useMounted();
   // Opened inside the Swap page's AnimatePresence: slides in and out.
@@ -106,7 +100,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const search = (
     <input
       type="text"
-      placeholder={searchPlaceholder(kind, chain)}
+      placeholder={searchPlaceholder(chain)}
       value={query}
       onChange={(e) => setQuery(e.target.value)}
       className="w-full min-w-0 rounded-md border-[#000000] bg-white/30 px-3 py-2 text-white placeholder:text-white/50"
@@ -136,7 +130,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
                   token={t}
                   mark={mark}
                   isSelected={isSelected}
-                  chainBadge={badges}
+                  chainBadge
                   onClick={() => (needsConfirm(mark) && !isSelected ? open(isOpen ? null : t.key) : onSelect(t))}
                 />
                 <AnimatePresence initial={false}>
@@ -174,29 +168,11 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const content = (
     <>
       <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100"><BoxHeader title={title} onBack={onBack} /></div>
-      {kind === 'grid' && (
-        <>
-          <ChainGrid {...pickerProps} />
-          <hr className="w-full bg-[#636363]/25 max-md:hidden" />
-        </>
-      )}
-      {kind === 'row' && <ChainRow {...pickerProps} />}
-      {kind === 'menu' ? (
-        <div className="flex w-full items-center gap-3">
-          {note ? <div className="min-w-0 flex-1">{note}</div> : search}
-          <ChainMenu {...pickerProps} />
-        </div>
-      ) : (
-        note ?? search
-      )}
-      {kind === 'column' ? (
-        <div className="flex w-full gap-3 md:h-full md:min-h-0">
-          <ChainColumn {...pickerProps} />
-          {tokenList}
-        </div>
-      ) : (
-        tokenList
-      )}
+      <div className="flex w-full items-center gap-3">
+        {note ? <div className="min-w-0 flex-1">{note}</div> : search}
+        <ChainMenu chains={shown} value={chain} onChange={setChain} />
+      </div>
+      {tokenList}
     </>
   );
   if (inFrame) return <div className="flex w-full flex-col items-center justify-normal gap-y-6 md:h-[543px]">{content}</div>;

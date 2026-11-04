@@ -98,8 +98,29 @@ export function mergeAllChains(lists: readonly UiToken[][]): UiToken[] {
   return [...held, ...rest];
 }
 
+/** Runs at most `max` calls at once; the others wait their turn, in order (a finished call hands its place on). */
+export function limiter(max: number) {
+  let running = 0;
+  const waiting: (() => void)[] = [];
+  return async <T>(run: () => Promise<T>): Promise<T> => {
+    if (running < max) running++;
+    else await new Promise<void>((go) => waiting.push(go));
+    try {
+      return await run();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else running--;
+    }
+  };
+}
+
+/** "All chains" asks every chain for tokens and balances: never more than three requests at once. */
+const allChainsTurn = limiter(3);
+
 /** Every served chain's first page of tokens (only `only` when given), with the EVM wallet's balances, merged for
- *  "All chains". ICP balances are not read here. */
+ *  "All chains". ICP balances are not read here. The requests take turns, three at a time (allChainsTurn); the search
+ *  that names them is already debounced by the token page. */
 export function useAllTokens(query: string, enabled: boolean, only?: readonly string[]) {
   const { chains } = useChains();
   const evm = useWallets((s) => s.evm);
@@ -107,7 +128,7 @@ export function useAllTokens(query: string, enabled: boolean, only?: readonly st
   const lists = useQueries({
     queries: infos.map((info) => ({
       queryKey: ['tokens-first', info.chainId, query],
-      queryFn: () => getTokens(info.chainId, query || undefined),
+      queryFn: () => allChainsTurn(() => getTokens(info.chainId, query || undefined)),
       enabled, staleTime: 60_000,
     })),
   });
@@ -115,7 +136,7 @@ export function useAllTokens(query: string, enabled: boolean, only?: readonly st
     queries: infos.map((info) => ({
       // the same key as useTokenList's balances, so a chain's balances are read once
       queryKey: ['balances', info.chainId, evm?.address, ''],
-      queryFn: () => getBalances(evm!.address, info.chainId, []),
+      queryFn: () => allChainsTurn(() => getBalances(evm!.address, info.chainId, [])),
       enabled: enabled && !!evm && info.chainId !== config.icpChain,
       staleTime: 10_000,
     })),

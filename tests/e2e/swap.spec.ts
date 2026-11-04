@@ -14,12 +14,18 @@ const open = (page: Page, scenario: string) => openAt(page, scenario, '/');
 // includeHidden. The design draws the action button twice (desktop and phone layouts, one hidden by CSS): the shown one.
 const button = (page: Page, name: string) => page.getByRole('button', { name, includeHidden: true }).filter({ visible: true });
 
+/** The token page's chain menu (beside the search box): open it, pick the chain by its number. */
+async function pickChain(page: Page, id: string) {
+  await page.locator('button[aria-label^="Chain:"]').filter({ visible: true }).click();
+  await page.locator(`[data-chain-id="${id}"]`).click();
+}
+
 async function pickTokens(page: Page) {
   await page.getByText('From', { exact: true }).click();
-  await page.locator('[data-chain-id="42161"]').click();
+  await pickChain(page, '42161');
   await page.getByText('USDC', { exact: true }).first().click();
   await page.getByText('To', { exact: true }).click();
-  await page.locator('[data-chain-id="137"]').click();
+  await pickChain(page, '137');
   await page.getByText('WBTC', { exact: true }).first().click();
   await page.locator('input[type=number]').fill('5');
 }
@@ -74,10 +80,10 @@ test.describe('Swap', () => {
   test('swaps from ICP paused while the pool refills (contract 5.15)', async ({ page }) => {
     await open(page, 'icp-paused');
     await page.getByText('From', { exact: true }).click();
-    await page.locator('[data-chain-id="0"]').click();
+    await pickChain(page, '0');
     await page.getByText('ckUSDC', { exact: true }).first().click();
     await page.getByText('To', { exact: true }).click();
-    await page.locator('[data-chain-id="8453"]').click();
+    await pickChain(page, '8453');
     await page.getByText('USDC', { exact: true }).first().click();
     await page.locator('input[type=number]').fill('5');
     await expect(page.getByText('Swaps from ICP are paused for a few minutes while the pool refills. Try again soon.')).toBeVisible();
@@ -150,7 +156,7 @@ test.describe('Swap, the shareable link', () => {
   test('a token from a link that is not on the list shows its warning first', async ({ page }) => {
     await openAt(page, 'pasted', '/?from=eip155:8453|0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
     await expect(page.getByText('Unverified', { exact: true })).toBeVisible();
-    await expect(page.getByPlaceholder('Search token')).toHaveValue('0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
+    await expect(page.getByPlaceholder('Search tokens on Base')).toHaveValue('0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07');
   });
 });
 
