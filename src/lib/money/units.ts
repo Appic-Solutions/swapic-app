@@ -45,6 +45,13 @@ export function formatUnits(value: bigint, decimals: number, maxFraction = decim
   return (neg ? '-' : '') + whole + (frac ? `.${frac}` : '');
 }
 
+/** Whether `text` may stand in an amount box: digits and at most one point, nothing else (never a sign or an exponent, which
+ *  a number input otherwise takes: "-5", "1e5"). Empty is allowed: the box was cleared. */
+export const isAmountText = (text: string) => /^\d*\.?\d*$/.test(text);
+
+/** Keys a number input takes that no amount may hold. */
+export const NOT_AMOUNT_KEYS = new Set(['-', '+', 'e', 'E']);
+
 /** A balance in a token list, where every row's figure must fit one narrow column: as [`formatAmount`], with anything
  *  under 0.0001 shown as `<0.0001` rather than its every leading zero. */
 export function formatListAmount(value: bigint, decimals: number): string {

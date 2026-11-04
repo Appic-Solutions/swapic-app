@@ -9,6 +9,7 @@ import { Avatar } from '@/components/ui/avatar';
 import Skeleton from '@/components/ui/skeleton';
 import { SWAPIC_LOGO } from './swapic-logo';
 import { tw } from '@/lib/motion';
+import { isAmountText, NOT_AMOUNT_KEYS } from '@/lib/money';
 
 export interface AmountCardProps {
   /** The token sent and its chain's logo (the small badge). */
@@ -47,10 +48,13 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
           <div className="flex w-full items-center">
             <input
               type="number"
+              min={0}
+              inputMode="decimal"
               placeholder="0"
               value={amountText}
               disabled={disabled}
-              onChange={(e) => { if (e.target.value.length <= 15) onAmountText?.(e.target.value); }}
+              onKeyDown={(e) => { if (NOT_AMOUNT_KEYS.has(e.key)) e.preventDefault(); }}
+              onChange={(e) => { if (e.target.value.length <= 15 && isAmountText(e.target.value)) onAmountText?.(e.target.value); }}
               className="w-full rounded-md border-[#000000] bg-transparent py-2 text-primary outline-none placeholder:text-primary/50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             />
             {balanceLoading ? (

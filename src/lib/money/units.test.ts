@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AmountError, formatAmount, formatListAmount, formatListUsd, formatUnits, parseDecimal, parseSigned, parseUnits } from './index';
+import { AmountError, formatAmount, formatListAmount, formatListUsd, formatUnits, isAmountText, parseDecimal, parseSigned, parseUnits } from './index';
 
 describe('parseUnits', () => {
   it('reads what people type', () => {
@@ -58,5 +58,12 @@ describe('a token list balance (one narrow column on a phone)', () => {
     expect(formatListUsd(3n)).toBe('<$0.01');
     expect(formatListUsd(0n)).toBe('$0.00');
     expect(formatListUsd(301_300n)).toBe('$0.30');
+  });
+});
+
+describe('the amount box', () => {
+  it('takes digits and one point only: never a sign or an exponent (Jeff, 2026-11-04)', () => {
+    for (const ok of ['', '0', '5', '0.01', '.5', '5.', '1234.5678']) expect(isAmountText(ok)).toBe(true);
+    for (const no of ['-5', '-0.01', '+5', '1e5', '1E5', '1.2.3', '5-', ' 5', 'abc']) expect(isAmountText(no)).toBe(false);
   });
 });
