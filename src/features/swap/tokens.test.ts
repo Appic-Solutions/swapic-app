@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { BalancesAnswer, ChainInfo, TokensAnswer } from '@/lib/api';
-import { joinBalances, toUiToken } from './tokens';
+import type { UiToken } from '@/components/ui/token-types';
+import { joinBalances, mergeAllChains, toUiToken, withBalance } from './tokens';
 
 const chains: ChainInfo[] = JSON.parse(readFileSync('tests/fixtures/contract/chains.json', 'utf8'));
 const base = chains.find((c) => c.chainId === 'eip155:8453')!;
@@ -21,5 +22,17 @@ describe('tokens', () => {
     expect(usdc.balance).toBe(250_000_000n);
     expect(usdc.balanceText).toBe('250');
     expect(joinBalances(list, balances, 'eip155:42161').every((x) => x.balance === undefined)).toBe(true);
+  });
+});
+
+describe('all chains', () => {
+  const arb = chains.find((c) => c.chainId === 'eip155:42161')!;
+  const onBase = tokens.tokens.slice(0, 3).map((x) => toUiToken({ ...x, priceUsd: x.symbol === 'ETH' ? '2000' : '1' }, base));
+  const onArb = tokens.tokens.slice(0, 2).map((x) => toUiToken({ ...x, priceUsd: '1' }, arb));
+  it('puts the held tokens first by dollar value, then one token from each chain in turn', () => {
+    const [eth, weth, usdc] = onBase as [UiToken, UiToken, UiToken];
+    const held = [withBalance(eth, 10n ** 15n), weth, withBalance(usdc, 5_000_000n)]; // $2 of ETH, $5 of USDC
+    const merged = mergeAllChains([held, onArb]).map((t) => t.key);
+    expect(merged).toEqual([usdc.key, eth.key, onArb[0]!.key, weth.key, onArb[1]!.key]);
   });
 });

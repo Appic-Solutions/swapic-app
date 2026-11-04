@@ -1,11 +1,12 @@
 'use client';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { Principal } from '@icp-sdk/core/principal';
 import { config } from '@/config';
 import { getBalances, getChains, getTokens, type BalancesAnswer, type ChainInfo, type TokenAnswer } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { chainLogo, chainName, chainNumber, isKnownChain } from '@/lib/explorer';
 import { formatAmount, formatUsd, usdMicro } from '@/lib/money';
+import { chainPlace } from '@/lib/chains';
 import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
 import { useWallets } from '@/lib/wallets/store';
 import type { UiToken } from '@/components/ui/token-types';
@@ -81,6 +82,46 @@ export function useTokenList(chain: string, query: string) {
     tokens, isLoading: list.isLoading || !info, settled: list.isSuccess || list.isError,
     loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage,
   };
+}
+
+/** "All chains" on the token page (chain picker designs, 2026-11-04): the tokens the wallet holds first, by dollar value
+ *  (a held token with no price after the priced ones); then each chain's list in its own order, one token from each chain
+ *  in turn, so every chain's top tokens show near the top. `lists` come in the chain table's order. */
+export function mergeAllChains(lists: readonly UiToken[][]): UiToken[] {
+  const usd = (t: UiToken) => (t.balance ? usdMicro(t.balance, t.decimals, t.priceUsd) ?? 0n : 0n);
+  const held = lists.flat().filter((t) => !!t.balance).sort((a, b) => { const d = usd(b) - usd(a); return d > 0n ? 1 : d < 0n ? -1 : 0; });
+  const heldKeys = new Set(held.map((t) => t.key));
+  const rest: UiToken[] = [];
+  const longest = Math.max(0, ...lists.map((l) => l.length));
+  for (let i = 0; i < longest; i++) for (const l of lists) { const t = l[i]; if (t && !heldKeys.has(t.key)) rest.push(t); }
+  return [...held, ...rest];
+}
+
+/** Every served chain's first page of tokens (only `only` when given), with the EVM wallet's balances, merged for
+ *  "All chains". ICP balances are not read here. */
+export function useAllTokens(query: string, enabled: boolean, only?: readonly string[]) {
+  const { chains } = useChains();
+  const evm = useWallets((s) => s.evm);
+  const infos = chains.filter((c) => !only || only.includes(c.chainId)).sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId));
+  const lists = useQueries({
+    queries: infos.map((info) => ({
+      queryKey: ['tokens-first', info.chainId, query],
+      queryFn: () => getTokens(info.chainId, query || undefined),
+      enabled, staleTime: 60_000,
+    })),
+  });
+  const balances = useQueries({
+    queries: infos.map((info) => ({
+      // the same key as useTokenList's balances, so a chain's balances are read once
+      queryKey: ['balances', info.chainId, evm?.address, ''],
+      queryFn: () => getBalances(evm!.address, info.chainId, []),
+      enabled: enabled && !!evm && info.chainId !== config.icpChain,
+      staleTime: 10_000,
+    })),
+  });
+  const tokens = mergeAllChains(infos.map((info, i) =>
+    joinBalances((lists[i]?.data?.tokens ?? []).map((t) => toUiToken(t, info)), balances[i]?.data, info.chainId)));
+  return { tokens, isLoading: enabled && (infos.length === 0 || lists.every((q) => q.isLoading)) };
 }
 
 export function useBalance(token: UiToken | null) {

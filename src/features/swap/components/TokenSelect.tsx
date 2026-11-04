@@ -7,14 +7,13 @@
 import * as React from 'react';
 import Box from '@/components/ui/box';
 import BoxHeader from '@/components/ui/box-header';
-import ChainItem from '@/components/ui/chain-item';
 import TokenListItem from '@/components/ui/token-list-item';
 import TokenSkeleton from '@/components/ui/token-skeleton';
 import Skeleton from '@/components/ui/skeleton';
 import type { UiToken } from '@/components/ui/token-types';
-import { chainLogo, chainNumber } from '@/lib/explorer';
 import { chainPlace } from '@/lib/chains';
-import { useChains, useTokenList } from '../tokens';
+import { useAllTokens, useChains, useTokenList } from '../tokens';
+import { ALL_CHAINS, ChainGrid, ChainMenu, ChainColumn, ChainRow, searchPlaceholder, type ChainPickerKind } from './ChainPicker';
 import { findReal } from '../real-token';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/cn';
@@ -39,6 +38,8 @@ export interface TokenSelectProps {
   note?: React.ReactNode;
   /** The search box starts with this (a token address from a shared link: an unlisted one shows its warning first). */
   initialQuery?: string;
+  /** How the chains show (ChainPicker.tsx): today's grid unless a design layout is asked for. */
+  chainPicker?: ChainPickerKind;
 }
 
 
@@ -51,15 +52,23 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note, initialQuery }: TokenSelectProps) {
+export function TokenSelect({ title, chain: start, selected, onBack, onSelect, chains: only, fixedTokens, note, initialQuery, chainPicker: kind = 'grid' }: TokenSelectProps) {
   const [chain, setChain] = React.useState(start);
   const [query, setQuery] = React.useState(initialQuery ?? '');
   const searched = useDebounced(query.trim(), 300);
   const { chains } = useChains();
-  const list = useTokenList(chain, fixedTokens ? '' : searched);
+  // "All chains": the new layouts only, and only on the quoter's lists (a fixed list is per chain)
+  const offerAll = kind !== 'grid' && !fixedTokens;
+  const isAll = chain === ALL_CHAINS;
+  const list = useTokenList(isAll ? '' : chain, fixedTokens ? '' : searched);
+  const every = useAllTokens(searched, offerAll && isAll, only);
   const fixed = fixedTokens?.[chain];
-  const tokens = fixed ?? list.tokens;
-  const loading = fixed ? false : list.isLoading;
+  const tokens = fixed ?? (isAll ? every.tokens : list.tokens);
+  const loading = fixed ? false : isAll ? every.isLoading : list.isLoading;
+  // the token's chain on its logo: always when the picker hides the chain (menu), else when the list mixes chains
+  const badges = kind === 'menu' || isAll;
+  const shown = chains.filter((c) => !only || only.includes(c.chainId)).sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId));
+  const pickerProps = { chains: shown, value: chain, onChange: setChain, all: offerAll };
   // Rows that show after the first render (after loading, a chain switch) fade up one after another.
   const mounted = useMounted();
   // Opened inside the Swap page's AnimatePresence: slides in and out.
@@ -86,97 +95,108 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const { hasMore, loadMore } = list;
   React.useEffect(() => {
     const el = sentinel.current;
-    if (!el || fixed || !hasMore) return;
+    if (!el || fixed || isAll || !hasMore) return;
     const seen = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) loadMore();
     });
     seen.observe(el);
     return () => seen.disconnect();
-  }, [fixed, hasMore, loadMore, tokens.length]);
+  }, [fixed, isAll, hasMore, loadMore, tokens.length]);
+
+  const search = (
+    <input
+      type="text"
+      placeholder={searchPlaceholder(kind, chain)}
+      value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      className="w-full min-w-0 rounded-md border-[#000000] bg-white/30 px-3 py-2 text-white placeholder:text-white/50"
+    />
+  );
+  const tokenList = (
+    <div className={'flex h-full w-full min-w-0 flex-col gap-y-6 overflow-y-scroll ' + (loading ? tw.shimmerAll : '')}>
+      {loading ? (
+        [0, 1, 2, 3, 4].map((i) => (
+          <div key={i} className="flex w-full items-center justify-between">
+            <TokenSkeleton />
+            <div className="flex flex-col items-end gap-y-2 pr-2">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+          </div>
+        ))
+      ) : tokens.length ? (
+        <>
+          {tokens.map((t, i) => {
+            const mark = markOf(t);
+            const isSelected = !!selected && selected.key === t.key;
+            const isOpen = confirming === t.key;
+            return (
+              <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
+                <TokenListItem
+                  token={t}
+                  mark={mark}
+                  isSelected={isSelected}
+                  chainBadge={badges}
+                  onClick={() => (needsConfirm(mark) && !isSelected ? open(isOpen ? null : t.key) : onSelect(t))}
+                />
+                <AnimatePresence initial={false}>
+                  {isOpen && (mark === 'fake' || mark === 'unverified') && (
+                    <motion.div
+                      className="overflow-hidden"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto', transition: openHeight(true, reduced) }}
+                      exit={{ opacity: 0, height: 0, transition: openHeight(false, reduced) }}
+                    >
+                      <ConfirmPick
+                        token={t}
+                        mark={mark}
+                        realSymbol={mark === 'fake' ? listedFor(t)?.token.symbol : undefined}
+                        onCancel={() => open(null)}
+                        onConfirm={() => { open(null); onSelect(t); }}
+                        onReal={mark === 'fake' ? () => void pickReal(t) : undefined}
+                        realBusy={real.busy}
+                        realNote={real.note}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+          <div ref={sentinel} aria-hidden className="h-px w-full shrink-0" />
+        </>
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-primary">No coins were found.</div>
+      )}
+    </div>
+  );
 
   const content = (
     <>
       <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100"><BoxHeader title={title} onBack={onBack} /></div>
-      <div className="grid w-full select-none grid-cols-5 place-items-center gap-5">
-        {chains
-          .filter((c) => !only || only.includes(c.chainId))
-          .sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId))
-          .map((c) => (
-            <div key={c.chainId} className={cn('rounded-full hover:scale-[1.06] active:scale-95 motion-reduce:hover:scale-100 motion-reduce:active:scale-100', tw.quick)}>
-              <ChainItem
-                chain={{ chainId: chainNumber(c.chainId), name: c.name, logo: chainLogo(c.chainId) }}
-                selectedId={chainNumber(chain)}
-                onClick={() => setChain(c.chainId)}
-              />
-            </div>
-          ))}
-      </div>
-      <hr className="w-full bg-[#636363]/25 max-md:hidden" />
-      {note}
-      {!note && (
-        <input
-          type="text"
-          placeholder="Search token"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded-md border-[#000000] bg-white/30 px-3 py-2 text-white placeholder:text-white/50"
-        />
+      {kind === 'grid' && (
+        <>
+          <ChainGrid {...pickerProps} />
+          <hr className="w-full bg-[#636363]/25 max-md:hidden" />
+        </>
       )}
-      <div className={'flex h-full w-full flex-col gap-y-6 overflow-y-scroll ' + (loading ? tw.shimmerAll : '')}>
-        {loading ? (
-          [0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className="flex w-full items-center justify-between">
-              <TokenSkeleton />
-              <div className="flex flex-col items-end gap-y-2 pr-2">
-                <Skeleton className="h-4 w-16" />
-                <Skeleton className="h-3 w-12" />
-              </div>
-            </div>
-          ))
-        ) : tokens.length ? (
-          <>
-            {tokens.map((t, i) => {
-              const mark = markOf(t);
-              const isSelected = !!selected && selected.key === t.key;
-              const isOpen = confirming === t.key;
-              return (
-                <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
-                  <TokenListItem
-                    token={t}
-                    mark={mark}
-                    isSelected={isSelected}
-                    onClick={() => (needsConfirm(mark) && !isSelected ? open(isOpen ? null : t.key) : onSelect(t))}
-                  />
-                  <AnimatePresence initial={false}>
-                    {isOpen && (mark === 'fake' || mark === 'unverified') && (
-                      <motion.div
-                        className="overflow-hidden"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto', transition: openHeight(true, reduced) }}
-                        exit={{ opacity: 0, height: 0, transition: openHeight(false, reduced) }}
-                      >
-                        <ConfirmPick
-                          token={t}
-                          mark={mark}
-                          realSymbol={mark === 'fake' ? listedFor(t)?.token.symbol : undefined}
-                          onCancel={() => open(null)}
-                          onConfirm={() => { open(null); onSelect(t); }}
-                          onReal={mark === 'fake' ? () => void pickReal(t) : undefined}
-                          realBusy={real.busy}
-                          realNote={real.note}
-                        />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
-            <div ref={sentinel} aria-hidden className="h-px w-full shrink-0" />
-          </>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-primary">No coins were found.</div>
-        )}
-      </div>
+      {kind === 'row' && <ChainRow {...pickerProps} />}
+      {kind === 'menu' ? (
+        <div className="flex w-full items-center gap-3">
+          {note ? <div className="min-w-0 flex-1">{note}</div> : search}
+          <ChainMenu {...pickerProps} />
+        </div>
+      ) : (
+        note ?? search
+      )}
+      {kind === 'column' ? (
+        <div className="flex w-full gap-3 md:h-full md:min-h-0">
+          <ChainColumn {...pickerProps} />
+          {tokenList}
+        </div>
+      ) : (
+        tokenList
+      )}
     </>
   );
   if (inFrame) return <div className="flex w-full flex-col items-center justify-normal gap-y-6 md:h-[543px]">{content}</div>;

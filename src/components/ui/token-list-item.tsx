@@ -13,12 +13,15 @@ const TokenCard = ({
   onClick,
   isSelected,
   mark = 'plain',
+  chainBadge = false,
 }: {
   token: UiToken;
   onClick: () => void;
   isSelected: boolean;
   /** The tick, or a flag (pill after the symbol, badge on the logo). */
   mark?: TokenMark;
+  /** The token's chain as a small logo on its logo's bottom right (a list that mixes chains, or hides the chain picked). */
+  chainBadge?: boolean;
 }) => {
   const flag = mark === 'fake' || mark === 'unverified' ? mark : null;
   return (
@@ -34,7 +37,10 @@ const TokenCard = ({
       >
         <div className="relative shrink-0">
           <Avatar src={token.logo} alt={token.name} className="h-12 w-12" />
-          {flag && <LogoBadge mark={flag} />}
+          {chainBadge && (
+            <Avatar src={token.chainLogo} alt={token.chainName} className="absolute -bottom-1 -right-1 h-5 w-5 ring-2 ring-[#141414]" />
+          )}
+          {flag && <LogoBadge mark={flag} top={chainBadge} />}
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <p className="flex items-center gap-x-1.5 text-xl font-bold text-white">
