@@ -46,7 +46,7 @@ export interface AppConfig {
 
 export const ICP_CHAIN = 'icp:737ba355e855bd4b61279056603e0550';
 
-const REOWN_PROJECT_ID = '77560e246a64e6b8843d098a5e802306';
+const REOWN_PROJECT_ID = 'e39ab02c2f3f42471be468601ac0c63d';
 
 const rawHosts = (id: string) => [`${id}.icp0.io`, `${id}.ic0.app`, `${id}.raw.icp0.io`, `${id}.raw.ic0.app`];
 
