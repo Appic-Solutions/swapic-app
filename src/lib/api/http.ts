@@ -3,16 +3,19 @@ import { config } from '@/config';
 /**
  * A refused or failed call. `reasonCode` and `maxUsd` are optional fields of the error body (quoter f626a60): a swap or a
  * stake over the canister's per swap cap answers 422 no_route with reasonCode "aboveSwapCap" and maxUsd "100" (whole
- * dollars as a decimal string). Other errors carry neither.
+ * dollars as a decimal string). A swap too big for the pool answers `poolCovers`, the dollars the pool can carry now. Other
+ * errors carry none of these.
  */
 export class ApiError extends Error {
   readonly reasonCode?: string;
   readonly maxUsd?: string;
-  constructor(readonly status: number, readonly code: string, message: string, readonly path: string, extra?: { reasonCode?: string; maxUsd?: string }) {
+  readonly poolCovers?: string;
+  constructor(readonly status: number, readonly code: string, message: string, readonly path: string, extra?: { reasonCode?: string; maxUsd?: string; poolCovers?: string }) {
     super(message);
     this.name = 'ApiError';
     if (extra?.reasonCode !== undefined) this.reasonCode = extra.reasonCode;
     if (extra?.maxUsd !== undefined) this.maxUsd = extra.maxUsd;
+    if (extra?.poolCovers !== undefined) this.poolCovers = extra.poolCovers;
   }
 }
 
@@ -43,12 +46,13 @@ async function read<T>(res: Response, path: string): Promise<T> {
     if (body === undefined) throw new ApiError(res.status, 'badAnswer', 'the answer is not JSON', path);
     return body as T;
   }
-  const b = body as { code?: unknown; message?: unknown; reasonCode?: unknown; maxUsd?: unknown } | undefined;
+  const b = body as { code?: unknown; message?: unknown; reasonCode?: unknown; maxUsd?: unknown; poolCovers?: unknown } | undefined;
   const code =
     typeof b?.code === 'string' ? b.code : res.status === 429 ? 'edgeLimited' : res.status >= 500 ? 'edgeUnavailable' : 'httpError';
   const extra = {
     ...(typeof b?.reasonCode === 'string' ? { reasonCode: b.reasonCode } : {}),
     ...(typeof b?.maxUsd === 'string' ? { maxUsd: b.maxUsd } : {}),
+    ...(typeof b?.poolCovers === 'string' ? { poolCovers: b.poolCovers } : {}),
   };
   throw new ApiError(res.status, code, typeof b?.message === 'string' ? b.message : `HTTP ${res.status}`, path, extra);
 }

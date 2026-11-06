@@ -63,6 +63,21 @@ export function swapCapOf(e: unknown): bigint | null {
   }
 }
 
+/**
+ * What the pool can carry when the swap is too big for it, in micro USD: the quote's `poolCovers`, or the same field on a
+ * 422 no_route when no route stood in; null when the pool did not refuse the size, or the field is not a dollar amount.
+ */
+export function poolCoversOf(quote: { poolCovers?: string } | undefined, e: unknown): bigint | null {
+  const text = quote?.poolCovers ?? (e instanceof ApiError ? e.poolCovers : undefined);
+  if (text === undefined) return null;
+  try {
+    const covers = dollarsToMicro(text);
+    return covers > 0n ? covers : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The plain sentence for any error; never the backend's own words. */
 export function userMessage(e: unknown): string {
   if (e instanceof ApiError) {

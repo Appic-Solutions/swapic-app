@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ApiError, getQuote, swapCapOf, userMessage, type Quote, type QuoteQuery } from '@/lib/api';
+import { ApiError, getQuote, poolCoversOf, swapCapOf, userMessage, type Quote, type QuoteQuery } from '@/lib/api';
 import { parseUnits } from '@/lib/money';
 import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
 import type { QuoteState } from './button';
@@ -57,6 +57,17 @@ export function icpSwapsPaused(fromIcp: boolean, quote: Quote | undefined, error
   return error instanceof ApiError && error.code === 'no_route' && error.message.includes('poolShort:');
 }
 
+/** Minutes until a move refills the pool, when the quoter held a slower route back for it (`poolRefilling: back in about N
+ *  minutes`, in a refused quote's reasons or an answer's `unavailable`); null otherwise. Either direction. */
+export function poolRefillMinutes(quote: Quote | undefined, error: unknown): number | null {
+  const texts = [...(quote?.unavailable ?? []), ...(error instanceof ApiError && error.code === 'no_route' ? [error.message] : [])];
+  for (const text of texts) {
+    const m = /poolRefilling: back in about (\d+) minutes/.exec(text);
+    if (m) return Number(m[1]);
+  }
+  return null;
+}
+
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
@@ -93,14 +104,17 @@ export function useSwapQuote() {
   // priced only: a card's route is read in full when Review swap has it built (namedOption, routeOffered there)
   const options = q.data ? pickOptions(q.data, { indicative: true }) : [];
   const error = q.error ? userMessage(q.error) : null;
-  const icpPaused = icpSwapsPaused(f.from?.chain_type === 'ICP', q.data, q.error);
+  const refill = poolRefillMinutes(q.data, q.error);
+  const icpPaused = refill !== null || icpSwapsPaused(f.from?.chain_type === 'ICP', q.data, q.error);
   // over the canister's per swap cap (422 no_route, reasonCode aboveSwapCap): its own line and button, with the cap
   const cap = swapCapOf(q.error);
+  // too big for the pool: how much still takes the fast route
+  const covers = poolCoversOf(q.data, q.error);
   const state: QuoteState = !query ? 'none' : q.isFetching && !q.data && !q.error ? 'loading' : icpPaused ? 'icpPaused' : error === PAUSED ? 'paused'
     : cap !== null ? 'capped' : q.error instanceof ApiError && q.error.code === 'no_route' ? 'empty' : q.error ? 'error' : options.length ? 'ready' : 'empty';
   const picked = findByTag(options, f.tag) ?? options[0];
   // updatedAt: when the price on screen was fetched (the quote timer counts from it and starts again with every refresh);
   // fetching: a fresh price is loading ("Updating price")
   // settling: the amount just changed and this quote is still for the old one, so Review swap would pair the two
-  return { query, quote: q.data as Quote | undefined, state, options, picked, error, cap, updatedAt: q.dataUpdatedAt, fetching: q.isFetching, settling: amountText !== f.amountText };
+  return { query, quote: q.data as Quote | undefined, state, options, picked, error, cap, covers, refill, updatedAt: q.dataUpdatedAt, fetching: q.isFetching, settling: amountText !== f.amountText };
 }

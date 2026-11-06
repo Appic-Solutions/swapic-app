@@ -47,7 +47,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
   const openIcp = useIcpConnect();
-  const { query, quote, state, options, picked, error, cap, updatedAt, fetching, settling } = useSwapQuote();
+  const { query, quote, state, options, picked, error, cap, covers, refill, updatedAt, fetching, settling } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
   // a link's two tokens on their way: the two token layout now, so nothing moves when they arrive
@@ -105,7 +105,8 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     }
   }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
-  const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : undefined;
+  const fastUpTo = covers !== null ? `Swap ${formatUsd(covers)} or less for the fast route` : undefined;
+  const message = state === 'empty' ? fastUpTo ?? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : fastUpTo;
   const button = linkBoth ? { text: undefined, enabled: false } : swapButton({
     from: !!from, to: !!to, amount, amountError, overBalance, quote: settling ? 'loading' : state, hasOptions: options.length > 0,
     recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient, cap,
@@ -149,7 +150,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   );
 
   // the route column's empty card says why, in the same words as the amount card (PROVISIONAL copy for the cap)
-  const paused = state === 'paused' ? { emptyTitle: PAUSED, emptyText: PAUSED_TEXT } : state === 'icpPaused' ? { emptyTitle: 'Paused for now', emptyText: ICP_PAUSED }
+  const paused = state === 'paused' ? { emptyTitle: PAUSED, emptyText: PAUSED_TEXT } : state === 'icpPaused' ? { emptyTitle: 'Paused for now', emptyText: refill !== null ? `The pool is refilling. Back in about ${refill} minutes.` : ICP_PAUSED }
     : state === 'capped' && cap !== null ? { emptyTitle: `Swaps are limited to ${formatUsdWhole(cap)} for now`, emptyText: 'Try a smaller amount.' } : {};
 
   return (

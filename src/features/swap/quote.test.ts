@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UiToken } from '@/components/ui/token-types';
-import { ApiError } from '@/lib/api';
-import { icpSwapsPaused, namedQueryOf, priceQueryOf, quoteQueryOf, smartWalletTypesRecipient } from './quote';
+import { ApiError, poolCoversOf } from '@/lib/api';
+import { icpSwapsPaused, namedQueryOf, poolRefillMinutes, priceQueryOf, quoteQueryOf, smartWalletTypesRecipient } from './quote';
 
 const t = (chain: string, address: string, decimals: number, chain_type: 'EVM' | 'ICP'): UiToken => ({
   key: `${chain}|${address}`, chain, chainId: chain_type === 'ICP' ? 0 : 1, chainName: '', chainLogo: '', chain_type, address, symbol: 'X', name: 'X', logo: '', decimals, priceUsd: null, verified: true,
@@ -33,6 +33,20 @@ describe('quoteQueryOf', () => {
     expect(icpSwapsPaused(true, undefined, refused)).toBe(true);
     expect(icpSwapsPaused(false, undefined, refused)).toBe(false);
     expect(icpSwapsPaused(true, undefined, new ApiError(422, 'no_route', 'no route could carry this swap: eco did not answer', '/v2/quote'))).toBe(false);
+  });
+  it('reads how soon a move refills the pool, either way, from a refused quote or an answer', () => {
+    const refused = new ApiError(422, 'no_route', 'no route could carry this swap: cctpFast+pool: poolShort: x; poolRefilling: back in about 12 minutes', '/v2/quote');
+    expect(poolRefillMinutes(undefined, refused)).toBe(12);
+    expect(poolRefillMinutes({ unavailable: ['poolRefilling: back in about 3 minutes'] } as never, null)).toBe(3);
+    expect(poolRefillMinutes({ unavailable: ['poolShort: x'] } as never, null)).toBeNull();
+    expect(poolRefillMinutes(undefined, new ApiError(422, 'no_route', 'no route could carry this swap: eco did not answer', '/v2/quote'))).toBeNull();
+  });
+  it('reads what the pool can carry from the quote or a refused one, in micro USD', () => {
+    expect(poolCoversOf({ poolCovers: '420.5' }, null)).toBe(420_500_000n);
+    expect(poolCoversOf(undefined, new ApiError(422, 'no_route', 'no route', '/v2/quote', { poolCovers: '40' }))).toBe(40_000_000n);
+    expect(poolCoversOf(undefined, new ApiError(422, 'no_route', 'no route', '/v2/quote'))).toBeNull();
+    expect(poolCoversOf({ poolCovers: '0' }, null)).toBeNull();
+    expect(poolCoversOf({ poolCovers: 'lots' }, null)).toBeNull();
   });
   it('asks nothing without both tokens or a positive, readable amount', () => {
     expect(quoteQueryOf({ ...form, to: null }, wallets)).toBeNull();

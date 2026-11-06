@@ -119,6 +119,8 @@ export interface Mode { allowed: boolean; whyNot?: string; routes: Route[] }
 export interface Quote {
   quoteId: string; fromChain: string; toChain: string; fromToken: QuoteToken; toToken: QuoteToken;
   amountIn: string; quotedAt: number; expiresAt: number; unavailable: string[];
+  /** A swap too big for the pool: the dollars it can carry now, as a decimal string. A smaller swap takes the fast route. */
+  poolCovers?: string;
   gasless: Mode; userPays: Mode; icpPull?: Mode;
 }
 
