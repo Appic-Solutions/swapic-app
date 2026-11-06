@@ -27,6 +27,7 @@ const NATIVE_LOGOS: Record<string, string> = {
 /** The other listed ICP tokens: most ledgers' own logos are too heavy for the quoter's list or missing, so one small image
  *  per ledger (each ledger's `icrc1:logo`, or its SNS logo for CHAT, MOTOKO and GOLDAO, as 96 px WebP). */
 const ICP_LEDGERS = [
+  'nza5v-qaaaa-aaaar-qahzq-cai',
   'ly36x-wiaaa-aaaai-aqj7q-cai', 'l3iu2-tyaaa-aaaal-qxm4q-cai', 'buwm7-7yaaa-aaaar-qagva-cai', '2ouva-viaaa-aaaaq-aaamq-cai',
   '7pail-xaaaa-aaaas-aabmq-cai', 'dkqo7-cqaaa-aaaah-quxvq-cai', 'icaf7-3aaaa-aaaam-qcx3q-cai', 'vurva-zqaaa-aaaak-quezq-cai',
   '6c7su-kiaaa-aaaar-qaira-cai', 'ca6gz-lqaaa-aaaaq-aacwa-cai', 'hvgxa-wqaaa-aaaaq-aacia-cai', 'lkwrt-vyaaa-aaaaq-aadhq-cai',
