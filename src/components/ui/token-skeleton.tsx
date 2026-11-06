@@ -1,16 +1,22 @@
-import Skeleton from '@/components/ui/skeleton';
+import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 
-const TokenSkeleton = () => {
+/** A token row while the list loads (token-list-item.tsx): logo, symbol and name, and the balance when a wallet is connected. */
+const TokenSkeleton = ({ balance }: { balance?: boolean }) => {
   return (
-    <div className="group flex cursor-pointer items-center gap-x-5 rounded-md p-2 duration-200">
-      {/* top section */}
-      <Skeleton className="h-12 w-12 rounded-full" />
-
-      {/* middle section */}
-      <div className="flex min-w-0 flex-col gap-y-2">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-3 w-20" />
+    <div className="flex w-full items-center justify-between rounded-xl p-2">
+      <div className="flex min-w-0 flex-grow items-center gap-x-3">
+        <Skeleton className="h-10 w-10 shrink-0" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <SkeletonText className="w-16 text-base" />
+          <SkeletonText className="w-28 text-sm" />
+        </div>
       </div>
+      {balance && (
+        <div className="flex shrink-0 flex-col items-end">
+          <SkeletonText className="w-16 text-base" />
+          <SkeletonText className="w-12 text-sm" />
+        </div>
+      )}
     </div>
   );
 };

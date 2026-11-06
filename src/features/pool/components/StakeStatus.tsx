@@ -24,6 +24,7 @@ import { chainLogo } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUsd } from '@/lib/money';
 import { cn } from '@/lib/cn';
+import { QUIET } from '@/components/ui/styles';
 import { tw } from '@/lib/motion';
 import { useActivity } from '@/features/activity/track';
 import { SwapStatus } from '@/features/swap/components/SwapStatus';
@@ -138,11 +139,11 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
         note: fresh ? (
           <Note calm icon={<CheckIcon />}>Your stake is now {formatUsd(total)}{apy ? `, earning ${apy} APY` : ''}.</Note>
         ) : (
-          <Note calm tone="blue" icon={<ClockIcon width={18} height={18} />}>You can leave this page. Your stake shows in History.</Note>
+          <Note calm tone="blue" icon={<ClockIcon width={16} height={16} />}>You can leave this page. Your stake shows in History.</Note>
         ),
         action: (
           <div className="flex w-full items-center gap-x-2">
-            <button onClick={onMore} className={cn('flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-xl bg-white/10 px-4 text-white hover:bg-white/20', tw.quick, tw.press)}>
+            <button onClick={onMore} className={cn(QUIET, 'h-12 shrink-0 px-4')}>
               <PlusIcon width={20} height={20} />Stake more
             </button>
             <ActionButton isDisabled={false} onClick={onPool}>Back to pool</ActionButton>

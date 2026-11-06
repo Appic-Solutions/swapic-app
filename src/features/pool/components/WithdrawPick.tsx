@@ -32,33 +32,33 @@ export function WithdrawPick({ stakes, picked, evmChains, onPick, onBack, onCont
   return (
     <PanelBox className="flex flex-col gap-6 md:max-w-[537px]">
       <motion.div variants={fade} className={BACK}><BoxHeader title="Withdraw" onBack={onBack} /></motion.div>
-      <motion.p variants={fade} className="w-full text-sm text-[#898989]">Your stake is in two wallets. Pick the one to withdraw from.</motion.p>
+      <motion.p variants={fade} className="w-full text-sm text-secondary">Your stake is in two wallets. Pick the one to withdraw from.</motion.p>
       <motion.div variants={fade} className="flex w-full flex-col gap-4">
         {stakes.map((st) => (
           <Card
             key={st.kind}
             onClick={() => onPick(st.kind)}
             className={cn(
-              'cursor-pointer flex-col items-start gap-3 rounded-[20px] border bg-highlighted-card !py-4 px-4 transition duration-300 hover:-translate-y-0.5 active:scale-[0.99] md:rounded-[36px] md:px-6',
-              picked === st.kind ? 'border-blue-600' : 'border-gray-700',
+              'cursor-pointer flex-col items-start gap-3 bg-highlighted-card p-4 transition-colors duration-200 hover:border-line-strong active:scale-[0.99] md:p-5',
+              picked === st.kind ? 'border-blue-600' : 'border-line',
             )}
           >
             <div className="flex w-full items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-x-3">
                 <Avatar src={st.kind === 'icp' ? ICP_WALLET_LOGO : chainLogo('eip155:1')} className="h-10 w-10 lg:h-12 lg:w-12" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[#898989]">Staked from</p>
+                  <p className="text-sm font-medium text-secondary">Staked from</p>
                   <p className="truncate font-mono text-base lg:text-xl">{short(st.owner)}</p>
                 </div>
               </div>
               <p className="shrink-0 text-base lg:text-xl">{formatUsd(st.valueUsdc)}</p>
             </div>
-            <p className="text-xs font-normal text-[#898989]">Pays out on {st.kind === 'icp' ? 'ICP' : orList(evmChains)}</p>
+            <p className="text-xs font-normal text-secondary">Pays out on {st.kind === 'icp' ? 'ICP' : orList(evmChains)}</p>
           </Card>
         ))}
       </motion.div>
       <motion.div variants={fade} className="flex w-full justify-between text-sm text-white">
-        <span className="text-muted">Your stake</span>
+        <span className="text-secondary">Your stake</span>
         <span className="font-semibold">{formatUsd(total)}</span>
       </motion.div>
       <motion.div variants={fade} className={cn('w-full', tw.quick, tw.press)}>

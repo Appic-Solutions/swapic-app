@@ -15,13 +15,18 @@ const config: Config = {
     extend: {
       /* Colors */
       colors: {
-        'primary': 'rgb(var(--primary))',
-        'secondary': 'rgb(var(--secondary))',
-        'tertiary': 'rgb(var(--tertiary))',
-        'active': 'rgb(var(--active))',
-        'success': 'rgb(var(--success))',
-        'fail': 'rgb(var(--fail))',
-        'muted': 'rgb(var(--muted))',
+        'primary': 'rgba(var(--primary), <alpha-value>)',
+        'secondary': 'rgba(var(--secondary), <alpha-value>)',
+        'tertiary': 'rgba(var(--tertiary), <alpha-value>)',
+        'active': 'rgba(var(--active), <alpha-value>)',
+        'success': 'rgba(var(--success), <alpha-value>)',
+        'fail': 'rgba(var(--fail), <alpha-value>)',
+        'muted': 'rgba(var(--muted), <alpha-value>)',
+        'faint': 'rgba(var(--faint), <alpha-value>)',
+        'warn': 'rgba(var(--warn), <alpha-value>)',
+        'line': 'var(--line)',
+        'line-strong': 'var(--line-strong)',
+        'inset': 'rgb(255 255 255 / 0.05)',
         'box-border': 'var(--box-border)',
         'card-background': 'var(--card-background)',
       },
@@ -47,8 +52,6 @@ const config: Config = {
 
       /* Keyframes */
       keyframes: {
-        // Skeleton shimmer (src/lib/motion.ts tw.shimmer): moves the light band of the background gradient across
-        shimmer: { '0%': { backgroundPosition: '150% 0' }, '100%': { backgroundPosition: '-50% 0' } },
         // Panel
         'slideInFromRight': {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
@@ -84,6 +87,8 @@ const config: Config = {
             maxHeight: '700px',
           },
         },
+        // both ends written out: from an implicit start Chrome cannot run it on the GPU (292 ms of work in 3 s against 12)
+        spin: { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } },
         'border-spin': {
           '0%': { transform: 'rotate(0deg)' },
           '100%': { transform: 'rotate(360deg)' },
@@ -141,7 +146,6 @@ const config: Config = {
 
       /* Animation */
       animation: {
-        shimmer: 'shimmer 1.6s cubic-bezier(0.37,0,0.63,1) infinite',
         // Panel
         'slide-in-from-right': 'slideInFromRight 0.5s ease-in-out',
         'slide-in-from-left': 'slideInFromLeft 0.5s ease-in-out',

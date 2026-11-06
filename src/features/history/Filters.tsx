@@ -10,24 +10,24 @@ const FILTERS: Filter[] = ['All', 'Swaps', 'Pool'];
 
 export function Filters({ value, onChange, counts }: { value: Filter; onChange: (f: Filter) => void; counts: Record<Filter, number> }) {
   return (
-    <div className="mx-auto flex w-full max-w-fit items-center gap-1 rounded-full bg-box-background p-1.5 ring-[5px] ring-box-border">
+    <div className="mx-auto flex w-full max-w-fit items-center gap-1 rounded-full border border-line bg-[#141416] p-1">
       {FILTERS.map((f) => (
         <button
           key={f}
           onClick={() => onChange(f)}
           className={cn(
-            'relative flex h-9 items-center gap-x-1.5 rounded-full px-4 text-sm font-semibold',
+            'relative flex h-8 items-center gap-x-1.5 rounded-full px-4 text-sm font-medium',
             tw.quick,
             tw.press,
-            f === value ? 'text-black' : 'text-white/70 hover:text-white',
+            f === value ? 'text-white' : 'text-secondary hover:text-white',
           )}
         >
-          {/* The light pill: one element that slides to the filter picked (motion row 52). */}
+          {/* The picked pill: one element that slides to the filter picked (motion row 52). */}
           {f === value && (
-            <motion.span layoutId="history-filter" className="absolute inset-0 rounded-full bg-[linear-gradient(81.4deg,_#EFEFEF_-15.41%,_#A5A5A5_113.98%)]" style={{ borderRadius: 9999 }} transition={T.big} />
+            <motion.span layoutId="history-filter" className="absolute inset-0 rounded-full bg-white/10" style={{ borderRadius: 9999 }} transition={T.big} />
           )}
           <span className="relative">{f}</span>
-          <span className={cn('relative text-xs', f === value ? 'text-black/60' : 'text-white/40')}>{counts[f]}</span>
+          <span className={cn('relative text-xs', f === value ? 'text-secondary' : 'text-faint')}>{counts[f]}</span>
         </button>
       ))}
     </div>

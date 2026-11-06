@@ -4,17 +4,18 @@ import * as React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '@/components/ui/avatar';
 import { T, tw } from '@/lib/motion';
-import { CloseIcon, ManageSearchIcon } from '@/components/icons';
+import { CloseIcon, ScannerIcon } from '@/components/icons';
 import { config } from '@/config';
 import { short } from '@/lib/copy/format';
+import { FIELD } from '@/components/ui/styles';
 import { chainLogo } from '@/lib/explorer';
 
 export type Chip = { kind: 'evm' | 'icp'; value: string };
 
 export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: Chip[]; text: string; onText: (s: string) => void; onSubmit: () => void; onRemove: (c: Chip) => void }) {
   return (
-    <div className="flex min-h-[42px] w-full flex-wrap items-center gap-1.5 rounded-lg bg-white/30 px-3 py-1.5 text-white transition-shadow duration-200 focus-within:ring-2 focus-within:ring-white/40 md:max-w-[560px]">
-      <ManageSearchIcon width={20} height={20} className="shrink-0 text-white/70" />
+    <div className={'flex min-h-10 w-full flex-wrap items-center gap-1.5 px-3 py-1 md:max-w-[560px] ' + FIELD}>
+      <ScannerIcon width={16} height={16} className="shrink-0 text-secondary" />
       {/* A wallet becomes a chip: it grows in; removed, it shrinks out and the rest close up (motion row 61). */}
       <AnimatePresence initial={false} mode="popLayout">
       {chips.map((c) => (
@@ -25,12 +26,12 @@ export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: 
           animate={{ opacity: 1, scale: 1, transition: T.enter }}
           exit={{ opacity: 0, scale: 0.9, transition: T.exit }}
           transition={{ layout: T.enter }}
-          className="flex items-center gap-x-1.5 rounded-full bg-black/40 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold"
+          className="flex items-center gap-x-1.5 rounded-full bg-white/10 py-0.5 pl-0.5 pr-1.5 text-xs font-medium"
         >
           <Avatar src={c.kind === 'icp' ? chainLogo(config.icpChain) : chainLogo('eip155:1')} className="h-5 w-5" />
           <span className="font-mono">{short(c.value)}</span>
-          <span onClick={() => onRemove(c)} className={'cursor-pointer rounded-full p-0.5 text-white/60 hover:bg-white/10 hover:text-white ' + tw.quick + ' ' + tw.pressIcon}>
-            <CloseIcon width={12} height={12} />
+          <span onClick={() => onRemove(c)} className={'cursor-pointer rounded-full p-0.5 text-secondary hover:bg-white/10 hover:text-white ' + tw.quick + ' ' + tw.pressIcon}>
+            <CloseIcon width={16} height={16} />
           </span>
         </motion.span>
       ))}
@@ -40,7 +41,7 @@ export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: 
         onChange={(e) => onText(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') onSubmit(); }}
         placeholder={chips.length ? 'Add another wallet' : 'Search address, principal, order ID or tx hash'}
-        className="h-7 min-w-[180px] flex-1 border-none bg-transparent text-sm text-white outline-none ring-0 placeholder:text-white/50"
+        className="h-7 min-w-[180px] flex-1 border-none bg-transparent text-sm text-white outline-none ring-0 placeholder:text-faint"
       />
     </div>
   );

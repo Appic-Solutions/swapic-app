@@ -1,24 +1,36 @@
 // Moved from the design's scanner-screens.tsx Tiles: the KPI tiles in the live StatusBox look, from GET /v2/scanner/stats.
 import * as React from 'react';
-import Skeleton from '@/components/ui/skeleton';
-import { tw } from '@/lib/motion';
+import { SkeletonText } from '@/components/ui/skeleton';
+
+const tile = 'flex min-w-0 flex-1 flex-col justify-between gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-h-24 md:p-5';
+const label = 'text-xs font-medium text-secondary md:text-sm';
+// the tiles before the stats: a sub line that never changes stays (it can wrap on phones), one that does waits
+const LOADING: [string, string | null][] = [['Swaps, 24H', null], ['Volume, 24H', 'all chains'], ['Median time', 'signature to delivery'], ['Delivered', null]];
 
 export function Tiles({ tiles }: { tiles: [string, string, string][] | null }) {
-  const shown = tiles ?? [['a', '', ''], ['b', '', ''], ['c', '', ''], ['d', '', '']];
   return (
-    <div className="flex w-full gap-3 overflow-x-auto hide-scrollbar md:gap-5">
-      {shown.map(([l, v, s]) =>
-        !tiles ? (
-          <Skeleton key={l} className="min-h-24 min-w-[158px] flex-1 rounded-2xl" />
-        ) : (
-          // hover lift, no press: a tile is not clickable (motion row 41)
-          <div key={l} className={'flex min-h-24 min-w-[158px] flex-1 flex-col justify-between gap-y-1.5 rounded-2xl bg-white/15 p-5 text-white hover:bg-white/20 ' + tw.quick + ' ' + tw.lift}>
-            <p className="text-[13px] font-semibold leading-5 text-[#898989]">{l}</p>
-            <p className="font-bold md:text-xl">{v}</p>
-            <p className="text-xs text-[#898989]">{s}</p>
-          </div>
-        ),
-      )}
+    <div className="grid w-full grid-cols-2 gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:flex md:gap-4">
+      {tiles
+        ? tiles.map(([l, v, s]) => (
+            <div key={l} className={tile}>
+              <p className={label}>{l}</p>
+              <p className="font-semibold md:text-xl">{v}</p>
+              <p className="text-xs text-secondary">{s}</p>
+            </div>
+          ))
+        : LOADING.map(([l, s]) => (
+            <div key={l} className={tile}>
+              <p className={label}>{l}</p>
+              <SkeletonText className="w-16 max-w-full font-semibold md:w-20 md:text-xl" />
+              {s ? <p className="text-xs text-secondary">{s}</p> : (
+                <div>
+                  <SkeletonText className="w-24 max-w-full text-xs" />
+                  {/* its "x% refunded as USDC" takes two lines on phones */}
+                  {l === 'Delivered' && <SkeletonText className="w-16 text-xs md:hidden" />}
+                </div>
+              )}
+            </div>
+          ))}
     </div>
   );
 }

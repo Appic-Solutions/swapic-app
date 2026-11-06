@@ -70,7 +70,7 @@ const WalletAddressInput = ({
     >
       <Card
         className={cn(
-          'max-h-[133px] cursor-auto flex-col items-start justify-center gap-y-2 hover:bg-[#000000]/0 md:max-h-[155px]',
+          'max-h-[133px] cursor-auto flex-col items-start justify-center gap-y-2 md:max-h-[155px]',
         )}
       >
         <p className="text-sm font-semibold">Send To Wallet</p>
@@ -86,15 +86,15 @@ const WalletAddressInput = ({
               value={address}
               onChange={handleAddressChange}
               className={cn(
-                'w-full rounded-md border-[#000000] py-2 outline-none',
+                'w-full py-2 outline-none',
                 'bg-transparent text-primary',
-                'placeholder:text-muted',
+                'placeholder:text-faint',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 address.length > 30 && 'text-lg',
               )}
             />
             {validationError && (
-              <p className="absolute top-[50px] animate-slide-in-from-top text-xs text-yellow-600">
+              <p className="absolute top-[50px] animate-slide-in-from-top text-xs text-warn">
                 {validationError}
               </p>
             )}

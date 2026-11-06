@@ -1,23 +1,23 @@
 :root {
   --primary: 255, 255, 255;
-  --secondary: 137, 137, 137;
+  /* text: white, secondary, faint (the only three text colors) */
+  --secondary: 152, 152, 152;
+  --faint: 102, 102, 102;
   --tertiary: 0, 102, 255;
   --active: 1, 255, 18;
-  --success: 13, 152, 87;
-  --fail: 255, 0, 0;
-  --muted: 141, 141, 141;
+  --success: 18, 183, 106;
+  --fail: 255, 107, 107;
+  --warn: 251, 191, 36;
+  --muted: 152, 152, 152;
 
-  --input-fields: linear-gradient(180deg, rgba(36, 36, 36, 0.8) 0%, rgba(33, 33, 33, 0.24) 100%);
+  /* surfaces: page #060607, panel (--box-background), card (solid, nothing shows through), inset (white 5% on a card) */
+  --input-fields: linear-gradient(180deg, #1c1c1e 0%, #151517 100%);
   --primary-buttons:
     linear-gradient(90deg, #1c68f8 0%, #1753c5 71.5%, #113d92 100%),
     linear-gradient(318.8deg, rgba(255, 255, 255, 0) 35.19%, rgba(255, 255, 255, 0.3) 92.55%);
   --primary-buttons-hover: linear-gradient(90deg, rgb(86, 86, 86));
   --box-background-secondary: linear-gradient(180deg, rgb(27, 27, 27) 0%, rgb(19, 19, 19) 100%);
-  --input-fields-hover: linear-gradient(
-    180deg,
-    rgba(66, 66, 66, 0.8) 0%,
-    rgba(33, 33, 33, 0.24) 100%
-  );
+  --input-fields-hover: linear-gradient(180deg, #222225 0%, #19191b 100%);
   --shapes-background: linear-gradient(
     322.44deg,
     rgba(17, 61, 146, 0.21) 14.48%,
@@ -36,7 +36,10 @@
   );
   --box-background: radial-gradient(100% 249.45% at 0% 2.78%, #151515 0%, #080808 100%);
   --box-border-gradient: linear-gradient(150deg, #414141 30.37%, rgba(41, 41, 41, 0.3) 70.34%);
-  --highlighted-card: linear-gradient(154.24deg, rgba(0, 33, 94, 0.672) 9.35%, rgb(0, 0, 0) 157.6%);
+  --highlighted-card: linear-gradient(154.24deg, #0a2253 0%, #0b0d14 100%);
   --box-border: #6363633d;
-  --card-background: linear-gradient(180deg, rgba(36, 36, 36, 0.8) 0%, rgba(33, 33, 33, 0.24) 100%);
+  --card-background: linear-gradient(180deg, #1c1c1e 0%, #151517 100%);
+  /* edges: every card has a 1px line; it brightens on hover; the picked card is blue */
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.2);
 }

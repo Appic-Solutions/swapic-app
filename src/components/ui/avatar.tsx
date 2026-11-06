@@ -11,7 +11,9 @@ interface AvatarProps extends React.ComponentPropsWithoutRef<typeof AvatarPrimit
 }
 
 const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, AvatarProps>(
-  ({ className, src, alt = '', fallback = <Skeleton />, ...props }, ref) => {
+  ({ className, src, alt = '', fallback, ...props }, ref) => {
+    // Sweeps only while the logo loads: a logo that failed stays a still circle, it never shimmers forever.
+    const [status, setStatus] = React.useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
     return (
       <AvatarPrimitive.Root
         ref={ref}
@@ -22,9 +24,9 @@ const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, A
         )}
         {...props}
       >
-        <AvatarPrimitive.Image className="aspect-square" src={src} alt={alt} />
-        <AvatarPrimitive.Fallback className="flex items-center justify-center rounded-full bg-muted">
-          {fallback}
+        <AvatarPrimitive.Image className="aspect-square" src={src} alt={alt} onLoadingStatusChange={setStatus} />
+        <AvatarPrimitive.Fallback className="flex items-center justify-center rounded-full bg-white/10">
+          {fallback ?? (status === 'loading' && <Skeleton className="h-full w-full bg-transparent" />)}
         </AvatarPrimitive.Fallback>
       </AvatarPrimitive.Root>
     );

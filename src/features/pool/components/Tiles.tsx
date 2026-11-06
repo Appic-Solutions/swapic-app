@@ -1,8 +1,34 @@
 // Moved from the design's pool-screens.tsx Tiles: the live StatusBox markup (it prefixes "$", so it is not reused).
 import * as React from 'react';
+import { SkeletonText } from '@/components/ui/skeleton';
 import type { PoolAnswer } from '@/lib/api';
-import { tw } from '@/lib/motion';
 import { tiles } from '../data';
+
+const tile = 'flex min-w-0 flex-1 flex-col justify-between gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-h-24 md:p-5';
+const label = 'text-xs font-medium text-secondary md:text-sm';
+
+/** The tiles while the pool loads: the labels and what never changes stay, the numbers wait. */
+export function TilesLoading() {
+  return (
+    <div className="grid w-full grid-cols-2 gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:flex">
+      <div className={tile}>
+        <p className={label}>APY, 7 days</p>
+        <SkeletonText className="w-14 font-semibold md:text-xl" />
+        <SkeletonText className="w-20 text-xs" />
+      </div>
+      <div className={tile}>
+        <p className={label}>Total staked</p>
+        <SkeletonText className="w-20 font-semibold md:text-xl" />
+        <p className="text-xs text-secondary">by all stakers</p>
+      </div>
+      <div className={tile}>
+        <p className={label}>Earned, 24H</p>
+        <SkeletonText className="w-16 font-semibold md:text-xl" />
+        <p className="text-xs text-secondary">paid to stakers from swaps</p>
+      </div>
+    </div>
+  );
+}
 
 export function Tiles({ pool }: { pool: PoolAnswer }) {
   const t = tiles(pool);
@@ -13,13 +39,12 @@ export function Tiles({ pool }: { pool: PoolAnswer }) {
     ['Earned, 24H', t.earned24h, 'paid to stakers from swaps'],
   ];
   return (
-    <div className="flex w-full gap-3 overflow-x-auto hide-scrollbar">
+    <div className="grid w-full grid-cols-2 gap-3 [&>*:last-child:nth-child(odd)]:col-span-2 md:flex">
       {rows.map(([l, v, s]) => (
-        // hover lift, no press: a tile is not clickable (motion part 2)
-        <div key={l} className={'flex min-h-24 min-w-[150px] flex-1 flex-col justify-between gap-y-1.5 rounded-2xl bg-white/15 p-5 text-white hover:bg-white/20 ' + tw.quick + ' ' + tw.lift}>
-          <p className="text-[13px] font-semibold leading-5 text-[#898989]">{l}</p>
-          <p className="font-bold md:text-xl">{v}</p>
-          {s !== null && <p className="text-xs text-[#898989]">{s}</p>}
+        <div key={l} className={tile}>
+          <p className={label}>{l}</p>
+          <p className="font-semibold md:text-xl">{v}</p>
+          {s !== null && <p className="text-xs text-secondary">{s}</p>}
         </div>
       ))}
     </div>

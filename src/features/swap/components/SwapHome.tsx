@@ -12,6 +12,7 @@ import { recipientError, useSwapForm } from '../form';
 import { useChains, useTokenList } from '../tokens';
 import { linkAmount, parseSwapLink, swapLinkQuery, type TokenRef } from '../link';
 import { SwapFlow } from './SwapFlow';
+import type { LinkLoading } from './SwapPanel';
 import { TokenSelect } from './TokenSelect';
 import { ALL_CHAINS } from './ChainPicker';
 import { ScrollHint } from '@/features/home/ScrollHint';
@@ -52,6 +53,8 @@ export function SwapHome() {
   // tokens from the link that are not on the list: their token page opens first, its search filled with the address
   const [unlisted, setUnlisted] = React.useState<{ side: 'from' | 'to'; query: string; chain: string }[]>([]);
   const pendingAmount = React.useRef<string | null>(null);
+  // a shared link while its tokens load: the panel keeps the shape it is about to take (no jump when they arrive)
+  const linking: LinkLoading | null = link && !ready && (link.from || link.to) ? { from: !!link.from, to: !!link.to, amount: !!link.amount } : null;
   React.useEffect(() => {
     if (!q || ready) return;
     if (!linkedFrom.done || !linkedTo.done) return; // wait for the token lists
@@ -123,8 +126,11 @@ export function SwapHome() {
     <AnimatePresence mode="wait">
       {tokenPage ?? (
         <Enter key="panel" skip={first} variants={fade} className="flex w-full flex-col items-center">
-          <div className="flex w-full flex-col items-center justify-center md:min-h-[760px]">
-            <SwapFlow view={flowView} setView={setView} onPick={(side) => setView(side)} />
+          {/* The first screen, in every view: the panel stays on one center line while the home sections and the hint come and
+              go (Jeff 2026-11-05: without this it jumped 85 px down on Review swap, then climbed back). 138 and 222: what the
+              header, the page padding and the bottom nav take above and below it. */}
+          <div className="relative flex w-full flex-col items-center justify-center md:min-h-[max(720px,calc(var(--fold,100vh)-222px))] xl:min-h-[max(720px,calc(var(--fold,100vh)-138px))]">
+            <SwapFlow view={flowView} setView={setView} onPick={(side) => setView(side)} linking={linking} />
             {flowView === 'swap' && <ScrollHint />}
           </div>
           {flowView === 'swap' && (

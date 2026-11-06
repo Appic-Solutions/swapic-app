@@ -2,7 +2,8 @@
 // History: moved from the design's history-screens.tsx HistoryPanel, wired to every connected wallet's rows (useHistory). A
 // row opens with its steps (GET /v2/orders/{id}/steps), fetched once when opened and every 10 s while it is pending.
 // Motion (approved 2026-10-29, part 2): one panel that changes in place (MorphFrame): "Open in Scanner" turns it into the
-// order page, the row's tokens and status pill fly there and the nav highlight slides to Scanner; Back reverses. Rows fade
+// order page with the calm fade (Jeff 2026-11-05: the row's tokens used to fly there, but the panel was still growing when
+// their targets were measured, so they landed far off) and the nav highlight slides to Scanner; Back reverses. Rows fade
 // up one after another once loaded, a new row opens at the top (the list glides back to its top so it shows whole), rows
 // open by height, the filter's pill slides.
 import * as React from 'react';
@@ -11,7 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { MorphFrame } from '@/components/motion/parts';
 import { cn } from '@/lib/cn';
-import { arriveTop, listItem, tw, useMounted } from '@/lib/motion';
+import { QUIET } from '@/components/ui/styles';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
+import { arriveTop, listItem, useMounted } from '@/lib/motion';
 import { useNavReset, useNavTab } from '@/lib/nav-tab';
 import { orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
@@ -76,7 +79,7 @@ export function HistoryPanel() {
   // a click on the History tab while the order page shows goes back to the list
   useNavReset('History', () => setOrderId(null));
   return (
-    <MorphFrame view={raw ? `order-${raw.id}` : 'list'} frameClass={raw ? ORDER_FRAME : HISTORY_FRAME} viewClass={raw ? undefined : HISTORY_VIEW}>
+    <MorphFrame view={raw ? `order-${raw.id}` : 'list'} calm frameClass={raw ? ORDER_FRAME : HISTORY_FRAME} viewClass={raw ? undefined : HISTORY_VIEW}>
       {(v) => (v !== 'list' && raw ? <OrderInPlace raw={raw} onBack={() => setOrderId(null)} /> : <HistoryList h={h} onOpenScanner={setOrderId} />)}
     </MorphFrame>
   );
@@ -89,6 +92,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   const [openId, setOpenId] = React.useState<string | null>(null);
   const mounted = useMounted();
   const list = React.useRef<HTMLDivElement>(null);
+  const edge = useScrollFade(list);
   const shown = filterRows(h.rows, filter);
   const connected = h.state !== 'nowallet';
   const rawOf = new Map(h.raw.map((r) => [r.id, r]));
@@ -109,11 +113,11 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   return (
     <>
       <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
-        <h1 className="text-2xl font-bold md:text-3xl">History</h1>
+        <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
         {connected && <WalletChips wallets={h.wallets} />}
       </div>
       {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={countRows(h.rows)} />}
-      <div ref={list} className={cn('flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto md:pr-1', h.state === 'loading' && tw.shimmerAll)}>
+      <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>
         {h.state === 'loading' && [0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
         {h.state === 'nowallet' && (
           <Empty img="/images/wallet.webp" size={180} title="Connect your wallet to see your history" text="Connect an EVM or ICP wallet, or both. You'll see every swap, stake and withdrawal they made, in one list." action="Connect wallet" onAction={() => openMenu(true)} />
@@ -133,7 +137,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
               </motion.div>
             ))}
             {h.hasMore && (
-              <button onClick={() => void h.more()} disabled={h.loadingMore} className={cn('mx-auto mb-1 flex items-center gap-x-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/20', tw.quick, tw.press)}>
+              <button onClick={() => void h.more()} disabled={h.loadingMore} className={cn(QUIET, 'mx-auto h-10 shrink-0 px-4 text-sm')}>
                 Show older
               </button>
             )}

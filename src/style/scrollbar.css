@@ -42,3 +42,11 @@
     display: block;
   }
 }
+
+/* Hidden at every size: these lists fade at the edge instead (useScrollFade) */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

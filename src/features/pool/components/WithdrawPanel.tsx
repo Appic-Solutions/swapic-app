@@ -40,7 +40,7 @@ import type { WithdrawStart } from './WithdrawReview';
 import { USDC_LOGO } from '../usdc';
 import { usedNonces } from '../used-nonces';
 import { checkWithdrawQuote, type CheckedWithdraw } from '../withdraw-sig';
-import { SlidingPill, STAKE_CARD } from './parts';
+import { SlidingPill } from './parts';
 
 const BASE = POOL_CHAIN;
 const PCTS = [25, 50, 75, 100] as const;
@@ -175,7 +175,6 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
         <motion.div variants={fade} className="flex w-full flex-col">
           {/* the stake card flies into this card when Withdraw opens */}
           <AmountCard
-            fly={STAKE_CARD}
             label={named && stake ? `Withdraw from ${short(stake.owner)}` : 'Withdraw from your stake'}
             token={{ logo: USDC_LOGO, chainLogo: SWAPIC_LOGO }}
             amountText={amountText}
@@ -201,10 +200,10 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
                     'relative flex h-8 flex-1 cursor-pointer items-center justify-center rounded-full text-xs disabled:cursor-not-allowed disabled:opacity-50',
                     tw.quick,
                     stakeReady && tw.press,
-                    on ? 'font-semibold text-[#0A0A0B]' : cn('bg-[#565656] text-white/70', stakeReady && 'hover:bg-[#6a6a6a]'),
+                    on ? 'font-medium text-white' : cn('bg-white/[0.06] text-secondary', stakeReady && 'hover:bg-white/10'),
                   )}
                 >
-                  {/* the light pill slides to the chip picked */}
+                  {/* the pill slides to the chip picked */}
                   {on && <SlidingPill id="withdraw-percent" />}
                   <span className="relative">{p === 100 ? 'Max' : `${p}%`}</span>
                 </button>
@@ -212,7 +211,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
             })}
           </div>
           <div className="mt-4">
-            <TokenCard token={to ?? undefined} customOnClick={onPickTo} label="Receive on" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
+            <TokenCard token={to ?? undefined} loading={!to} customOnClick={onPickTo} label="Receive on" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
           </div>
         </motion.div>
       }
@@ -232,12 +231,12 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
             ]}
           />
           {closed ? (
-            <Note tone="yellow" icon={<ClockIcon width={18} height={18} />}>{POOL_PAUSED}</Note>
+            <Note tone="yellow" icon={<ClockIcon width={16} height={16} />}>{POOL_PAUSED}</Note>
           ) : queuedNote ? (
             <>
-              <Note tone="blue" icon={<ClockIcon width={18} height={18} />}>{queuedNote}</Note>
+              <Note tone="blue" icon={<ClockIcon width={16} height={16} />}>{queuedNote}</Note>
               {to && to.chain !== BASE && (
-                <p className="px-2 text-xs text-[#898989]">
+                <p className="px-2 text-xs text-secondary">
                   While it waits, the cost of sending it to {where} can change. If it cannot be paid in full in time, your stake comes back.
                 </p>
               )}

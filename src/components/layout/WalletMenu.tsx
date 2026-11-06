@@ -15,7 +15,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTrigger } from '@/components
 import WalletCard from '@/components/ui/wallet-card';
 import { Avatar } from '@/components/ui/avatar';
 import Spinner from '@/components/ui/spinner';
-import { ChevronDownIcon, CloseIcon, CopyIcon, ExpandLeftIcon } from '@/components/icons';
+import { ChevronDownIcon, CloseIcon, CopyIcon, BackIcon } from '@/components/icons';
 import {
   loadEvmList, PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
@@ -46,18 +46,18 @@ export interface Wallets {
   icp: null | { name: string; logo: string; principal?: string };
 }
 
-const Label = ({ children }: { children: React.ReactNode }) => <p className="px-2 text-sm text-[#919191]">{children}</p>;
+const Label = ({ children }: { children: React.ReactNode }) => <p className="px-2 text-sm text-secondary">{children}</p>;
 
 // The live WalletCard row with the wallets it opens named under it and an arrow: the two first choices.
 function Choice({ logo, name, note, onClick }: { logo: string; name: string; note: string; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className="flex cursor-pointer items-center gap-2 rounded-md p-2 duration-200 hover:bg-[#2A2A2A]">
-      <Avatar src={logo} className="h-12 w-12" />
+    <div onClick={onClick} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-200 hover:bg-white/[0.06]">
+      <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-white">{name}</p>
-        <p className="text-xs text-[#898989]">{note}</p>
+        <p className="font-semibold text-white">{name}</p>
+        <p className="text-xs text-secondary">{note}</p>
       </div>
-      <ChevronDownIcon width={16} height={16} className="shrink-0 -rotate-90 text-white/60" />
+      <ChevronDownIcon width={16} height={16} className="shrink-0 -rotate-90 text-secondary" />
     </div>
   );
 }
@@ -65,11 +65,11 @@ function Choice({ logo, name, note, onClick }: { logo: string; name: string; not
 // Plug when its extension is not in this browser (phones included): the same row, opening Plug's site in a new tab.
 function GetPlug({ logo }: { logo: string }) {
   return (
-    <a href={PLUG_INSTALL_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-md p-2 duration-200 hover:bg-[#2A2A2A]">
-      <Avatar src={logo} className="h-12 w-12" />
+    <a href={PLUG_INSTALL_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-200 hover:bg-white/[0.06]">
+      <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-white">Plug</p>
-        <p className="text-xs text-[#898989]">Not found in this browser. Get it at plugwallet.ooo</p>
+        <p className="font-semibold text-white">Plug</p>
+        <p className="text-xs text-secondary">Not found in this browser. Get it at plugwallet.ooo</p>
       </div>
     </a>
   );
@@ -85,19 +85,19 @@ function Connected({ logo, name, address, onDisconnect }: { logo: string; name: 
     );
   };
   return (
-    <div className="flex animate-fade items-center gap-3 rounded-md p-2">
-      <Avatar src={logo} className="h-12 w-12" />
+    <div className="flex animate-fade items-center gap-3 rounded-xl p-2">
+      <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-white">{name}</p>
-        <div className="flex items-center gap-x-1.5 text-sm text-white/80">
+        <p className="font-semibold text-white">{name}</p>
+        <div className="flex items-center gap-x-1.5 text-sm text-white">
           <span className="font-mono">{short(address)}</span>
-          <button className="relative rounded-md p-0.5 transition-colors hover:bg-white/10 active:scale-90" onClick={copy}>
+          <button className="relative rounded-xl p-0.5 transition-colors hover:bg-white/10 active:scale-90" onClick={copy}>
             <CopyIcon width={16} height={16} />
-            {copied && <div className="absolute -left-5 -top-8 animate-fade rounded-lg border border-white/20 bg-[#1C1D1F] px-2 py-1 text-white">Copied!</div>}
+            {copied && <div className="absolute -left-5 -top-8 animate-fade rounded-xl border border-line bg-[#1c1c1e] px-2 py-1 text-white">Copied!</div>}
           </button>
         </div>
       </div>
-      <button onClick={onDisconnect} className={'shrink-0 rounded-[10px] px-3 py-2 text-sm font-semibold text-fail hover:bg-fail hover:text-white ' + tw.quick + ' ' + tw.press}>
+      <button onClick={onDisconnect} className={'shrink-0 rounded-xl px-3 py-2 text-sm font-medium text-fail hover:bg-fail/15 ' + tw.quick + ' ' + tw.press}>
         Disconnect
       </button>
     </div>
@@ -107,11 +107,11 @@ function Connected({ logo, name, address, onDisconnect }: { logo: string; name: 
 // While the wallet's own window is open.
 function Connecting({ logo, name }: { logo: string; name: string }) {
   return (
-    <div className="flex animate-fade items-center gap-2 rounded-md bg-[#2A2A2A] p-2">
-      <Avatar src={logo} className="h-12 w-12" />
+    <div className="flex animate-fade items-center gap-2 rounded-xl bg-white/[0.06] p-2">
+      <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
-        <p className="font-bold text-white">{name}</p>
-        <p className="text-xs text-[#898989]">Check your wallet</p>
+        <p className="font-semibold text-white">{name}</p>
+        <p className="text-xs text-secondary">Check your wallet</p>
       </div>
       <div className="w-6 shrink-0"><Spinner /></div>
     </div>
@@ -159,7 +159,7 @@ export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, on
           <Choice logo={EVM_LOGO} name="EVM wallet" note="MetaMask, Rabby, WalletConnect and others" onClick={onEvm} />
         )}
       </div>
-      <hr className="border-[#494949]" />
+      <hr className="border-line" />
       <div className="flex flex-col gap-1">
         <Label>ICP</Label>
         {w.icp?.principal ? (
@@ -170,7 +170,7 @@ export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, on
           <Choice logo={ICP_LOGO} name="ICP wallet" note="OISY, NFID, Internet Identity and Plug" onClick={onIcpList} />
         )}
       </div>
-      <p className="px-2 text-xs text-[#898989]">You can connect one EVM wallet and one ICP wallet at the same time.</p>
+      <p className="px-2 text-xs text-secondary">You can connect one EVM wallet and one ICP wallet at the same time.</p>
     </div>
   );
 }
@@ -179,7 +179,7 @@ export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, on
 function Back({ onBack, className }: { onBack: () => void; className: string }) {
   return (
     <button type="button" aria-label="Back" onClick={onBack} className={'absolute text-white hover:opacity-70 ' + tw.quick + ' ' + tw.pressIcon + ' ' + className}>
-      <ExpandLeftIcon width={20} height={20} />
+      <BackIcon width={20} height={20} />
     </button>
   );
 }

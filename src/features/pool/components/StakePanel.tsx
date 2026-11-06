@@ -20,7 +20,7 @@ import { TwoColumn } from '@/components/design/TwoColumn';
 import { ConfirmButton } from '@/components/motion/parts';
 import { motion } from 'motion/react';
 import { fade } from '@/lib/motion';
-import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
+import { CheckIcon, ClockIcon, EarnIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, postStakeQuote, swapCapOf, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
@@ -34,7 +34,7 @@ import { tiles, usePool } from '../data';
 import { evmStakeReview, icpStakeReview } from '../review';
 import type { StakeStart } from './StakeReview';
 import { USDC_LOGO } from '../usdc';
-import { STAKE_CARD, StakeAvatar } from './parts';
+import { StakeAvatar } from './parts';
 import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, POOL_PAUSED, stakeCheckOf, stakeRoom, stakeView, usdcText } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
@@ -124,7 +124,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   const checkError = live?.error ?? null;
   const view = fromIcp
     ? (amount !== null && amount > 0n && fee !== undefined && moveFee !== null && amount > moveFee
-      ? { added: amount - moveFee, addedText: formatUsd(amount - moveFee).slice(1), feeText: usdcText(2n * fee + moveFee), readyText: '5 Sec' } : null)
+      ? { added: amount - moveFee, addedText: formatUsd(amount - moveFee).slice(1), feeText: usdcText(2n * fee + moveFee), readyText: '5 sec' } : null)
     : option && checked ? stakeView(option, checked) : null;
   // skeletons from the moment an amount that will be quoted is typed until its quote answers (the design's loading card)
   const asks = !fromIcp && !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
@@ -181,7 +181,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
       // inside the in place panel each part fades (TwoColumn: callers fade their own parts)
       left={
         <motion.div variants={fade} className="flex w-full flex-col">
-          <TokenCard token={from ?? undefined} customOnClick={onPickFrom} label="From" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
+          <TokenCard token={from ?? undefined} loading={!from} customOnClick={onPickFrom} label="From" className="max-h-min py-5 active:scale-[0.98] md:max-h-min md:rounded-3xl md:py-5" />
           <AmountCard
             token={{ logo: from?.logo ?? USDC_LOGO, chainLogo: from?.chainLogo ?? '' }}
             amountText={amountText}
@@ -194,26 +194,25 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
               const max = fromIcp ? (fee === undefined ? null : maxIcp(balance, fee)) : balance;
               if (max !== null) setAmountText(formatUnits(max, from.decimals).replace(/,/g, ''));
             }}
-            balanceLoading={wallet && balanceLoading}
+            balanceLoading={wallet && (balanceLoading || !from)}
             message={capped ? undefined : message}
           />
           {capped && room !== null && (
-            <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">
+            <p className="mt-2 animate-slide-in-from-top text-xs text-warn">
               You can stake up to {formatUsdWhole(room)} right now.
             </p>
           )}
           {smart && (
             // PROVISIONAL copy (plan 3 Smart wallets, awaiting Jeff)
-            <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">The pool needs a regular wallet for now.</p>
+            <p className="mt-2 animate-slide-in-from-top text-xs text-warn">The pool needs a regular wallet for now.</p>
           )}
-          {note && <p className="mt-2 animate-slide-in-from-top text-xs text-yellow-600">{note}</p>}
+          {note && <p className="mt-2 animate-slide-in-from-top text-xs text-warn">{note}</p>}
         </motion.div>
       }
       right={
         <motion.div variants={fade} className="flex w-full flex-col gap-y-4 lg:flex-1">
           <ResultCard
             label="Added to your stake"
-            fly={STAKE_CARD}
             loading={loading}
             avatar={<StakeAvatar className="h-12 w-12" />}
             big={`~${view ? view.addedText : '0.00'} USDC`}
@@ -225,13 +224,13 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
             ]}
           />
           {closed ? (
-            <Note tone="yellow" icon={<ClockIcon width={18} height={18} />}>{POOL_PAUSED}</Note>
+            <Note tone="yellow" icon={<ClockIcon width={16} height={16} />}>{POOL_PAUSED}</Note>
           ) : fromIcp ? (
             <Note icon={<CheckIcon />}>
               Your ICP wallet asks you to approve the ckUSDC, then to confirm. No gas. A stake from ICP pays out on ICP.
             </Note>
           ) : (
-            <Note icon={<FireIcon width={18} height={18} />}>
+            <Note icon={<EarnIcon width={16} height={16} />}>
               Your stake earns from every swap that uses the pool. Withdraw anytime.
             </Note>
           )}

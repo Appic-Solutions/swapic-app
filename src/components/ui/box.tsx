@@ -13,11 +13,11 @@ export default function ({ children, className, ref }: BoxProps) {
       ref={ref}
       className={cn(
         'relative overflow-y-auto overflow-x-hidden',
-        'h-fit w-full md:backdrop-blur-md',
+        'h-fit w-full',
         'flex flex-col items-center justify-between',
         'md:bg-box-background md:bg-center md:bg-no-repeat',
-        'md:m-auto md:rounded-3xl md:ring-8 md:ring-box-border',
-        'md:max-h-[80vh] md:p-8',
+        'md:m-auto md:rounded-[32px] md:ring-8 md:ring-box-border',
+        'md:p-8',
         '*:z-10',
         className,
       )}

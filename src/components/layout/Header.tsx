@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useWallets } from '@/lib/wallets';
 import { cn } from '@/lib/cn';
+import { WalletIcon } from '@/components/icons';
 import { WalletMenuButton } from './WalletMenu';
 
 /**
@@ -11,31 +12,29 @@ import { WalletMenuButton } from './WalletMenu';
 export default function Header() {
   const { evm, icp } = useWallets();
   const both = !!evm && !!icp;
+  const label = both ? 'Connected Wallets' : evm || icp ? 'Add Wallet' : 'Connect Wallet';
   const pill = (
     <button
       type="button"
+      aria-label={label}
       className={cn(
-        'relative flex min-w-fit items-center justify-evenly gap-2 lg:h-[42px]',
-        'rounded-full border border-[#ECE6F5] bg-[#faf7fd]/50 md:col-span-2 md:justify-self-end',
-        // the approved motion: brighter on hover, sinks a little when pressed (design Shell.tsx PILL)
-        'transition duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#faf7fd]/60 active:scale-[0.97] motion-reduce:active:scale-100',
-        (evm || icp) && 'px-3',
-        '*:rounded-full',
+        'flex h-10 min-w-10 items-center justify-center gap-2 rounded-xl border border-line bg-white/[0.06] px-2.5 text-sm font-medium text-white md:px-4',
+        // the approved motion: brighter on hover, sinks a little when pressed
+        'transition duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white/10 active:scale-[0.97] motion-reduce:active:scale-100',
       )}
     >
-      <span className="w-full whitespace-nowrap px-3 py-2 text-sm font-medium text-white">
-        {both ? 'Connected Wallets' : evm || icp ? 'Add Wallet' : 'Connect Wallet'}
-      </span>
+      {!evm && !icp && <WalletIcon width={20} height={20} className="md:hidden" />}
+      <span className="whitespace-nowrap max-md:hidden">{label}</span>
       {(icp || evm) && (
-        <span className="flex items-center gap-x-2">
-          {icp && <img src="/images/logo/wallet_logos/icp.svg" alt="" width={24} height={24} className="min-h-6 min-w-6" />}
-          {evm && <img src="/images/logo/chains-logos/ethereum.svg" alt="" width={24} height={24} className="min-h-6 min-w-6" />}
+        <span className="flex items-center gap-x-1.5">
+          {icp && <img src="/images/logo/wallet_logos/icp.svg" alt="" width={20} height={20} className="h-5 w-5 rounded-full" />}
+          {evm && <img src="/images/logo/chains-logos/ethereum.svg" alt="" width={20} height={20} className="h-5 w-5 rounded-full" />}
         </span>
       )}
     </button>
   );
   return (
-    <header className="mb-5 flex w-full items-center justify-between xl:mt-4">
+    <header className="mb-4 flex w-full items-center justify-between md:mb-5 xl:h-[54px]">
       <Link href="/" className="relative h-[34px] w-[42px] md:h-[42px] md:w-[52px]">
         <img src="/images/landing/logo/swapic-logo.svg" alt="Swapic" className="absolute inset-0 h-full w-full" />
       </Link>

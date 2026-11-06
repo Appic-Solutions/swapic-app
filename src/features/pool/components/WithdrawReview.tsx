@@ -8,12 +8,11 @@
 // started, a short hold (as Swap's), then the withdrawal's steps (or, from ICP, the pool page).
 import * as React from 'react';
 import { motion } from 'motion/react';
-import { AlertTriangle } from 'lucide-react';
 import { MotionCard, ConfirmButton } from '@/components/motion/parts';
 import { Note } from '@/components/design/Note';
 import { SideBlock } from '@/components/design/SideBlock';
 import { TwoColumn } from '@/components/design/TwoColumn';
-import { CheckIcon, ClockIcon } from '@/components/icons';
+import { CheckIcon, ClockIcon, WarningIcon } from '@/components/icons';
 import type { StepView } from '@/components/orders/types';
 import type { UiToken } from '@/components/ui/token-types';
 import { postWithdraw, postWithdrawQuote } from '@/lib/api';
@@ -33,7 +32,7 @@ export interface WithdrawStart { stake: MyStake; to: UiToken; amount: bigint; re
 
 function WithdrawNote({ review }: { review: ReviewData }) {
   return review.queuedText ? (
-    <Note calm tone="blue" icon={<ClockIcon width={18} height={18} />}>{review.queuedText}</Note>
+    <Note calm tone="blue" icon={<ClockIcon width={16} height={16} />}>{review.queuedText}</Note>
   ) : review.kind === 'icp' ? (
     <Note calm icon={<CheckIcon />}>Your ICP wallet asks you to confirm. No gas. The ckUSDC arrives right away.</Note>
   ) : (
@@ -111,10 +110,10 @@ export function WithdrawReview({ start, onBack, onStarted }: { start: WithdrawSt
           <div className="flex w-full flex-1 flex-col justify-center gap-4">
             <SideBlock label="You withdraw" side={inPool(start.amount, '', 'From your stake')} amount={review.withdrawText} />
             <ArrowDown />
-            <SideBlock label={review.getLabel} side={tokenSide(start.to, review.minOut, icp ? '~' : '')} amount={review.getText} tone={wasGet ? 'text-yellow-500' : undefined} />
-            {wasGet && <p className="-mt-2 ml-16 text-sm font-normal text-[#898989]">was <span className="line-through">{wasGet}</span></p>}
+            <SideBlock label={review.getLabel} side={tokenSide(start.to, review.minOut, icp ? '~' : '')} amount={review.getText} tone={wasGet ? 'text-warn' : undefined} />
+            {wasGet && <p className="-mt-2 ml-16 text-sm font-normal text-secondary">was <span className="line-through">{wasGet}</span></p>}
           </div>
-          <div className="w-full space-y-2 border-t border-gray-700 pt-3">
+          <div className="w-full space-y-2 border-t border-line pt-3">
             <WalletRow k="Paid to" icp={icp} address={start.stake.owner} logo={chainLogo(start.to.chain)} />
           </div>
         </MotionCard>
@@ -125,7 +124,7 @@ export function WithdrawReview({ start, onBack, onStarted }: { start: WithdrawSt
           <WalletStepsCard steps={steps} />
           <motion.div variants={fade}>
             {note ? (
-              <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
+              <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={16} height={16} /> : <WarningIcon />}>{note.text}</Note>
             ) : (
               <WithdrawNote review={review} />
             )}

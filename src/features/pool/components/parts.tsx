@@ -15,15 +15,12 @@ export const StakeAvatar = ({ className = 'h-12 w-12' }: { className?: string })
   </div>
 );
 
-/** data-fly name of the stake card: it flies into Stake's result card and Withdraw's amount card (motion part 2). */
-export const STAKE_CARD = 'stake-card';
-
-/** The light active pill of the chart timeframes and the percent chips: one element that slides to the pill picked. */
+/** The active pill of the chart timeframes and the percent chips: one element that slides to the pill picked. */
 export function SlidingPill({ id }: { id: string }) {
   return (
     <motion.span
       layoutId={id}
-      className="absolute inset-0 rounded-full border border-[#e9ddf9] bg-white/70"
+      className="absolute inset-0 rounded-full bg-white/[0.14]"
       style={{ borderRadius: 9999 }}
       transition={T.big}
     />

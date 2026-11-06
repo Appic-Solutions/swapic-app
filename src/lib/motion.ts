@@ -31,8 +31,6 @@ export const DUR = {
   draw: 0.35,
   /** One half of the waiting glow (it breathes in, then out). */
   breathe: 1.6,
-  /** One pass of the skeleton highlight. */
-  shimmer: 1.6,
   /** The soft glow behind a delivered swap fading in. */
   glow: 0.6,
 };
@@ -42,9 +40,6 @@ export const GLOW = {
   off: '0 0 0px 0px rgba(59,130,246,0)',
   on: '0 0 26px 2px rgba(59,130,246,0.45)',
 };
-
-/** A card flying into a bigger card grows at most this much (more reads as a zoom). */
-export const FLY_GROW = 1.1;
 
 /** Times in milliseconds, for timers. */
 export const MS = {
@@ -113,8 +108,7 @@ export const menu: Variants = {
   shown: { opacity: 1, scale: 1, y: 0, transition: T.enter },
   gone: { opacity: 0, scale: 0.96, y: -4, transition: T.exit },
 };
-/** Hover and press for motion elements (same values as tw.lift and tw.press*). */
-export const lift = { y: -2 };
+/** Press for motion elements (same values as tw.press*). Nothing moves on hover (Jeff 2026-11-05): edges brighten. */
 export const press = { scale: 0.97 };
 export const pressCard = { scale: 0.99 };
 
@@ -153,16 +147,10 @@ export const tw = {
   pressCard: 'active:scale-[0.99] motion-reduce:active:scale-100',
   /** Small round icon buttons (copy, flip, chevrons). */
   pressIcon: 'active:scale-90 motion-reduce:active:scale-100',
-  /** Cards lift 2 px on hover. */
-  lift: 'hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
-  /** Brighter edge on hover for cards without a border. */
-  edge: 'hover:ring-1 hover:ring-white/15',
-  /** Skeleton shimmer on a Skeleton (replaces its pulse): a soft light band crosses it every 1.6 s; 70% opacity is the pulse's middle, so it looks as dim at rest. */
-  shimmer: 'animate-shimmer bg-[linear-gradient(100deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] bg-[length:200%_100%] opacity-70 motion-reduce:animate-pulse',
+  /** A clickable card's edge brightens on hover. */
+  edge: 'hover:border-line-strong',
   /** The soft green glow behind a delivered swap's circle. */
   glowDelivered: 'bg-[radial-gradient(circle,rgba(18,183,106,0.42)_0%,rgba(18,183,106,0.16)_42%,rgba(18,183,106,0)_70%)]',
-  /** Skeleton shimmer for every Skeleton inside (real skeleton components). */
-  shimmerAll: '[&_.animate-pulse]:animate-shimmer [&_.animate-pulse]:bg-[linear-gradient(100deg,transparent_30%,rgba(255,255,255,0.14)_50%,transparent_70%)] [&_.animate-pulse]:bg-[length:200%_100%] [&_.animate-pulse]:opacity-70 motion-reduce:[&_.animate-pulse]:animate-pulse',
 };
 
 /** Opening a part by height (0 to auto): enters and leaves like the rest; reduce motion opens it at once (it still fades). */

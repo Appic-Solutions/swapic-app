@@ -1,9 +1,9 @@
 'use client';
 // The Scanner tab's body: `/scanner` (the feed and search), `/scanner?q=a,b` (wallet chips), `/scanner?order=<id>` (one
 // order). It reads the link with useSearchParams, inside the page's Suspense (a static export needs one).
-// Motion (approved 2026-10-29, part 2): one panel that changes in place (MorphFrame) between the list and an order: a row's
-// tokens and status pill fly to the order page, Back reverses. The link still changes, so an order can be shared and the
-// browser's back works; the page stays mounted, so the change is a glide, not a new page.
+// Motion (approved 2026-10-29, part 2): one panel that changes in place (MorphFrame) between the list and an order, with the
+// calm fade; Back reverses. The link still changes, so an order can be shared and the browser's back works; the page stays
+// mounted, so the panel eases to its size, it is not a new page.
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -83,7 +83,7 @@ export function ScannerPage() {
   };
   const back = () => router.push(listQ.current ? `/scanner?q=${listQ.current}` : '/scanner');
   return (
-    <MorphFrame view={order ? `order-${order}` : 'list'} frameClass={order ? ORDER_FRAME : SCANNER_FRAME} viewClass={order ? undefined : SCANNER_VIEW}>
+    <MorphFrame view={order ? `order-${order}` : 'list'} calm frameClass={order ? ORDER_FRAME : SCANNER_FRAME} viewClass={order ? undefined : SCANNER_VIEW}>
       {() =>
         order ? (
           <OrderPage key={order} id={order} onBack={back} />

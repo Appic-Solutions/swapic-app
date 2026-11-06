@@ -16,7 +16,7 @@ describe('routeView', () => {
     const [gasless, paid] = pickOptions(q, { indicative: false });
     const eth = { symbol: 'ETH', decimals: 18, priceUsd: '3920.10' };
     const g = routeView(gasless!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
-    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 Sec', amountOutText: '0.00005976', totalFeeText: '$0.15', gasText: 'None, Swapic pays it' });
+    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 sec', amountOutText: '0.00005976', totalFeeText: '$0.15', gasText: 'None, Swapic pays it' });
     expect(g.usdOutText).toBe('$6.20');
     // the least the user receives, the quote's amountOutMin (5946 sats)
     expect(g.minOutText).toBe('0.00005946 WBTC');
@@ -39,7 +39,7 @@ describe('routeView', () => {
     expect(view(paid, false).gaslessNote).toBeUndefined();
   });
   it('writes times the way the design does', () => {
-    expect(etaText(12)).toBe('12 Sec');
-    expect(etaText(1200)).toBe('20 Mins');
+    expect(etaText(12)).toBe('12 sec');
+    expect(etaText(1200)).toBe('20 min');
   });
 });

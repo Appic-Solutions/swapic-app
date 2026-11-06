@@ -6,7 +6,6 @@
 // when the status says so.
 import * as React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { AlertTriangle } from 'lucide-react';
 import ActionButton from '@/components/ui/action-button';
 import Stepper from '@/components/ui/stepper';
 import { InfoRow } from '@/components/design/InfoRow';
@@ -18,10 +17,11 @@ import { CopyButton, useCopied } from '@/components/orders/CopyButton';
 import { StatusPill } from '@/components/orders/StatusPill';
 import { Steps } from '@/components/orders/Steps';
 import type { OrderStatus, SideView } from '@/components/orders/types';
-import { ArrowDownIcon, CheckIcon, ClockIcon, HistoryIcon } from '@/components/icons';
+import { ArrowDownIcon, CheckIcon, ClockIcon, HistoryIcon, WarningIcon } from '@/components/icons';
 import { DrawCheck, MotionCard, shrinkInto, useFrame } from '@/components/motion/parts';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
+import { QUIET } from '@/components/ui/styles';
 import { DUR, EASE, T, fade, rise, tw, useReducedMotion } from '@/lib/motion';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import type { StatusData } from '../status-view';
@@ -31,7 +31,7 @@ const PILL: Record<Phase, OrderStatus> = { progress: 'pending', delivered: 'deli
 /** The closed ring's colour: green delivered, yellow refunded, amber held for a check, grey never ran. */
 const RING: Record<Phase, { stroke: string; border: string }> = {
   progress: { stroke: '#16a34a', border: 'border-green-500' }, delivered: { stroke: '#16a34a', border: 'border-green-500' },
-  refunded: { stroke: '#eab308', border: 'border-yellow-500' }, held: { stroke: '#f59e0b', border: 'border-amber-500' },
+  refunded: { stroke: '#eab308', border: 'border-warn' }, held: { stroke: '#f59e0b', border: 'border-warn' },
   stopped: { stroke: '#6b7280', border: 'border-gray-500' },
 };
 
@@ -124,7 +124,7 @@ export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badg
       </AnimatePresence>
       {phase === 'delivered' && (
         <motion.span
-          className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-[#12b76a] text-white ring-4 ring-[#161616]"
+          className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-success text-white ring-4 ring-[#161616]"
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ ...T.enter, delay: DUR.big }}
@@ -173,29 +173,29 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
       inPlace
       title={text?.title ?? 'Your swap'}
       left={
-        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-5 hover:bg-[#000000]/0 lg:flex-1">
+        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-5 lg:flex-1">
           <motion.div variants={fade} className="flex w-full items-center justify-between gap-3">
             <motion.span key={d.phase} variants={fade} className="flex"><StatusPill status={PILL[d.phase]} /></motion.span>
-            <p className="text-sm font-semibold text-[#898989]">{d.when}</p>
+            <p className="text-sm font-medium text-secondary">{d.when}</p>
           </motion.div>
           <div className="flex w-full flex-col items-center gap-2 text-center">
             <LiveRing phase={d.phase} logo={d.ringLogo} badge={!!text} {...ring} />
             <motion.div variants={fade} className="flex flex-col items-center gap-2">
-              <motion.p key={d.title} variants={fade} className="mt-1 text-lg font-bold text-white">{d.title}</motion.p>
-              <motion.p key={d.text} variants={fade} className="text-sm font-semibold text-[#9F9F9F]">{d.text}</motion.p>
+              <motion.p key={d.title} variants={fade} className="mt-1 text-lg font-semibold text-white">{d.title}</motion.p>
+              <motion.p key={d.text} variants={fade} className="text-sm font-medium text-secondary">{d.text}</motion.p>
               {d.steps.length > 0 && <div className="mt-2"><Stepper totalSteps={d.steps.length} currentStep={d.phase === 'progress' ? done + 1 : d.steps.length} /></div>}
             </motion.div>
           </div>
           <motion.div variants={fade} className="flex w-full flex-col gap-4">
             <SideBlock label={text?.paid ?? (d.phase === 'stopped' ? 'Amount' : 'You paid')} side={d.pay} amount={`${d.pay.amountText} ${d.pay.symbol}`} />
-            {!nothingComes && <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>}
+            {!nothingComes && <div className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-secondary"><ArrowDownIcon width={16} height={16} /></div>}
             <motion.div key={refundSide ? 'refund' : d.phase} variants={fade}>
               {nothingComes ? null : asUsdc ? (
                 <SideBlock label="You got" side={asUsdc} amount={asUsdc.amount} />
               ) : refundSide ? (
-                <SideBlock label={`Refunded to ${d.refund!.toText}`} side={refundSide} amount={refundSide.amount} tone="text-yellow-500" />
+                <SideBlock label={`Refunded to ${d.refund!.toText}`} side={refundSide} amount={refundSide.amount} tone="text-warn" />
               ) : (
-                <SideBlock label={text?.get ?? (d.phase === 'delivered' ? 'You got' : 'You get')} side={d.get} amount={`${d.get.amountText} ${d.get.symbol}`} tone={d.phase === 'progress' ? 'text-white/60' : undefined} />
+                <SideBlock label={text?.get ?? (d.phase === 'delivered' ? 'You got' : 'You get')} side={d.get} amount={`${d.get.amountText} ${d.get.symbol}`} tone={d.phase === 'progress' ? 'text-secondary' : undefined} />
               )}
             </motion.div>
           </motion.div>
@@ -205,8 +205,8 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
         <>
           <motion.div variants={card} className={cn(statCard, 'gap-y-5 lg:flex-1')}>
             <div className="flex items-center justify-between">
-              <p className="text-xl font-bold text-white">Steps</p>
-              <motion.p key={d.phase} variants={fade} className="flex items-center gap-x-1.5 text-sm text-[#898989]">
+              <p className="text-xl font-semibold text-white">Steps</p>
+              <motion.p key={d.phase} variants={fade} className="flex items-center gap-x-1.5 text-sm text-secondary">
                 <ClockIcon width={16} height={16} />
                 {d.totalText}
               </motion.p>
@@ -225,13 +225,13 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
           </motion.div>
           <motion.div key={d.phase} variants={fade}>
             {text ? text.note : nothingComes ? null : d.phase === 'refunded' ? (
-              <Note tone="yellow" icon={<AlertTriangle className="h-[18px] w-[18px]" />}>{d.reason}</Note>
+              <Note tone="yellow" icon={<WarningIcon />}>{d.reason}</Note>
             ) : asUsdc ? (
               <Note icon={<CheckIcon />}>{d.reason}</Note>
             ) : d.phase === 'delivered' ? (
               <Note icon={<CheckIcon />}>All {d.get.amountText} {d.get.symbol} arrived in your {d.get.chain === 'ICP' ? 'ICP' : 'EVM'} wallet {short(d.to)}.</Note>
             ) : (
-              <Note tone="blue" icon={<ClockIcon width={18} height={18} />}>You can leave this page. Your swap shows in History.</Note>
+              <Note tone="blue" icon={<ClockIcon width={16} height={16} />}>You can leave this page. Your swap shows in History.</Note>
             )}
           </motion.div>
         </>
@@ -240,7 +240,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
         <div className="flex w-full items-center gap-x-2">
           <button
             onClick={onHistory}
-            className={cn('flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-xl bg-white/10 px-4 text-white hover:bg-white/20', tw.quick, tw.press)}
+            className={cn(QUIET, 'h-12 shrink-0 px-4')}
           >
             <HistoryIcon width={20} height={20} />History
           </button>

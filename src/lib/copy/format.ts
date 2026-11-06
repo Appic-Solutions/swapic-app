@@ -21,7 +21,7 @@ export function dayText(ms: number, nowMs: number): string {
   if (sameDay(d, new Date(nowMs - 86_400_000))) return 'Yesterday';
   return `${d.getDate()} ${d.toLocaleString('en-US', { month: 'short' })}`;
 }
-export const tookText = (ms: number) => (ms < 60_000 ? `${(Math.round(ms / 100) / 10).toString()} s` : `${Math.round(ms / 60_000)} min`);
+export const tookText = (ms: number) => (ms < 60_000 ? `${(Math.round(ms / 100) / 10).toString()} sec` : `${Math.round(ms / 60_000)} min`);
 export function etaLeftText(etaAt: number | null, nowSec: number): string | null {
   if (etaAt === null) return null;
   const left = Math.max(etaAt - nowSec, 1);

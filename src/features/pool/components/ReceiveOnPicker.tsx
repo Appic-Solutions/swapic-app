@@ -19,7 +19,7 @@ export function ReceiveOnPicker({ stake, tokens, selected, onBack, onSelect }: {
       onBack={onBack}
       onSelect={onSelect}
       note={
-        <p className="w-full text-sm text-[#898989]">
+        <p className="w-full text-sm text-secondary">
           {stake.kind === 'icp'
             ? `This stake came from ${short(stake.owner)} on ICP, so it pays out on ICP, as ckUSDC.`
             : `This stake came from ${short(stake.owner)}, so it pays out on EVM chains.`}

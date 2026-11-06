@@ -22,10 +22,10 @@ import { USDC_LOGO } from '../usdc';
 import type { WalletStep } from '../review';
 
 /** Review swap's left card, class for class. */
-export const REVIEW_CARD = 'cursor-auto flex-col items-start justify-between gap-4 hover:bg-[#000000]/0 lg:flex-1';
+export const REVIEW_CARD = 'cursor-auto flex-col items-start justify-between gap-4 lg:flex-1';
 
 export const ArrowDown = () => (
-  <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
+  <div className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-secondary"><ArrowDownIcon width={16} height={16} /></div>
 );
 
 /** A token amount as a side (its chain's badge). USDC and ckUSDC count as dollars, as Stake and Withdraw show them. */
@@ -56,7 +56,7 @@ export function WalletRow({ k, icp, address, logo }: { k: string; icp: boolean; 
     <InfoRow k={k}>
       <Avatar src={logo} className="h-5 w-5" />
       <span className="max-sm:hidden">{icp ? 'Your ICP wallet' : 'Your EVM wallet'}</span>
-      <span className="font-mono font-normal text-white/80">{short(address)}</span>
+      <span className="font-mono font-normal text-white">{short(address)}</span>
       <CopyButton id="to" copied={copied} onCopy={copy} text={address} />
     </InfoRow>
   );
@@ -71,8 +71,8 @@ export function WalletStepsCard({ steps }: { steps: StepView[] }) {
   return (
     <motion.div variants={fade} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xl font-bold text-white">In your wallet</p>
-        <p className="text-sm text-[#898989]">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>
+        <p className="text-xl font-semibold text-white">In your wallet</p>
+        <p className="text-sm text-secondary">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>
       </div>
       <Steps steps={steps} numbered animated />
     </motion.div>

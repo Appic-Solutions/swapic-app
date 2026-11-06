@@ -101,5 +101,6 @@ export function useSwapQuote() {
   const picked = findByTag(options, f.tag) ?? options[0];
   // updatedAt: when the price on screen was fetched (the quote timer counts from it and starts again with every refresh);
   // fetching: a fresh price is loading ("Updating price")
-  return { query, quote: q.data as Quote | undefined, state, options, picked, error, cap, updatedAt: q.dataUpdatedAt, fetching: q.isFetching };
+  // settling: the amount just changed and this quote is still for the old one, so Review swap would pair the two
+  return { query, quote: q.data as Quote | undefined, state, options, picked, error, cap, updatedAt: q.dataUpdatedAt, fetching: q.isFetching, settling: amountText !== f.amountText };
 }

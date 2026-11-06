@@ -21,9 +21,8 @@ import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
 import type { SideView, StepView } from '@/components/orders/types';
 import { Note } from '@/components/design/Note';
-import { ClockIcon } from '@/components/icons';
+import { ClockIcon, WarningIcon } from '@/components/icons';
 import { MorphFrame } from '@/components/motion/parts';
-import { AlertTriangle } from 'lucide-react';
 import { getOrders, getQuote, submitGasless, userMessage, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
 import { tokenAmountText } from '@/lib/copy/format';
 import { chainLogo, chainName } from '@/lib/explorer';
@@ -44,7 +43,7 @@ import { statusView, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
 import { reviewMarks } from './ConfirmPick';
-import { SwapPanel, type ReviewStart } from './SwapPanel';
+import { SwapPanel, type LinkLoading, type ReviewStart } from './SwapPanel';
 import { SwapStatus } from './SwapStatus';
 
 export type FlowView = 'swap' | 'review' | 'status';
@@ -68,7 +67,7 @@ const sideOf = (t: UiToken, amount: bigint, prefix = ''): SideView => {
   return { symbol: t.symbol, logo: t.logo, chain: chainName(t.chain), chainLogo: chainLogo(t.chain), amountText: `${prefix}${tokenAmountText(amount, t.decimals, t.symbol)}`, usdText: usd === null ? '' : formatUsd(usd) };
 };
 
-export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (v: FlowView) => void; onPick: (side: 'from' | 'to') => void }) {
+export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; setView: (v: FlowView) => void; onPick: (side: 'from' | 'to') => void; linking?: LinkLoading | null }) {
   const router = useRouter();
   const f = useSwapForm();
   const signer = useEvmSigner();
@@ -245,7 +244,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
   // the panel is wide once the route column shows (tokens and an amount), and on Review swap and Your swap
   let typed = false;
   try { typed = !!f.from && !!f.to && parseUnits(f.amountText, f.from.decimals) > 0n; } catch { typed = false; }
-  const wide = view !== 'swap' || typed;
+  const wide = view !== 'swap' || typed || (!!linking?.from && linking.to && linking.amount);
   const waiting = busy && !!states?.some((s) => s === 'wait');
   // the wallet is asking (or the steps run): the ring holds and no fresh quote loads
   const holding = busy || started || !!states?.some((s) => s === 'wait');
@@ -268,7 +267,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
     <MorphFrame view={viewKey} wide={wide}>
       {(v) =>
         v === 'swap' ? (
-          <SwapPanel onPick={onPick} onReview={start} />
+          <SwapPanel onPick={onPick} onReview={start} linking={linking} />
         ) : v === 'review' && rv ? (
           <ReviewPanel
             data={rv.data} pay={sideOf(rv.from, rv.amountIn)} get={sideOf(rv.to, rv.data.min)} toToken={{ symbol: rv.to.symbol, logo: rv.to.logo }}
@@ -277,7 +276,7 @@ export function SwapFlow({ view, setView, onPick }: { view: FlowView; setView: (
             disabled={waitUntil !== null || !rv.named}
             button={waitUntil !== null ? 'Try again in a minute' : rv.wasMinText ? 'Accept new price' : resume ? 'Try again' : undefined}
             note={note ? (
-              <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
+              <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={16} height={16} /> : <WarningIcon />}>{note.text}</Note>
             ) : undefined}
             onBack={() => toSwap(false)}
             timer={holding ? undefined : <CountdownLabel startedAt={rvAt} fetching={updating} />}

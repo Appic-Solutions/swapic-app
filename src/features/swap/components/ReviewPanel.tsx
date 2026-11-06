@@ -67,24 +67,24 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
       title="Review swap"
       onBack={onBack}
       left={
-        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-4 hover:bg-[#000000]/0 lg:flex-1">
+        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-4 lg:flex-1">
           <div className="flex w-full flex-1 flex-col justify-center gap-4">
             <SideBlock label="You pay" side={pay} amount={data.payText} badge={marks?.pay} />
-            <div className="ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-white/70"><ArrowDownIcon width={14} height={14} /></div>
+            <div className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-secondary"><ArrowDownIcon width={16} height={16} /></div>
             {/* a fresh price (the 20 s refresh): the old minimum fades out, the new one fades in (the design's quote timer) */}
             <AnimatePresence mode="wait" initial={false}>
               <motion.div key={data.minText} variants={fade} initial="hidden" animate="shown" exit="gone">
-                <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-yellow-500' : undefined} badge={marks?.get} />
-                {wasMinText && <p className="ml-16 mt-1 text-sm font-normal text-[#898989]">was <span className="line-through">{wasMinText}</span></p>}
+                <SideBlock label="You get at least" side={get} amount={data.minText} tone={wasMinText ? 'text-warn' : undefined} badge={marks?.get} />
+                {wasMinText && <p className="ml-16 mt-1 text-sm font-normal text-secondary">was <span className="line-through">{wasMinText}</span></p>}
               </motion.div>
             </AnimatePresence>
             {marks?.check}
           </div>
-          <div className="w-full space-y-2 border-t border-gray-700 pt-3">
+          <div className="w-full space-y-2 border-t border-line pt-3">
             <InfoRow k="Send to">
               <Avatar src={chainLogo(recipient.chain)} className="h-5 w-5" />
               <span className="max-sm:hidden">{recipient.label}</span>
-              <span className="font-mono font-normal text-white/80">{short(recipient.address)}</span>
+              <span className="font-mono font-normal text-white">{short(recipient.address)}</span>
               <CopyButton id="to" copied={copied} onCopy={copy} text={recipient.address} />
             </InfoRow>
             <InfoRow k="If it can't finish">Refunded as {data.refundAs}</InfoRow>
@@ -97,8 +97,8 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           <RouteOption review layoutId={routeLayoutId(data.option.key)} cardRef={routeRef} option={data.option} toToken={toToken} isSelected isExpanded onSelect={() => {}} onExpand={() => {}} timer={timer} arrive="rise" />
           <motion.div variants={rise} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xl font-bold text-white">In your wallet</p>
-              <p className="text-sm text-[#898989]">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>
+              <p className="text-xl font-semibold text-white">In your wallet</p>
+              <p className="text-sm text-secondary">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>
             </div>
             <Steps steps={steps} numbered animated />
           </motion.div>

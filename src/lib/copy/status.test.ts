@@ -14,7 +14,7 @@ describe('status words', () => {
   it('turns the contract steps into the design labels', () => {
     const v = stepViews(contract('steps-delivered.json'), { gasMode: 'gasless', refund: null, token });
     expect(v.map((s) => s.label)).toEqual(['Signed, no gas', 'Sent on Arbitrum', 'On its way to ICP', 'Paid out on ICP', 'Delivered 0.002403 ckBTC']);
-    expect(v[1]!.took).toBe('3.1 s');
+    expect(v[1]!.took).toBe('3.1 sec');
     expect(v[1]!.tx?.href).toMatch(/^https:\/\/arbiscan\.io\/tx\/0x684f/);
     expect(v[3]!.tx?.text).toBe('block 2,184,903');
   });
@@ -60,7 +60,7 @@ describe('status words', () => {
     expect(tokenAmountText(119_800_000n, 6, 'USDC')).toBe('119.80');
     expect(tokenAmountText(240_300n, 8, 'ckBTC')).toBe('0.002403');
     expect(short('3yfhk-v3nwx-2xo3k-pjyl5-ugvqk-ywkpy-qaq7m-aocl5-iz5re-kxxtc-2qe')).toBe('3yfhk…2qe');
-    expect(tookText(3100)).toBe('3.1 s');
+    expect(tookText(3100)).toBe('3.1 sec');
     expect(tookText(125_000)).toBe('2 min');
   });
   it('every word it can produce passes the copy check', () => {

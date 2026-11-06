@@ -8,7 +8,7 @@ describe('scannerTiles', () => {
     expect(scannerTiles(s)).toEqual([
       ['Swaps, 24H', '1,284', '+8% vs yesterday'],
       ['Volume, 24H', '$412,880', 'all chains'],
-      ['Median time', '12 s', 'signature to delivery'],
+      ['Median time', '12 sec', 'signature to delivery'],
       ['Delivered', '99.6%', '0.4% refunded as USDC'],
     ]);
   });

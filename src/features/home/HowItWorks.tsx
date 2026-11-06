@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { CustomCard } from '@/components/landing';
-import { ArrowRightIcon } from '@/components/landing/icons';
-import Skeleton from '@/components/ui/skeleton';
+import { ArrowRightIcon } from '@/components/icons';
+import { cn } from '@/lib/cn';
+import { QUIET } from '@/components/ui/styles';
+import { SkeletonText } from '@/components/ui/skeleton';
 import { getScannerStats } from '@/lib/api';
 import { homeStats } from './stats';
 import { Title, section } from './Title';
@@ -24,21 +26,21 @@ export function HowItWorks() {
       <Title title="How Swapic works" sub="One swap between any two chains. No bridges to pick and no extra steps." />
       <div className="grid gap-6 md:grid-cols-3">
         {STEPS.map(([k, label, text]) => (
-          <CustomCard key={k} label={label!} description={text!} icon={<span className="flex h-5 w-5 items-center justify-center text-sm font-bold">{k}</span>} className="h-full" />
+          <CustomCard key={k} label={label!} description={text!} icon={<span className="flex h-5 w-5 items-center justify-center text-sm font-semibold">{k}</span>} className="h-full" />
         ))}
       </div>
       <div className="flex flex-col items-center gap-4 md:flex-row md:justify-center">
         <div className="grid w-full grid-cols-3 gap-3 md:w-auto">
           {tiles.map(([value, label]) => (
-            <div key={label} className="flex min-w-[120px] flex-col gap-y-1 rounded-2xl bg-white/15 px-5 py-4 text-white md:min-w-[170px]">
-              {value === undefined ? <Skeleton className="h-6 w-16 md:h-8" /> : <p className="font-bold md:text-2xl">{value}</p>}
-              <p className="text-xs text-[#898989]">{label}</p>
+            <div key={label} className="flex min-w-0 flex-col gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-w-[170px] md:p-5">
+              {value === undefined ? <SkeletonText className="w-16 max-w-full font-semibold md:text-xl" /> : <p className="font-semibold md:text-xl">{value}</p>}
+              <p className="text-xs text-secondary">{label}</p>
             </div>
           ))}
         </div>
-        <Link href="/scanner" className="flex cursor-pointer items-center gap-x-2 rounded-full bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20 active:scale-95">
+        <Link href="/scanner" className={cn(QUIET, 'h-12 cursor-pointer px-5 text-sm')}>
           See every swap live in the Scanner
-          <ArrowRightIcon width={18} height={18} />
+          <ArrowRightIcon width={16} height={16} />
         </Link>
       </div>
     </section>

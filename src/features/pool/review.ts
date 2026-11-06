@@ -75,7 +75,7 @@ export function icpStakeReview(amount: bigint, ledgerFee: bigint, moveFee: bigin
     payText: `${tokenAmountText(amount, from.decimals, from.symbol)} ${from.symbol}`,
     addedText: formatUsd(added).slice(1),
     feeText: usdcText(2n * ledgerFee + moveFee),
-    readyText: '5 Sec',
+    readyText: '5 sec',
     withdrawText: 'Anytime on ICP',
     steps: [
       { label: `Approve ${from.symbol}`, sub: `Lets Swapic take ${formatAmount(amount, from.decimals)} ${from.symbol}` },

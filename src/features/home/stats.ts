@@ -4,7 +4,7 @@ import { formatBps, formatUnits, formatUsdWhole } from '@/lib/money';
 /** "12 s", "4 min": the median from milliseconds (whole seconds under two minutes). */
 export function medianText(ms: number): string {
   const s = Math.round(ms / 1000);
-  return s < 120 ? `${s} s` : `${Math.round(s / 60)} min`;
+  return s < 120 ? `${s} sec` : `${Math.round(s / 60)} min`;
 }
 
 export function homeStats(s: ScannerStats | undefined) {

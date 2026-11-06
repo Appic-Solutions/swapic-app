@@ -49,7 +49,7 @@ export function WithdrawStatus({ id, onBack }: { id: string; onBack: () => void 
     <PanelBox className="flex flex-col gap-6 md:max-w-[537px]">
       <motion.div variants={fade} className={BACK}><BoxHeader title="Withdrawal" onBack={onBack} /></motion.div>
       <motion.div variants={fade} className="w-full">
-        <Card className="cursor-auto flex-col items-start gap-5 hover:bg-[#000000]/0">
+        <Card className="cursor-auto flex-col items-start gap-5">
           {steps.map(([st, t, d], i) => (
             <div key={t} className="relative flex items-center gap-x-5">
               {st === 'wait' && (
@@ -57,26 +57,26 @@ export function WithdrawStatus({ id, onBack }: { id: string; onBack: () => void 
               )}
               <div className={cn(
                 'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-                st === 'done' ? 'bg-[#12B76A33] text-[#12b76a]' : st === 'wait' ? 'bg-blue-600/35' : 'bg-white/10',
+                st === 'done' ? 'bg-success/15 text-success' : st === 'wait' ? 'bg-blue-500/15' : 'bg-white/10',
               )}>
                 {/* keyed by state: a step that turns done later draws its check at that moment */}
                 {st === 'done' ? <DrawCheck key="done" delay={DUR.lead} /> : st === 'wait' ? <Spinner key="wait" /> : null}
                 {i < steps.length - 1 && (
                   // the line fills from the top once the check is drawn
                   <span className="absolute top-full h-[20px] w-[2px]">
-                    <motion.span className="absolute inset-0 origin-top bg-[#12B76A33]" initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ ...T.draw, delay: DUR.lead + DUR.draw * (i + 0.5) }} />
+                    <motion.span className="absolute inset-0 origin-top bg-success/15" initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ ...T.draw, delay: DUR.lead + DUR.draw * (i + 0.5) }} />
                   </span>
                 )}
               </div>
               <div className="relative">
-                <p className={cn('text-base font-semibold', st === 'todo' ? 'text-[#898989]' : 'text-white')}>{t}</p>
-                <p className="text-sm font-normal text-[#898989]">{d}</p>
+                <p className={cn('text-base font-semibold', st === 'todo' ? 'text-secondary' : 'text-white')}>{t}</p>
+                <p className="text-sm font-normal text-secondary">{d}</p>
               </div>
             </div>
           ))}
         </Card>
       </motion.div>
-      <motion.p variants={fade} className="text-center text-sm text-[#898989]">You can leave this page. The payout arrives in your wallet by itself.</motion.p>
+      <motion.p variants={fade} className="text-center text-sm text-secondary">You can leave this page. The payout arrives in your wallet by itself.</motion.p>
       <motion.div variants={fade} className={cn('w-full', tw.quick, tw.press)}>
         <ActionButton isDisabled={false} onClick={onBack}>Back to pool</ActionButton>
       </motion.div>

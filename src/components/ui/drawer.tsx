@@ -38,16 +38,16 @@ const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        'absolute inset-x-0 bottom-0 z-[99] rounded-t-[22px]',
-        'mt-24 flex flex-col gap-y-6 px-4 pb-[75px] pt-6 backdrop-blur-md',
-        'border-[5px] border-box-border *:z-10',
-        'bg-box-background bg-cover bg-center bg-no-repeat',
+        'absolute inset-x-0 bottom-0 z-[99] rounded-t-3xl',
+        'mt-24 flex flex-col gap-y-6 px-4 pb-8 pt-3',
+        'border border-b-0 border-line *:z-10',
+        'bg-[#141416]',
         'h-fit max-h-[80vh] overflow-y-auto after:hidden',
         className,
       )}
       {...props}
     >
-      <div className="mx-auto h-2 w-[100px] rounded-full bg-muted" />
+      <div className="mx-auto h-1 w-10 rounded-full bg-white/20" />
       {children}
     </DrawerPrimitive.Content>
   </DrawerPortal>
@@ -57,9 +57,9 @@ DrawerContent.displayName = 'DrawerContent';
 const DrawerHeader = ({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cn('flex items-center justify-between px-6 text-white', className)} {...props}>
     <DrawerPrimitive.Close
-      className={cn('absolute right-4 rounded-md', 'disabled:pointer-events-none')}
+      className={cn('absolute right-4 rounded-xl', 'disabled:pointer-events-none')}
     >
-      <CloseIcon className="min-h-5 min-w-5" />
+      <CloseIcon width={20} height={20} />
     </DrawerPrimitive.Close>
     <DialogTitle>{children}</DialogTitle>
   </div>

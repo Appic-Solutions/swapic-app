@@ -1,8 +1,8 @@
 'use client';
 // Moved from the approved design's motion-parts.tsx (parts 1 and 2, Jeff 2026-10-29; the lead's frozen snapshot), values
 // in @/lib/motion: MotionCard (the live Card as a motion element, so a card can glide), Enter (a presence child), PanelBox
-// and MorphFrame (one panel that changes in place: Swap, Pool, History, Scanner; pieces marked data-fly fly from the leaving
-// view to their match), flyInto, shrinkInto and flyMatching, DrawCheck (a check that draws itself in) and ConfirmButton
+// and MorphFrame (one panel that changes in place: Swap, Pool, History, Scanner), shrinkInto, DrawCheck (a check that draws
+// itself in) and ConfirmButton
 // (the wallet step's button with its waiting glow). The prototype's demo controls (DemoBar) are not part of the app.
 import * as React from 'react';
 import { motion, AnimatePresence, animate, useMotionValue } from 'motion/react';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn';
 import Box from '@/components/ui/box';
 import ActionButton from '@/components/ui/action-button';
 import Spinner from '@/components/ui/spinner';
-import { DUR, EASE, FLY_GROW, GLOW, T, view as viewVariants, tw, openHeight, useFirstRender, useReducedMotion } from '@/lib/motion';
+import { DUR, EASE, GLOW, T, view as viewVariants, tw, openHeight, useFirstRender, useReducedMotion } from '@/lib/motion';
 
 /** layoutId of a route card: the same id on the Swap list and on Review swap makes it glide between them. */
 export const routeLayoutId = (id: string) => `route-${id}`;
@@ -21,11 +21,11 @@ export const routeLayoutId = (id: string) => `route-${id}`;
 // src/components/ui/card.tsx, class for class.
 const CARD = cn(
   'group relative flex w-full items-center gap-x-7 overflow-clip',
-  'rounded-3xl p-6 shadow-md',
-  'text-xl font-bold leading-7 text-white',
+  'rounded-3xl border border-line p-5',
+  'text-xl font-semibold leading-7 text-white',
   'bg-input-fields bg-cover bg-center bg-no-repeat',
-  'backdrop-blur-[30.07605743408203px] duration-200 hover:bg-[#000000]/75',
-  'md:rounded-[36px] md:p-9 md:text-2xl md:leading-8',
+  'transition-colors duration-200',
+  'md:p-6 md:text-2xl md:leading-8',
 );
 
 /** The live Card as a motion element: looks the same at rest, can glide with layoutId. */
@@ -55,11 +55,11 @@ export const useFrame = () => React.useContext(FrameContext);
 // src/components/ui/box.tsx, class for class.
 const BOX = cn(
   'relative overflow-y-auto overflow-x-hidden',
-  'h-fit w-full md:backdrop-blur-md',
+  'h-fit w-full',
   'flex flex-col items-center justify-between',
   'md:bg-box-background md:bg-center md:bg-no-repeat',
-  'md:m-auto md:rounded-3xl md:ring-8 md:ring-box-border',
-  'md:max-h-[80vh] md:p-8',
+  'md:m-auto md:rounded-[32px] md:ring-8 md:ring-box-border',
+  'md:p-8',
   '*:z-10',
 );
 // One view inside the frame: the Box's own layout and padding. While it
@@ -137,7 +137,6 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children, calm }
     const t = setTimeout(() => { pending.current = false; }, DUR.big * 1000);
     return () => clearTimeout(t);
   }, [view]);
-  // Pieces marked data-fly in the leaving view fly to their match in the new one;
   // a page scrolled down (phones) glides back to the top.
   const before = React.useRef(view);
   React.useLayoutEffect(() => {
@@ -145,10 +144,6 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children, calm }
     before.current = view;
     if (was === view) return;
     if (typeof window !== 'undefined' && window.scrollY > 0) window.scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
-    if (reduced || calm || !frame.current || !inner.current) return;
-    const pick = (v: string) => [...inner.current!.children].find((el) => (el as HTMLElement).dataset.view === v);
-    const from = pick(was), to = pick(view);
-    if (from && to) return flyMatching(from, to, frame.current);
   }, [view]);
   return (
     <FrameContext.Provider value={frame}>
@@ -170,19 +165,15 @@ export function MorphFrame({ view, wide, frameClass, viewClass, children, calm }
   );
 }
 
-// ---------------------------------------------------------------- fly into
+// ---------------------------------------------------------------- shrink into
 
 /**
- * Flies a copy of `from` (an element of the view that is leaving) into
- * `target`, scaling it evenly so its text shrinks or grows instead of
- * squashing, and fades it out on the last stretch while the target fades in.
- * fit: 'contain' lands it inside the target (a card into the status circle),
- * 'width' matches the target's width (a card into another card). The copy is
- * drawn in the MorphFrame, so it moves with the panel while the panel changes
- * height. Hides `from` at once (the copy covers it exactly). Returns a stop
- * function.
+ * The route card shrinks into the status circle: a copy of `from` (an element of the view that is leaving) flies into
+ * `target`, scaled evenly so its text shrinks instead of squashing, and fades out on the last stretch while the target
+ * fades in. The copy is drawn in the MorphFrame, so it moves with the panel while the panel changes height. Hides `from`
+ * at once (the copy covers it exactly). Returns a stop function.
  */
-export function flyInto(from: HTMLElement, target: HTMLElement, frame: HTMLElement, fit: 'contain' | 'width' = 'contain') {
+export function shrinkInto(from: HTMLElement, target: HTMLElement, frame: HTMLElement) {
   const fr = frame.getBoundingClientRect();
   const a = from.getBoundingClientRect();
   const b = target.getBoundingClientRect();
@@ -200,8 +191,7 @@ export function flyInto(from: HTMLElement, target: HTMLElement, frame: HTMLEleme
   from.style.filter = 'opacity(0)';
   const dx = b.left + b.width / 2 - (a.left + a.width / 2);
   const dy = b.top + b.height / 2 - (a.top + a.height / 2);
-  // A card flying into a bigger card grows at most a little (FLY_GROW), so it never reads as a zoom.
-  const scale = fit === 'width' ? Math.min(b.width / a.width, FLY_GROW) : Math.min(b.width / a.width, b.height / a.height);
+  const scale = Math.min(b.width / a.width, b.height / a.height);
   const run = animate(copy, { x: [0, dx], y: [0, dy], scale: [1, scale], opacity: [1, 1, 0] }, {
     duration: DUR.big,
     ease: EASE.enter,
@@ -210,34 +200,14 @@ export function flyInto(from: HTMLElement, target: HTMLElement, frame: HTMLEleme
   run.then(() => copy.remove());
   return () => { run.stop(); copy.remove(); };
 }
-/** A route card shrinking into the status circle. */
-export const shrinkInto = (from: HTMLElement, target: HTMLElement, frame: HTMLElement) => flyInto(from, target, frame, 'contain');
-
-const visible = (el: Element) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-/**
- * Pieces marked data-fly="name" fly from the leaving view (inside `fromScope`)
- * to the piece with the same name in the new view (inside `toScope`): e.g. an
- * order row's tokens and status pill land where the order page shows them.
- * data-fly-fit="width" on the target matches its width (card into card).
- * Hidden duplicates (phone and desktop markup) are skipped.
- */
-export function flyMatching(fromScope: Element, toScope: Element, frame: HTMLElement) {
-  const stops: (() => void)[] = [];
-  toScope.querySelectorAll<HTMLElement>('[data-fly]').forEach((to) => {
-    if (!visible(to)) return;
-    const from = [...fromScope.querySelectorAll<HTMLElement>(`[data-fly="${to.dataset.fly}"]`)].find(visible);
-    if (from) stops.push(flyInto(from, to, frame, to.dataset.flyFit === 'width' ? 'width' : 'contain'));
-  });
-  return () => stops.forEach((s) => s());
-}
 
 // ---------------------------------------------------------------- check
 
 /** The live CheckIcon, drawn in (350 ms). Reduce motion: it fades in. still: drawn already (a fixed screen). */
-export function DrawCheck({ size = 24, delay = 0, className, still }: { size?: number; delay?: number; className?: string; still?: boolean }) {
+export function DrawCheck({ size = 20, delay = 0, className, still }: { size?: number; delay?: number; className?: string; still?: boolean }) {
   const reduced = useReducedMotion();
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" width={size} height={size} viewBox="0 0 24 24" strokeWidth={1.75} stroke="currentColor" className={className}>
       <motion.path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -270,7 +240,7 @@ export function ConfirmButton({ label, waiting, cancelled, disabled, onClick }: 
         <ActionButton isDisabled={!!disabled} onClick={disabled || waiting ? undefined : onClick}>
           {waiting ? (
             <span className="inline-flex items-center justify-center gap-x-2">
-              <span className="w-5"><Spinner width={18} height={18} className="fill-white text-white/30" /></span>
+              <span className="w-5"><Spinner width={16} height={16} className="fill-white text-faint" /></span>
               Confirm in your wallet
             </span>
           ) : label}
@@ -279,7 +249,7 @@ export function ConfirmButton({ label, waiting, cancelled, disabled, onClick }: 
       <AnimatePresence initial={false}>
         {cancelled && (
           <motion.p
-            className="overflow-hidden text-center text-sm font-normal text-[#898989]"
+            className="overflow-hidden text-center text-sm font-normal text-secondary"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto', transition: openHeight(true, reduced) }}
             exit={{ opacity: 0, height: 0, transition: openHeight(false, reduced) }}

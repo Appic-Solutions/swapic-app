@@ -1,21 +1,20 @@
-'use client';
-// Route list: the live BridgeOptionsList markup (column on desktop, sideways
-// scroll row on phones), titled "Route Options". It fills its parent's height
-// on desktop and scrolls, so the Swap panel ends at the Review swap button.
-// States: ready (route cards), loading (the live skeleton cards), empty.
-// Moved from the design's RouteOptionsList.tsx (sha e53b49171544): the caller owns the
-// selection (selectedKey, onSelect); only which card is open stays inside.
-// Phones (Jeff, 2026-10-31): every route card starts open (Option Details showing); desktop opens the picked one. The
-// chevron closes and opens each.
-// Motion (approved 2026-10-29, src/lib/motion.ts): skeletons shimmer; cards that arrive after a quote fade up one after
-// another; in the in place panel the cards not picked fade out on Review swap while the picked one glides there (shared
-// layoutId).
+// Route list: every route in a column on desktop. The column is as tall as the Swap panel's left side and scrolls inside
+// it, fading at the edge with more behind it (Jeff 2026-11-05); a card picked or opened low in the list scrolls into view.
+// Phones and tablets show only the top suggested route at full width, with no title and no sideways scroll; the others
+// stay in the page, hidden by CSS, so the picked route is always the one shown.
+// States: ready (route cards), loading (the skeleton card), empty.
+// The caller owns the selection (selectedKey, onSelect); only which card is open stays inside.
+// Phones (Jeff, 2026-10-31): the route card starts open; desktop opens the picked one. The chevron closes and opens each.
+// Motion (src/lib/motion.ts): cards that arrive after a quote fade up one after another; in the in place
+// panel the cards not picked fade out on Review swap while the picked one glides there (shared layoutId).
 import * as React from 'react';
 import { motion } from 'motion/react';
+import { cn } from '@/lib/cn';
 import { Card } from '@/components/ui/card';
 import RouteOptionSkeleton from '@/components/ui/route-option-skeleton';
 import { routeLayoutId } from '@/components/motion/parts';
-import { fade, listItem, tw, useMounted, usePhone } from '@/lib/motion';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
+import { DUR, fade, listItem, useMounted, usePhone, useReducedMotion } from '@/lib/motion';
 import RouteOption, { type RouteOptionView } from './RouteOption';
 
 export interface RouteOptionsListProps {
@@ -41,48 +40,53 @@ export default function RouteOptionsList({ options, toToken, state, selectedKey,
   // which cards are open: on phones all of them, on desktop the picked one
   const opened = (): Set<string> => new Set(phone ? options.map((o) => o.key) : [selectedKey ?? first].filter((k): k is string => !!k));
   const [expanded, setExpanded] = React.useState<Set<string>>(opened);
-  // New routes: they start open as above.
-  React.useEffect(() => { setExpanded(opened()); }, [first]); // eslint-disable-line react-hooks/exhaustive-deps
+  // New routes: they start open as above, before the first paint (a card painted shut for one frame moved the button 65 px).
+  React.useLayoutEffect(() => { setExpanded(opened()); }, [first]); // eslint-disable-line react-hooks/exhaustive-deps
   // phones open and close each card on its own; desktop keeps one open at a time
-  const toggle = (key: string) => setExpanded((cur) => {
-    if (!phone) return cur.has(key) ? new Set() : new Set([key]);
-    const next = new Set(cur);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
+  const toggle = (key: string) => {
+    setExpanded((cur) => {
+      if (!phone) return cur.has(key) ? new Set() : new Set([key]);
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+    reveal(key);
+  };
+  const list = React.useRef<HTMLDivElement>(null);
+  const edge = useScrollFade(list);
+  const reduced = useReducedMotion();
+  // A card picked or opened low in the column comes up into view, once its details have opened.
+  const reveal = (key: string) => setTimeout(() => {
+    const box = list.current;
+    const cellEl = box?.querySelector<HTMLElement>(`[data-route="${CSS.escape(key)}"]`);
+    if (box && cellEl && box.scrollHeight > box.clientHeight) box.scrollTo({ top: cellEl.offsetTop, behavior: reduced ? 'auto' : 'smooth' });
+  }, DUR.panel * 1000);
   // What shows after the first render (routes after loading) arrives with a stagger.
   const mounted = useMounted() || !!enter;
-  const row = React.useRef<HTMLDivElement>(null);
-  const mountedOnce = React.useRef(false);
-  React.useEffect(() => { mountedOnce.current = true; }, []);
-  // Phones: a picked card further along the row starts in view.
-  React.useLayoutEffect(() => {
-    const i = options.findIndex((o) => o.key === selectedKey);
-    const el = row.current?.children[i] as HTMLElement | undefined;
-    if (row.current && el && i > 0 && row.current.scrollWidth > row.current.clientWidth) row.current.scrollLeft = el.offsetLeft - 24;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const cell = (key: React.Key, i: number, child: React.ReactNode, picked = false, single = false) => (
+  // below lg only this route shows: the picked one, or the first
+  const top = options.find((o) => o.key === selectedKey)?.key ?? first;
+  const cell = (key: React.Key, i: number, child: React.ReactNode, picked = false, hidden = false) => (
     // The picked card stays solid: it glides to the next view instead of fading.
-    <motion.div key={key} variants={picked ? undefined : fade} className={'h-fit shrink-0 ' + (single ? 'w-full' : 'w-[280px] md:w-full')}>
+    <motion.div key={key} data-route={key} variants={picked ? undefined : fade} className={'h-fit w-full shrink-0 ' + (hidden ? 'max-lg:hidden' : '')}>
       <motion.div {...(mounted ? listItem(i) : {})}>{child}</motion.div>
     </motion.div>
   );
   return (
-    <div className="flex flex-col items-start md:pr-2 lg:h-full lg:w-full">
-      <motion.p variants={fade} {...(enter && !mountedOnce.current ? listItem(0) : {})} className="mb-5 text-[26px] font-bold leading-7 text-primary md:hidden md:text-[40px] md:leading-10">Route Options</motion.p>
+    <div className="flex w-full flex-col items-start lg:h-full">
       {state === 'empty' ? (
         <motion.div variants={fade} className="w-full lg:h-full" {...(mounted ? listItem(0) : {})}>
-          <Card className="cursor-auto flex-col items-center justify-center gap-3 text-center hover:bg-[#000000]/0 lg:h-full">
+          <Card className="cursor-auto flex-col items-center justify-center gap-3 text-center lg:h-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/images/empty.png" alt="" width={80} height={80} />
-            <p className="text-xl font-bold">{emptyTitle}</p>
-            <p className="text-sm font-normal text-[#898989]">{emptyText}</p>
+            <p className="text-xl font-semibold">{emptyTitle}</p>
+            <p className="text-sm font-normal text-secondary">{emptyText}</p>
           </Card>
         </motion.div>
       ) : (
-        <div ref={row} className={'flex w-full gap-4 overflow-x-auto hide-scrollbar lg:h-full lg:flex-col lg:overflow-y-auto ' + (state === 'loading' ? tw.shimmerAll : '')}>
+        // layoutScroll: the picked card's glide to Review swap starts from where the scrolled list shows it
+        <motion.div ref={edge.ref} layoutScroll className={cn('no-scrollbar relative flex w-full flex-col gap-4 lg:h-full lg:overflow-y-auto', edge.fade)}>
           {state === 'loading'
-            ? [cell('s1', 0, <RouteOptionSkeleton />), cell('s2', 1, <RouteOptionSkeleton />)]
+            ? [cell('s1', 0, <RouteOptionSkeleton open />), cell('s2', 1, <RouteOptionSkeleton />, false, true)]
             : options.map((o, i) =>
                 cell(
                   o.key,
@@ -90,19 +94,19 @@ export default function RouteOptionsList({ options, toToken, state, selectedKey,
                   <RouteOption
                     option={o}
                     toToken={toToken}
-                    layoutId={routeLayoutId(o.key)}
+                    layoutId={selectedKey === o.key ? routeLayoutId(o.key) : undefined}
                     isSelected={selectedKey === o.key}
                     timer={selectedKey === o.key ? timer : undefined}
                     arrive="rise"
                     isExpanded={expanded.has(o.key)}
-                    onSelect={onSelect}
+                    onSelect={(key) => { onSelect(key); reveal(key); }}
                     onExpand={toggle}
                   />,
                   selectedKey === o.key,
-                  options.length < 2,
+                  o.key !== top,
                 ),
               )}
-        </div>
+        </motion.div>
       )}
     </div>
   );

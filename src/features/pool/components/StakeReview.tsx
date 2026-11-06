@@ -9,12 +9,11 @@
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { AlertTriangle } from 'lucide-react';
 import { MotionCard, ConfirmButton } from '@/components/motion/parts';
 import { Note } from '@/components/design/Note';
 import { SideBlock } from '@/components/design/SideBlock';
 import { TwoColumn } from '@/components/design/TwoColumn';
-import { CheckIcon, ClockIcon, FireIcon } from '@/components/icons';
+import { CheckIcon, ClockIcon, EarnIcon, WarningIcon } from '@/components/icons';
 import type { StepView } from '@/components/orders/types';
 import type { UiToken } from '@/components/ui/token-types';
 import { getAccount, getOrders, getQuote, postStakeQuote, submitGasless, type StakeQuote } from '@/lib/api';
@@ -56,7 +55,7 @@ export function StakeNote({ icp }: { icp: boolean }) {
   return icp ? (
     <Note calm icon={<CheckIcon />}>Your ICP wallet asks you to approve the ckUSDC, then to confirm. No gas. A stake from ICP pays out on ICP.</Note>
   ) : (
-    <Note calm icon={<FireIcon width={18} height={18} />}>Your stake earns from every swap that uses the pool. Withdraw anytime.</Note>
+    <Note calm icon={<EarnIcon width={16} height={16} />}>Your stake earns from every swap that uses the pool. Withdraw anytime.</Note>
   );
 }
 
@@ -162,22 +161,22 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
           <div className="flex w-full flex-1 flex-col justify-center gap-4">
             <SideBlock label="You stake" side={tokenSide(start.from, start.amount)} amount={review.payText} />
             <ArrowDown />
-            <SideBlock label="Added to your stake" side={inPool(review.added, '~')} amount={`~${review.addedText} USDC`} tone={wasAdded ? 'text-yellow-500' : undefined} />
-            {wasAdded && <p className="-mt-2 ml-16 text-sm font-normal text-[#898989]">was <span className="line-through">~{wasAdded} USDC</span></p>}
-            <p className="-mt-2 ml-16 text-sm font-normal text-[#898989]">{start.apyLine}</p>
+            <SideBlock label="Added to your stake" side={inPool(review.added, '~')} amount={`~${review.addedText} USDC`} tone={wasAdded ? 'text-warn' : undefined} />
+            {wasAdded && <p className="-mt-2 ml-16 text-sm font-normal text-secondary">was <span className="line-through">~{wasAdded} USDC</span></p>}
+            <p className="-mt-2 ml-16 text-sm font-normal text-secondary">{start.apyLine}</p>
           </div>
-          <div className="w-full space-y-2 border-t border-gray-700 pt-3">
+          <div className="w-full space-y-2 border-t border-line pt-3">
             <WalletRow k="Staked from" icp={icp} address={start.owner} logo={chainLogo(start.from.chain)} />
           </div>
         </MotionCard>
       }
       right={
         <>
-          <Details rows={[['Fee', review.feeText], ['Ready in', review.readyText], ['Withdraw', <span key="w" className="text-[#12b76a]">{review.withdrawText}</span>]]} />
+          <Details rows={[['Fee', review.feeText], ['Ready in', review.readyText], ['Withdraw', <span key="w" className="text-success">{review.withdrawText}</span>]]} />
           <WalletStepsCard steps={steps} />
           <motion.div variants={fade}>
             {note ? (
-              <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={18} height={18} /> : <AlertTriangle className="h-[18px] w-[18px]" />}>{note.text}</Note>
+              <Note calm tone={note.tone} icon={note.tone === 'blue' ? <ClockIcon width={16} height={16} /> : <WarningIcon />}>{note.text}</Note>
             ) : (
               <StakeNote icp={icp} />
             )}

@@ -9,16 +9,17 @@ import Box from '@/components/ui/box';
 import BoxHeader from '@/components/ui/box-header';
 import TokenListItem from '@/components/ui/token-list-item';
 import TokenSkeleton from '@/components/ui/token-skeleton';
-import Skeleton from '@/components/ui/skeleton';
 import type { UiToken } from '@/components/ui/token-types';
 import { chainPlace } from '@/lib/chains';
 import { useAllTokens, useChains, useTokenList } from '../tokens';
 import { ALL_CHAINS, ChainMenu, searchPlaceholder } from './ChainPicker';
+import { FIELD } from '@/components/ui/styles';
 import { findReal } from '../real-token';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { listItem, openHeight, page, tw, useInPresence, useMounted, useReducedMotion } from '@/lib/motion';
 import { getTokens } from '@/lib/api';
+import { useWallets } from '@/lib/wallets/store';
 import { listedFor, markOf, needsConfirm } from '@/lib/token-marks';
 import { ConfirmPick } from './ConfirmPick';
 import { useFrame } from '@/components/motion/parts';
@@ -63,6 +64,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
   const fixed = fixedTokens && (isAll ? shown.flatMap((c) => fixedTokens[c.chainId] ?? []) : fixedTokens[chain]);
   const tokens = fixed ?? (isAll ? every.tokens : list.tokens);
   const loading = fixed ? false : isAll ? every.isLoading : list.isLoading;
+  const wallet = useWallets((s) => !!s.evm || !!s.icp);
   // Rows that show after the first render (after loading, a chain switch) fade up one after another.
   const mounted = useMounted();
   // Opened inside the Swap page's AnimatePresence: slides in and out.
@@ -103,21 +105,14 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
       placeholder={searchPlaceholder(chain)}
       value={query}
       onChange={(e) => setQuery(e.target.value)}
-      className="w-full min-w-0 rounded-md border-[#000000] bg-white/30 px-3 py-2 text-white placeholder:text-white/50"
+      className={'w-full min-w-0 px-3 py-2 ' + FIELD}
     />
   );
   const tokenList = (
-    <div className={'flex h-full w-full min-w-0 flex-col gap-y-6 overflow-y-scroll ' + (loading ? tw.shimmerAll : '')}>
+    <div className="hide-scrollbar flex h-full w-full min-w-0 flex-col gap-y-1 overflow-y-scroll">
       {loading ? (
-        [0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex w-full items-center justify-between">
-            <TokenSkeleton />
-            <div className="flex flex-col items-end gap-y-2 pr-2">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-3 w-12" />
-            </div>
-          </div>
-        ))
+        // enough rows to fill the panel; the wallet's tokens come first, the rest show no balance
+        [0, 1, 2, 3, 4, 5, 6].map((i) => <TokenSkeleton key={i} balance={wallet && i < 3} />)
       ) : tokens.length ? (
         <>
           {tokens.map((t, i) => {

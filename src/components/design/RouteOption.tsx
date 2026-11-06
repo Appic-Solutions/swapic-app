@@ -1,27 +1,21 @@
-// Route option card: the live BridgeOption (src/app/(panel)/bridge/_components/
-// select-token/BridgeOption.tsx) with these design changes Jeff asked for:
-// 1. the amount out shows its dollar value under it;
-// 2. the "via" pill never breaks across lines (it moves to its own line on
-//    narrow phone cards instead);
-// 3. every route shows Swapic as the provider, and the details show only the
-//    total fee, who pays gas and the time (no internal fee names);
-// 4. a big price impact shows a yellow warning under the amount;
-// 5. on the review page (review) the card is the live BridgeReview card:
-//    always open, no chevron, not clickable.
-// Moved from the design's RouteOption.tsx (sha 809fa5d65615): it shows texts the caller
-// formats with @/lib/money (no number math here), and one badge pill per tag.
-// Motion (approved 2026-10-29, src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it
-// glides from the Swap list to Review swap and back; it lifts 2 px with a brighter edge on hover and sinks a little when
-// pressed.
-// Quote timer (Jeff's pick 2026-10-31, the design's quote-timer.tsx option B and its RouteOption slots): the picked card
-// shows the countdown label in its top row (timer); new numbers arrive in place: the old amount fades out, the new one
-// fades in rising 8 px (arrive, the design's rise).
+// Route option card, the layout Jeff picked 2026-11-05 (sample 4 on the canvas): tags and timer, the amount large with its
+// dollar value and the time, gas in its own box, and the details opening under it.
+// 1. Every route shows Swapic as the provider; a big price impact shows a yellow warning under the amount.
+// 2. A gasless card reads 0 gas fees in a green box. The fee row shows on a You pay gas card and on Review swap (Jeff
+//    2026-11-05: the home page promises the total fee before you sign), never on a gasless card in the Swap list.
+// 3. On the review page (review) the card is always open, has no chevron and is not clickable.
+// It shows texts the caller formats with @/lib/money (no number math here), and one pill per tag.
+// Motion (src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it glides from the Swap list to
+// Review swap and back. Hover only brightens the edge (Jeff 2026-11-05: nothing moves, a lift clipped the top border in
+// the list's scroll box); it sinks a little when pressed.
+// Quote timer (Jeff's pick 2026-10-31): the picked card shows the countdown in its top row (timer); new numbers arrive in
+// place: the old amount fades out, the new one fades in rising 8 px (arrive).
 import * as React from 'react';
-import { AlertTriangle, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ChevronDownIcon, ClockIcon, FireIcon } from '@/components/icons';
+import { ChevronDownIcon, ClockIcon, GasIcon, WarningIcon, ZapIcon } from '@/components/icons';
 import { MotionCard } from '@/components/motion/parts';
-import { T, fade, rise, tw, lift, pressCard, usePhone } from '@/lib/motion';
+import { heroSize } from '@/components/ui/amount-size';
+import { T, fade, rise, tw, pressCard } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
 
@@ -39,11 +33,11 @@ export interface RouteOptionView {
   totalFeeText: string;
   /** The least the user receives (the quote's amountOutMin) with the token's symbol: the details' first row. */
   minOutText: string;
-  /** The Gas row of the details. */
+  /** What the gas costs: the You pay gas box. */
   gasText: string;
   /** Yellow warning under the amount, e.g. when the price impact is big. */
   warning?: string;
-  /** Green line under the amount on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
+  /** The green box's line on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
   gaslessNote?: string;
 }
 
@@ -68,113 +62,135 @@ export interface RouteOptionProps {
   arrive?: 'fade' | 'rise';
 }
 
-export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option, className, toToken, review, layoutId, cardRef, timer, arrive }: RouteOptionProps) {
-  const phone = usePhone();
-  const amount = (
-    <>
-      <p className="text-base lg:text-xl">~ {option.amountOutText + ' ' + toToken.symbol}</p>
-      <p className="text-xs font-normal text-[#898989]">{option.usdOutText ?? ''}</p>
-    </>
+/** The gas the user pays, without the view's ", you pay it"; nothing when the coin has no price. */
+const gasAmount = (gasText: string) => (gasText === 'You pay it' ? '' : gasText.replace(/, you pay it$/, ''));
+
+const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="flex items-center justify-between gap-3 whitespace-nowrap">
+    <span className="shrink-0 font-normal text-secondary">{label}</span>
+    <span className="min-w-0 truncate font-medium text-white">{children}</span>
+  </div>
+);
+
+const Time = ({ text, className }: { text: string; className?: string }) => (
+  <span className={cn('items-center gap-x-1 whitespace-nowrap font-normal text-secondary', className)}>
+    <ClockIcon width={16} height={16} />
+    {text}
+  </span>
+);
+
+/** Gas on a gasless card: nothing to pay, and the line that says why (Just sign, or the wallet holds none of the coin). */
+const NoGasBox = ({ note }: { note?: string }) => (
+  <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-0.5 rounded-2xl bg-emerald-400/10 px-3 py-2.5 text-xs ring-1 ring-inset ring-emerald-400/20 md:px-4 md:text-sm">
+    <span className="inline-flex items-center gap-x-1 whitespace-nowrap font-semibold text-emerald-300">
+      <ZapIcon width={16} height={16} className="fill-emerald-400 text-emerald-400" />
+      0 gas fees
+    </span>
+    <span className="font-normal text-emerald-100/80">{note ?? 'Just sign'}</span>
+  </div>
+);
+
+const PayGasBox = ({ gasText }: { gasText: string }) => (
+  <div className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-2xl bg-inset px-3 py-2.5 text-xs md:px-4 md:text-sm">
+    <span className="flex items-center gap-x-1 font-normal text-secondary">
+      <GasIcon width={16} height={16} />
+      You pay gas
+    </span>
+    <span className="font-medium">{gasAmount(gasText)}</span>
+  </div>
+);
+
+export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand, option: o, className, toToken, review, layoutId, cardRef, timer, arrive }: RouteOptionProps) {
+  const open = review || isExpanded;
+  const hero = (
+    <div className="flex w-full items-center justify-between gap-x-3">
+      <div className="flex min-w-0 items-center gap-x-3">
+        <img src={toToken.logo} alt="" className="h-10 w-10 shrink-0 rounded-full object-contain lg:h-12 lg:w-12" />
+        <div className="flex min-w-0 flex-col">
+          <span className="text-xs font-normal text-secondary">You get about</span>
+          <p className="flex min-w-0 items-baseline gap-x-1.5 whitespace-nowrap font-semibold leading-tight">
+            <span className={cn('min-w-0 whitespace-normal [overflow-wrap:anywhere]', heroSize(o.amountOutText))}>{o.amountOutText}</span>
+            <span className="shrink-0 text-sm font-medium text-secondary lg:text-lg">{toToken.symbol}</span>
+          </p>
+          <span className="flex items-center gap-x-2 whitespace-nowrap text-xs font-normal text-secondary">
+            {o.usdOutText ?? ''}
+            {/* phones: the time sits here, there is no room beside the amount */}
+            <Time text={o.durationText} className="flex md:hidden" />
+          </span>
+        </div>
+      </div>
+      <Time text={o.durationText} className="hidden text-sm md:flex" />
+    </div>
   );
   return (
     <MotionCard
       ref={cardRef}
-      onClick={() => onSelect(option.key)}
+      onClick={() => onSelect(o.key)}
       // The glide only runs between views (the list and the review page have different dependencies); opening the
       // details never glides.
       layoutId={layoutId}
       layoutDependency={layoutId ? (review ? 'review' : 'list') : undefined}
       layoutCrossfade={false}
-      // Lift and press run through motion here (a glide leaves an inline transform that would block CSS hover transforms).
-      whileHover={review ? undefined : lift}
+      // The press runs through motion here (a glide leaves an inline transform that would block CSS transforms).
       whileTap={review ? undefined : pressCard}
       transition={{ default: T.hover, layout: T.big }}
-      style={layoutId ? { borderRadius: phone ? 20 : 36 } : undefined}
+      style={layoutId ? { borderRadius: 24 } : undefined}
       className={cn(
-        'w-full flex-col items-start justify-between gap-3 overflow-hidden rounded-[20px] border !py-4 px-4',
-        'md:rounded-[36px] md:px-6',
+        'w-full flex-col items-start justify-between gap-3 overflow-hidden p-4 md:p-5',
         tw.quick,
-        review ? 'cursor-auto hover:bg-[#000000]/0' : cn('cursor-pointer', isSelected ? 'hover:border-blue-500' : 'hover:border-gray-500'),
-        'bg-highlighted-card',
-        isSelected ? 'border-blue-600' : 'border-gray-700',
+        !review && cn('cursor-pointer', isSelected ? 'hover:border-blue-400' : 'hover:border-line-strong'),
+        !review && !isSelected ? 'cursor-pointer' : 'bg-highlighted-card',
+        isSelected ? 'border-blue-600' : 'border-line',
         className,
       )}
     >
-      <div className="flex w-full items-center justify-between">
-        <div className="flex flex-1 items-center gap-x-2">
-          {option.tags.map((tag) => (
-            <p key={tag} className={cn('w-fit rounded-[10px] px-2 py-1 text-xs font-thin text-muted md:text-sm', 'bg-primary-buttons text-white')}>
-              {tag}
-            </p>
-          ))}
-          {!option.gasless && <span className="text-xs font-normal text-[#898989]">You pay gas</span>}
-        </div>
-        {timer && <div className={cn('flex shrink-0 items-center', !review && 'mr-2')}>{timer}</div>}
-        {!review && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onExpand(option.key); }}
-            className={cn('ml-auto flex items-center rounded-[10px] bg-gray-400 bg-opacity-20 p-2 transition hover:bg-opacity-30', tw.panel, tw.pressIcon, isExpanded && 'rotate-180')}
-          >
-            <ChevronDownIcon width={10} height={10} />
-          </button>
-        )}
-      </div>
-      <div className="flex w-full flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-x-2">
-          <div className="rounded-full border-2 border-white/50 p-1 md:p-1">
-            <div className="relative h-7 w-7 lg:h-10 lg:w-10">
-              <img src={toToken.logo} alt="" className="absolute inset-0 h-full w-full rounded-full object-contain" />
-            </div>
-          </div>
-          {arrive ? (
-            // A new price: the old numbers fade out, then the new ones come in.
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div key={option.amountOutText} className="flex flex-col" variants={arrive === 'rise' ? rise : fade} initial="hidden" animate="shown" exit="gone">
-                {amount}
-              </motion.div>
-            </AnimatePresence>
-          ) : (
-            <div className="flex flex-col">{amount}</div>
+      <div className="flex w-full flex-wrap items-center gap-2">
+        {o.tags.map((tag) => (
+          <span key={tag} className="whitespace-nowrap rounded-full bg-primary-buttons px-2.5 py-1 text-xs font-medium text-white">
+            {tag}
+          </span>
+        ))}
+        <div className="ml-auto flex shrink-0 items-center gap-x-2">
+          {timer}
+          {!review && (
+            <button
+              aria-label={isExpanded ? 'Hide details' : 'Show details'}
+              onClick={(e) => { e.stopPropagation(); onExpand(o.key); }}
+              className={cn('flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] transition hover:bg-white/10', tw.panel, tw.pressIcon, isExpanded && 'rotate-180')}
+            >
+              <ChevronDownIcon width={16} height={16} />
+            </button>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-x-1 whitespace-nowrap rounded-xl bg-white px-2 py-1 md:rounded-2xl md:px-4">
-          <span className="text-xs text-blue-600 lg:text-sm">via Swapic</span>
-          <img src={SWAPIC_LOGO} alt="" width={16} height={16} className="min-h-4 min-w-4 rounded-full bg-black p-0.5" />
-        </div>
       </div>
-      {option.gaslessNote && (
-        <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-emerald-300">
-          <Sparkles className="h-4 w-4 shrink-0" />
-          {option.gaslessNote}
+      {arrive ? (
+        // A new price: the old numbers fade out, then the new ones come in.
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div key={o.amountOutText} className="w-full" variants={arrive === 'rise' ? rise : fade} initial="hidden" animate="shown" exit="gone">
+            {hero}
+          </motion.div>
+        </AnimatePresence>
+      ) : (
+        hero
+      )}
+      {o.warning && (
+        <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-warn">
+          <WarningIcon width={16} height={16} className="shrink-0" />
+          {o.warning}
         </p>
       )}
-      {option.warning && (
-        <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-yellow-600">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          {option.warning}
-        </p>
-      )}
-      <div className="flex w-full items-end justify-end gap-x-4">
-        <span className="flex w-max items-center gap-x-1">
-          {/* Jeff 2026-11-04: a gasless card says so beside the gas icon, never a dollar figure */}
-          <p className="text-xs font-thin text-primary">{option.gasless ? 'Gasless' : option.totalFeeText}</p>
-          <FireIcon width={15} height={15} className="text-primary" />
-        </span>
-        <span className="flex w-max items-center gap-x-1">
-          <p className="text-xs font-thin text-primary">{option.durationText}</p>
-          <ClockIcon width={15} height={15} className="text-primary" />
-        </span>
-      </div>
+      {o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
       {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}
-      <div className={cn('w-full border-t border-gray-700', 'transform transition-[opacity,transform,padding]', tw.panel, isExpanded ? 'translate-y-0 pt-3 opacity-100' : 'h-0 -translate-y-2 overflow-hidden opacity-0')}>
-        <div className="space-y-3">
-          <p className="text-sm font-medium">Option Details:</p>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm"><span className="text-muted">Minimum Received:</span><span>{option.minOutText}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted">Total Fee:</span><span>{option.totalFeeText}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted">Gas:</span><span>{option.gasText}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted">Estimated Time:</span><span>{option.durationText}</span></div>
-          </div>
+      <div className={cn('w-full transform transition-[opacity,transform]', tw.panel, open ? 'translate-y-0 opacity-100' : '-mt-3 h-0 -translate-y-2 overflow-hidden opacity-0')}>
+        <div className="space-y-2 border-t border-line pt-3 text-xs md:text-sm">
+          <Row label="You get at least">{o.minOutText}</Row>
+          {(!o.gasless || review) && <Row label="Fee">{o.totalFeeText}</Row>}
+          <Row label="Route">
+            <span className="inline-flex items-center gap-x-1">
+              <span className="font-normal text-secondary">via</span> Swapic
+              <img src={SWAPIC_LOGO} alt="" width={16} height={16} className="h-4 w-4 rounded-full bg-black p-0.5" />
+            </span>
+          </Row>
         </div>
       </div>
     </MotionCard>

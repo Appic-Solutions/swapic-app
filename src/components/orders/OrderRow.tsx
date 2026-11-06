@@ -3,12 +3,13 @@
 // reading OrderView (src/features/activity/rows.ts): from and to tokens with the status line, amounts, the via pill, the fee,
 // and its steps when opened (given by the caller once fetched; skeletons until then).
 import * as React from 'react';
-import Skeleton from '@/components/ui/skeleton';
+import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import { motion } from 'motion/react';
 import { T, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
-import { ChevronDownIcon, FireIcon, ManageSearchIcon, ParkOutlineBridgeIcon, PoolIcon } from '@/components/icons';
+import { ChevronDownIcon, FeeIcon, ScannerIcon, SwapIcon, PoolIcon } from '@/components/icons';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
+import { QUIET } from '@/components/ui/styles';
 import { endFlags, endText, type OrderView } from '@/features/activity/rows';
 import { CopyButton, useCopied } from './CopyButton';
 import { StatusPill } from './StatusPill';
@@ -17,19 +18,31 @@ import { TokenAvatar } from './TokenAvatar';
 import type { SideView, StepView } from './types';
 import { ViaPill } from './ViaPill';
 
-/** Names of an order's pieces for the in place change to its order page (tokens and status fly there). */
-export const flyNames = (id: string) => ({ from: `from-${short(id)}`, to: `to-${short(id)}`, pill: `pill-${short(id)}` });
-
 export const where = (s: SideView) => `${s.symbol} ${s.chain === 'Swapic Pool' ? 'in' : 'on'} ${s.chain}`;
 
 const kindText = (o: OrderView) => (o.kind === 'stake' ? 'Stake' : o.kind === 'withdraw' ? 'Withdraw' : o.direction === 'received' ? 'Received' : 'Swap');
 
-/** The design's timeline skeleton while the steps load. */
-export function StepsSkeleton({ rows = 3 }: { rows?: number }) {
+/** How many steps an order's timeline ends up with, so its skeleton opens to the same height (contract 5.14's examples). */
+export const stepRows = (o: OrderView | null) => (!o || o.kind === 'swap' ? (o?.status === 'refunded' ? 4 : 5) : 3);
+
+/** The timeline while the steps load (Steps.tsx, row for row): the circle and its line, the label, the time and the link. */
+export function StepsSkeleton({ rows = 5, gap = 'gap-y-4', line = 'h-4' }: { rows?: number; gap?: string; line?: string }) {
   return (
-    <div className="flex flex-col gap-y-4">
+    <div className={cn('flex flex-col', gap)}>
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-x-5"><Skeleton className="h-9 w-9 rounded-full" /><div className="flex flex-col gap-y-1.5"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-24" /></div></div>
+        <div key={i} className="flex items-center justify-between gap-x-4 text-sm font-medium">
+          <div className="flex min-w-0 items-center gap-x-4 md:gap-x-5">
+            <div className="relative shrink-0">
+              <Skeleton className="h-9 w-9" />
+              {i < rows - 1 && <span className={cn('absolute left-1/2 top-full w-[2px] -translate-x-1/2 bg-white/10', line)} />}
+            </div>
+            <SkeletonText className="w-36" />
+          </div>
+          <div className="flex shrink-0 flex-col items-end text-xs font-normal">
+            <SkeletonText className="w-16" />
+            <SkeletonText className="w-20" />
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -48,43 +61,40 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
   const [copied, copy] = useCopied();
   const reduced = useReducedMotion();
   const mounted = useMounted();
-  const fly = flyNames(o.id);
   const ok = o.status === 'delivered';
   const { live, refund, asUsdc } = endFlags(o);
-  const stopTone = o.status === 'didntStart' ? 'border-white/30' : o.status === 'onHold' ? 'border-amber-400' : null;
-  const lineTone = ok ? 'border-green-500' : refund ? 'border-yellow-500' : stopTone ?? 'border-green-500';
-  const Icon = o.kind === 'swap' ? ParkOutlineBridgeIcon : PoolIcon;
+  const stopTone = o.status === 'didntStart' ? 'border-white/30' : o.status === 'onHold' ? 'border-warn' : null;
+  const lineTone = ok ? 'border-green-500' : refund ? 'border-warn' : stopTone ?? 'border-green-500';
+  const Icon = o.kind === 'swap' ? SwapIcon : PoolIcon;
   return (
     <div
       data-testid="order-row"
       className={cn(
-        'flex w-full flex-col bg-input-fields bg-cover bg-center bg-no-repeat shadow-md',
-        'rounded-2xl p-5 backdrop-blur-[30px] hover:bg-black/75 hover:ring-1 hover:ring-inset hover:ring-white/10',
+        'flex w-full flex-col rounded-3xl border border-line bg-input-fields p-5 hover:border-line-strong md:p-6',
         tw.quick,
-        'md:rounded-[36px] md:p-6',
         fresh && 'animate-slide-in-from-top',
       )}
     >
       {/* Kind, status, date */}
-      <div className="flex items-center justify-between gap-x-3 text-sm font-bold text-[#898989]">
+      <div className="flex items-center justify-between gap-x-3 text-sm font-medium text-secondary">
         <div className="flex min-w-0 items-center gap-x-2">
           <p className="text-white">{kindText(o)}</p>
           {o.direction === 'received' && o.payer && <p className="truncate font-normal">from {short(o.payer)}</p>}
           {/* the status cross fades as the live order moves on (only changes after the first render animate) */}
-          <motion.span key={o.status} className="flex" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}><StatusPill status={o.status} fly={fly.pill} /></motion.span>
+          <motion.span key={o.status} className="flex" initial={mounted ? { opacity: 0 } : false} animate={{ opacity: 1 }} transition={T.enter}><StatusPill status={o.status} /></motion.span>
         </div>
         <p className="shrink-0">{o.day}, {o.time}</p>
       </div>
       {/* Tokens and the status line */}
       <div className="my-4 flex w-full items-center justify-between">
-        <TokenAvatar side={o.from} fly={fly.from} />
+        <TokenAvatar side={o.from} />
         <div className="flex w-full items-center justify-center">
           <div className="flex-1 border-t-[3px] border-green-500" />
           <div
             className={cn(
               'relative z-10 rounded-full p-2.5',
               'bg-[linear-gradient(81.4deg,_#000000_-15.41%,_#1D1D1D_113.98%)]',
-              refund ? 'border-2 border-solid border-yellow-500' : stopTone ? `border-2 border-solid ${stopTone}` : 'before:absolute before:inset-0 before:rounded-full before:border-2 before:border-green-500',
+              refund ? 'border-2 border-solid border-warn' : stopTone ? `border-2 border-solid ${stopTone}` : 'before:absolute before:inset-0 before:rounded-full before:border-2 before:border-green-500',
               live && 'before:animate-spin before:border-t-transparent',
             )}
           >
@@ -92,10 +102,10 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           </div>
           <div className={cn('flex-1 border-t-[3px] transition-colors duration-500', live ? 'border-dashed border-white/30' : lineTone, refund && 'border-dashed')} />
         </div>
-        <TokenAvatar side={(refund || asUsdc) && o.refund ? o.refund : o.to} fly={fly.to} />
+        <TokenAvatar side={(refund || asUsdc) && o.refund ? o.refund : o.to} />
       </div>
       {/* Amounts */}
-      <div className="mb-4 flex items-start justify-between gap-x-4 text-xs font-bold text-[#898989] *:flex *:flex-1 *:flex-col *:justify-center">
+      <div className="mb-4 flex items-start justify-between gap-x-4 text-xs font-medium text-secondary *:flex *:min-w-0 *:flex-1 *:flex-col *:justify-center [&_p]:[overflow-wrap:anywhere]">
         <div>
           <p>{where(o.from)}</p>
           <p className="text-xl leading-7 text-white">{o.from.amountText}</p>
@@ -112,25 +122,25 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           ) : stopTone ? (
             <>
               <p>{where(o.to)}</p>
-              <p className="text-xl leading-7 text-white/40">{o.title}</p>
+              <p className="text-xl leading-7 text-faint">{o.title}</p>
             </>
           ) : refund && o.refund ? (
             <>
               <p>Refunded on {o.refund.chain}</p>
-              <p className="text-xl leading-7 text-yellow-500">{o.refund.amountText} {o.refund.symbol}</p>
+              <p className="text-xl leading-7 text-warn">{o.refund.amountText} {o.refund.symbol}</p>
               <p className="font-normal">{o.reason}</p>
             </>
           ) : refund && o.refundLine ? (
             // an undone withdrawal: its stake came back to the pool (contract 5.10), nothing was paid out
             <>
               <p>{o.refundLine}</p>
-              <p className="text-xl leading-7 text-yellow-500">{o.from.amountText}</p>
+              <p className="text-xl leading-7 text-warn">{o.from.amountText}</p>
               <p className="font-normal">{o.reason}</p>
             </>
           ) : (
             <>
               <p>{where(o.to)}</p>
-              <p className={cn('text-xl leading-7', live ? 'text-white/60' : 'text-white')}>{o.to.amountText}</p>
+              <p className={cn('text-xl leading-7', live ? 'text-secondary' : 'text-white')}>{o.to.amountText}</p>
               <p className="font-normal">{o.to.usdText}</p>
             </>
           )}
@@ -138,22 +148,22 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
       </div>
       {/* Steps */}
       {/* Steps: open and close with a smooth height change (openHeight). */}
-      <motion.div className="overflow-hidden" initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={openHeight(!!open, reduced)}>
+      <motion.div className="-mx-3 overflow-hidden px-3" initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={openHeight(!!open, reduced)}>
       <div className="mb-6 flex flex-col gap-y-4">
-        <div className="flex items-center justify-between gap-x-3 text-sm font-bold text-[#898989]">
+        <div className="flex items-center justify-between gap-x-3 text-sm font-medium text-secondary">
           <div className="flex items-center gap-x-1 whitespace-nowrap">
-            <span className="max-sm:hidden">Order ID:</span><span className="sm:hidden">Order</span> <span className="font-mono font-normal text-white/80">{short(o.id)}</span>
+            <span className="max-sm:hidden">Order ID:</span><span className="sm:hidden">Order</span> <span className="font-mono font-normal text-white">{short(o.id)}</span>
             <CopyButton id={o.id} copied={copied} onCopy={copy} text={o.id} />
           </div>
-          <a data-testid="open-scanner" onClick={onOpenScanner} className={cn('flex cursor-pointer items-center gap-x-1 rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20', tw.quick, tw.press)}>
-            <ManageSearchIcon width={14} height={14} /><span className="whitespace-nowrap"><span className="max-sm:hidden">Open in </span>Scanner</span>
+          <a data-testid="open-scanner" onClick={onOpenScanner} className={cn(QUIET, 'h-8 cursor-pointer gap-x-1 px-3 text-xs')}>
+            <ScannerIcon width={16} height={16} /><span className="whitespace-nowrap"><span className="max-sm:hidden">Open in </span>Scanner</span>
           </a>
         </div>
-        {steps ? <Steps steps={steps} animated /> : open ? <StepsSkeleton /> : null}
+        {steps ? <Steps steps={steps} animated /> : open ? <StepsSkeleton rows={stepRows(o)} /> : null}
       </div>
       </motion.div>
       {/* Via, details toggle, fee */}
-      <div className="flex items-center justify-between gap-x-3 text-xs text-[#898989] *:flex *:items-center *:font-semibold">
+      <div className="flex items-center justify-between gap-x-3 text-xs text-secondary *:flex *:items-center *:font-medium">
         <div className="gap-x-1.5">
           <ViaPill />
           <span className="max-sm:hidden">{o.gas}</span>
@@ -164,7 +174,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
         </div>
         <div className="gap-x-1 whitespace-nowrap text-white">
           {o.feeText ?? ''}
-          <FireIcon width={20} height={20} />
+          <FeeIcon width={16} height={16} />
         </div>
       </div>
     </div>

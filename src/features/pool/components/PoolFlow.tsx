@@ -1,28 +1,28 @@
 'use client';
 // The Pool tab's one panel (the approved prototype, design pool-screens.tsx PoolFlowScreen, motion part 2): the pool page,
 // Stake, Stake From, the stake pick, Withdraw, Receive on and the withdrawal's status change in place (MorphFrame). The
-// skeleton fades out to the pool page; Stake and Withdraw open with the stake card flying into their card; a signed
-// withdrawal shows its steps checking in as its record says; back on the pool page its line opens calmly in Your stake.
+// skeleton fades out to the pool page; a signed withdrawal shows its steps checking in as its record says; back on the
+// pool page its line opens calmly in Your stake.
 // /pool, /pool/stake and /pool/withdraw open it on their view, and the link follows the view: opening Stake or Withdraw in
 // place pushes its path (the browser's native history, which Next follows: the panel stays mounted), so Back returns to
 // the previous view and a refresh reopens it; the pickers and the status keep their parent's path. A shared
 // /pool/stake?amount=… link still opens Stake with that amount. A click on the Pool tab goes back to the pool page.
-// Review stake, Your stake and Review withdrawal (approved 2026-10-30) come between Stake or Withdraw and the wallet step:
-// into and out of them, and the withdrawal's steps, the panel changes with the calm fade (the whole old view out, then the
-// whole new one in, the panel easing to its size; nothing flies). They keep their parent's path.
+// Review stake, Your stake and Review withdrawal (approved 2026-10-30) come between Stake or Withdraw and the wallet step;
+// they keep their parent's path. Every change in this panel is the calm fade (the whole old view out, then the whole new
+// one in, the panel easing to its size). Nothing flies (Jeff 2026-11-05): the stake card used to fly into Stake's card, but
+// the panel was still shrinking when its target was measured, so it slid a little left and vanished, reading as a bug.
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
-import { motion } from 'motion/react';
 import type { UiToken } from '@/components/ui/token-types';
 import { MorphFrame } from '@/components/motion/parts';
 import { formatUnits } from '@/lib/money';
-import { T } from '@/lib/motion';
 import { useQueryOnce } from '@/lib/use-query-once';
 import { useWallets } from '@/lib/wallets';
 import { useNavReset } from '@/lib/nav-tab';
 import { TokenSelect } from '@/features/swap/components/TokenSelect';
 import { parseTokenKey, tokenKeyOf } from '@/features/swap/link';
-import { useQueryClient } from '@tanstack/react-query';
+import { useChains } from '@/features/swap/tokens';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { tiles, useMyStakes, usePool, type MyStake } from '../data';
 import type { StakeReview as StakeReviewData } from '../review';
 import { defaultStakeFrom } from '../stake-from';
@@ -40,14 +40,12 @@ import { WithdrawStatus } from './WithdrawStatus';
 
 /** The Pool's views: each is one name here, one row in POOL_LAYOUT and one path in PATH. */
 export type PoolView = 'pool' | 'stake' | 'stakeFrom' | 'stakeReview' | 'stakeStatus' | 'withdrawPick' | 'withdraw' | 'receiveOn' | 'withdrawReview' | 'status';
-/** Into and out of these views the panel changes with the calm fade (Jeff's pick, motion rows 68 to 73): nothing flies. */
-const CALM_VIEWS: PoolView[] = ['stakeReview', 'stakeStatus', 'withdrawReview', 'status'];
 
 const TWO_COLUMN_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px] overflow-x-hidden';
 const NARROW_FRAME = 'md:w-full md:max-w-[537px]';
 /** Each view's panel size and layout in the one panel (the design's POOL_LAYOUT; widths and heights glide). */
 const POOL_LAYOUT: Record<PoolView, { frame: string; view?: string }> = {
-  pool: { frame: 'md:w-full md:max-w-[1204px] md:max-h-[740px] md:overflow-y-hidden', view: 'gap-y-6 md:max-h-[740px] md:flex-row md:items-start md:gap-x-16' },
+  pool: { frame: 'md:w-full md:max-w-[1204px] lg:max-h-[740px] lg:overflow-y-hidden', view: 'gap-y-6 lg:max-h-[740px] lg:flex-row lg:items-start lg:gap-x-16' },
   stake: { frame: TWO_COLUMN_FRAME },
   stakeFrom: { frame: NARROW_FRAME },
   stakeReview: { frame: TWO_COLUMN_FRAME },
@@ -81,11 +79,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const [freshPayout, setFreshPayout] = React.useState<number | null>(null);
   // the view now, read by the path's effect below (set at once in show, before the path changes)
   const current = React.useRef(view);
-  // a change into or out of a review or status page is calm; every way in or out comes through show (a button, the
-  // browser's Back, the Pool tab)
-  const [calm, setCalm] = React.useState(false);
   const show = (v: PoolView, fresh: number | null = null) => {
-    setCalm(CALM_VIEWS.includes(current.current) || CALM_VIEWS.includes(v));
     current.current = v;
     setFreshPayout(fresh);
     setView(v);
@@ -112,7 +106,11 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const [stakeAmount, setStakeAmount] = React.useState('');
   const ref = start === 'stake' ? parseTokenKey(link?.get('from')) : null;
   const linked = ref ? stakeTokens.find((t) => t.key === tokenKeyOf(ref)) : undefined;
-  const from = stakePicked ?? linked ?? defaultStakeFrom(stakeTokens, evmChain);
+  // the default waits for USDC's EVM list: with an ICP wallet ckUSDC alone would show first, then change to USDC
+  const { isLoading: chainsLoading } = useChains();
+  const guardLoading = useIsFetching({ queryKey: ['guard-context'] }) > 0;
+  const usdcComing = !evmTokens.length && (chainsLoading || guardLoading);
+  const from = stakePicked ?? linked ?? (usdcComing ? null : defaultStakeFrom(stakeTokens, evmChain));
 
   // Withdraw: a stake pays out where its wallet lives; with both wallets holding one, the pick comes first
   const payoutTokens = React.useMemo(() => [...evmTokens].sort((x, y) => payoutPlace(x.chain) - payoutPlace(y.chain)), [evmTokens]);
@@ -150,16 +148,25 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
 
   // one stake (or none yet): the pick is skipped
   const resolved: PoolView = view === 'withdrawPick' && !both ? 'withdraw' : view;
+  const withdrawPanel = (
+    <WithdrawPanel
+      key={stake?.kind ?? 'none'}
+      stake={stake} stakeKnown={known} named={both || icpStake} to={toToken} amountText={withdrawAmount} onAmountText={setWithdrawAmount}
+      onBack={() => go(both ? 'withdrawPick' : 'pool')}
+      onPickTo={() => go('receiveOn')}
+      onReview={(st) => { setWithdrawStart(st); go('withdrawReview'); }}
+    />
+  );
   // The pool page waits on the pool and the stakes: until they answer the first time it is the skeleton, drawn outside the
-  // frame, and the frame fades in over it once they have (a frame view that leaves while the page is still starting up
-  // could keep its exit waiting: the frame starts on a real view). Withdraw waits on the stakes (which panel opens depends
-  // on both wallets' accounts), drawn as nothing until they answer the first time.
+  // frame, and the frame takes over in its place (a frame view that leaves while the page is still starting up could keep
+  // its exit waiting: the frame starts on a real view). It has the page's exact shape, so the panel stays solid and only
+  // the numbers change. Withdraw waits on the stakes (which panel opens depends on both wallets' accounts): its own panel
+  // in its loading state until they answer the first time.
   const ready = !!pool.data && !loading;
   const opened = React.useRef(false);
-  const skeleton = React.useRef(false);
   const withdrawing = resolved === 'withdraw' || resolved === 'withdrawPick' || resolved === 'receiveOn';
-  if (withdrawing && loading && !opened.current) return null;
-  if (resolved === 'pool' && !ready && !opened.current) { skeleton.current = true; return <PoolLoading />; }
+  if (withdrawing && loading && !opened.current) return withdrawPanel;
+  if (resolved === 'pool' && !ready && !opened.current) return <PoolLoading />;
   opened.current = true;
   const shown: PoolView = resolved;
   const L = POOL_LAYOUT[shown];
@@ -207,15 +214,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
       case 'receiveOn':
         return stake && toToken ? <ReceiveOnPicker stake={stake} tokens={receiveTokens} selected={toToken} onBack={() => go('withdraw')} onSelect={(t) => { setTo(t); go('withdraw'); }} /> : null;
       case 'withdraw':
-        return (
-          <WithdrawPanel
-            key={stake?.kind ?? 'none'}
-            stake={stake} stakeKnown={known} named={both || icpStake} to={toToken} amountText={withdrawAmount} onAmountText={setWithdrawAmount}
-            onBack={() => go(both ? 'withdrawPick' : 'pool')}
-            onPickTo={() => go('receiveOn')}
-            onReview={(st) => { setWithdrawStart(st); go('withdrawReview'); }}
-          />
-        );
+        return withdrawPanel;
       case 'withdrawReview':
         return withdrawStart ? (
           <WithdrawReview
@@ -230,13 +229,9 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
     }
   };
 
-  const frame = (
-    <MorphFrame view={shown} calm={calm} frameClass={L.frame} viewClass={L.view}>
+  return (
+    <MorphFrame view={shown} calm frameClass={L.frame} viewClass={L.view}>
       {() => body()}
     </MorphFrame>
   );
-  // after the skeleton: the page fades in where it stood (the page fade's layout)
-  return skeleton.current ? (
-    <motion.div className="flex w-full md:items-center md:justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }}>{frame}</motion.div>
-  ) : frame;
 }

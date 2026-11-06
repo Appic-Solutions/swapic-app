@@ -38,20 +38,26 @@ const FALLBACK_FEE_PER_GAS = 50_000_000_000n;
 /** `quotedAt`: when that quote was fetched (ms), so Review swap's timer goes on from where the Swap panel's was. */
 export interface ReviewStart { option: PickedOption; quote: Quote; query: QuoteQuery; native: NativeCoin; amountIn: bigint; quotedAt: number }
 
-export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') => void; onReview: (start: ReviewStart) => void }) {
+/** A shared link whose tokens are still loading: the sides it names, and whether it carries an amount. */
+export interface LinkLoading { from: boolean; to: boolean; amount: boolean }
+
+export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from' | 'to') => void; onReview: (start: ReviewStart) => void; linking?: LinkLoading | null }) {
   const f = useSwapForm();
   const { evm, icp } = useWallets();
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
   const openIcp = useIcpConnect();
-  const { query, quote, state, options, picked, error, cap, updatedAt, fetching } = useSwapQuote();
+  const { query, quote, state, options, picked, error, cap, updatedAt, fetching, settling } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
-  const pickedCard = 'py-5 md:rounded-3xl md:py-5 max-h-min md:max-h-min md:px-6';
-  // Motion (approved 2026-10-29): token cards lift on hover with a brighter edge and sink when pressed; inside the in place
+  // a link's two tokens on their way: the two token layout now, so nothing moves when they arrive
+  const linkBoth = !both && !!linking?.from && linking.to;
+  const linkColumn = linkBoth && linking!.amount;
+  const pickedCard = 'max-h-min md:max-h-min';
+  // Motion (approved 2026-10-29): token cards brighten their edge on hover and sink when pressed; inside the in place
   // panel (MorphFrame) the parts fade in place; Send To Wallet opens and closes at panel speed; the route column's first
   // cards fade up when quoting starts.
-  const card = cn(tw.quick, tw.lift, tw.edge, tw.pressRow);
+  const card = cn(tw.quick, tw.edge, tw.pressRow);
   const mounted = useMounted();
   const reduced = useReducedMotion();
 
@@ -100,8 +106,8 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
   }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
   const message = state === 'empty' ? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : undefined;
-  const button = swapButton({
-    from: !!from, to: !!to, amount, amountError, overBalance, quote: state, hasOptions: options.length > 0,
+  const button = linkBoth ? { text: undefined, enabled: false } : swapButton({
+    from: !!from, to: !!to, amount, amountError, overBalance, quote: settling ? 'loading' : state, hasOptions: options.length > 0,
     recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient, cap,
   });
 
@@ -134,7 +140,8 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
       </div>
       <div
         onClick={() => f.set({ recipient: { ...recipient, show: !recipient.show, error: recipientError(to, recipient.address) } })}
-        className={cn('flex min-h-12 min-w-12 cursor-pointer items-center justify-center rounded-full bg-primary-buttons px-4 hover:opacity-85', tw.quick, 'active:scale-[0.92] motion-reduce:active:scale-100', recipient.show && 'ring-2 ring-white/40')}
+        aria-label="Send to another wallet"
+        className={cn('flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border bg-white/[0.06] hover:bg-white/10', tw.quick, tw.press, recipient.show ? 'border-blue-600' : 'border-line')}
       >
         <WalletIcon className="text-white" />
       </div>
@@ -146,31 +153,32 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
     : state === 'capped' && cap !== null ? { emptyTitle: `Swaps are limited to ${formatUsdWhole(cap)} for now`, emptyText: 'Try a smaller amount.' } : {};
 
   return (
-    <PanelBox className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] md:h-fit md:w-full md:max-w-[537px] ' + tw.big + ' ' + (column ? 'lg:max-w-[1060px]' : '')}>
+    <PanelBox className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] md:h-fit md:w-full md:max-w-[537px] ' + tw.big + ' ' + (column || linkColumn ? 'lg:max-w-[1060px]' : '')}>
       <motion.div variants={fade} className="flex w-full items-center justify-between text-white">
-        <h1 className="text-2xl font-bold md:text-3xl">Swap</h1>
-        <Link href="/history" className="flex cursor-pointer items-center gap-x-2 text-sm transition-opacity hover:opacity-70">
-          <HistoryIcon width={20} height={20} />
+        <h1 className="text-2xl font-semibold md:text-3xl">Swap</h1>
+        <Link href="/history" className="flex cursor-pointer items-center gap-x-2 text-sm text-secondary transition-colors hover:text-white">
+          <HistoryIcon width={16} height={16} />
           History
         </Link>
       </motion.div>
       <div className="flex w-full flex-1 flex-col justify-between gap-x-4 gap-y-6 lg:flex-row">
         <motion.div variants={fade} data-testid="swap-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
-          <div className={'relative flex w-full ' + (both ? 'flex-col gap-y-4 sm:flex-row sm:gap-x-4' : 'flex-col gap-y-4')}>
-            <TokenCard token={from ?? undefined} customOnClick={() => onPick('from')} label="From" className={cn(from && pickedCard, card)} />
+          <div className={'relative flex w-full ' + (both || linkBoth ? 'flex-row gap-x-3 md:gap-x-4' : 'flex-col gap-y-4')}>
+            <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, card)} />
             <div
               onClick={() => f.flip()}
               className={cn(
-                'group absolute inset-0 z-20 m-auto flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-[#0B0B0B] text-white hover:border-white/60',
+                'group absolute inset-0 z-20 m-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-line bg-[#101012] text-white hover:border-line-strong md:h-10 md:w-10',
                 'transition-[transform,border-color] active:scale-90 motion-reduce:transition-none',
                 tw.panel,
-                both ? 'hover:rotate-180 sm:rotate-90 sm:hover:-rotate-90' : 'hover:rotate-180',
+                both || linkBoth ? 'rotate-90 hover:-rotate-90' : 'hover:rotate-180',
               )}
             >
               <ArrowsUpDownIcon width={20} height={20} />
             </div>
-            <TokenCard token={to ?? undefined} customOnClick={() => onPick('to')} label="To" className={cn(to && pickedCard, card)} />
+            <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, card)} />
           </div>
+          {linkBoth && <AmountCard token={{ logo: '', chainLogo: '' }} amountText="" usdText={null} balanceLoading disabled />}
           {both && (
             <AmountCard
               token={{ logo: from!.logo, chainLogo: from!.chainLogo }}
@@ -205,20 +213,21 @@ export function SwapPanel({ onPick, onReview }: { onPick: (side: 'from' | 'to') 
           )}
           {both && smartTyped && recipient.show && (
             // PROVISIONAL copy (plan 2 Smart wallets, awaiting Jeff)
-            <p className="mt-2 px-2 text-xs text-yellow-600">
+            <p className="mt-2 px-2 text-xs text-warn">
               You are using a smart wallet. Type the address that should receive on {to!.chainName}, and make sure it is yours there.
             </p>
           )}
-          {actions('mt-4 max-lg:hidden', false)}
+          {actions('mt-3 max-lg:hidden md:mt-4', false)}
         </motion.div>
-        {column && (
+        {(column || linkColumn) && (
+          // The panel's height comes from the left column (Jeff 2026-11-05: no gap above the button); only Send To Wallet grows it.
           <div data-testid="swap-routes" className="relative w-full lg:min-h-[300px] lg:flex-1">
             <div className="lg:absolute lg:inset-0">
               <RouteOptionsList
                 enter={mounted}
-                state={state === 'loading' ? 'loading' : state === 'ready' ? 'ready' : 'empty'}
+                state={linkColumn || state === 'loading' ? 'loading' : state === 'ready' ? 'ready' : 'empty'}
                 options={views}
-                toToken={{ symbol: to!.symbol, logo: to!.logo }}
+                toToken={{ symbol: to?.symbol ?? '', logo: to?.logo ?? '' }}
                 selectedKey={picked?.key ?? null}
                 // the quote timer: only while a price shows; it counts from the fetch and again with each 20 s refresh
                 timer={state === 'ready' && picked ? <CountdownLabel startedAt={updatedAt} fetching={fetching} /> : undefined}

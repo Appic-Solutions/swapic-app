@@ -1,5 +1,5 @@
 import { cn } from '@/lib/cn';
-import { ExpandLeftIcon } from '@/components/icons';
+import { BackIcon } from '@/components/icons';
 
 interface BoxHeaderProps {
   title: string;
@@ -15,14 +15,14 @@ export default function BoxHeader({ title, onBack, className }: BoxHeaderProps) 
           onClick={onBack}
           className={cn(
             'flex items-center justify-center gap-x-1',
-            'absolute left-4 font-semibold md:left-10',
+            'absolute left-0 text-sm font-medium text-secondary transition-colors hover:text-white md:left-8',
           )}
         >
-          <ExpandLeftIcon width={18} height={18} />
+          <BackIcon width={20} height={20} />
           Back
         </button>
       )}
-      <p className="text-2xl font-bold md:text-3xl">{title}</p>
+      <p className="text-2xl font-semibold md:text-3xl">{title}</p>
     </div>
   );
 }

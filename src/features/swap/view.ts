@@ -41,7 +41,7 @@ export function sumFees(f: Fees, platformInTokenOut?: { decimals: number; priceU
 }
 
 export function etaText(seconds: number): string {
-  return seconds < 90 ? `${seconds} Sec` : `${Math.round(seconds / 60)} Mins`;
+  return seconds < 90 ? `${seconds} sec` : `${Math.round(seconds / 60)} min`;
 }
 
 /** "You get about $X less than you pay" when the quoter flags a big impact (shown once Jeff approves SwapPriceImpactScreen). */

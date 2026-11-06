@@ -36,7 +36,7 @@ export function FlagPill({ mark }: { mark: 'fake' | 'unverified' }) {
 /** `top`: the flag sits at the logo's top right, when its bottom right holds the chain badge. */
 export function LogoBadge({ mark, top = false }: { mark: 'fake' | 'unverified'; top?: boolean }) {
   return (
-    <span aria-hidden className={cn('absolute -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-bold text-black ring-2 ring-[#141414]', top ? '-top-0.5' : '-bottom-0.5', mark === 'fake' ? 'bg-red-300' : 'bg-amber-200')}>
+    <span aria-hidden className={cn('absolute -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full text-[11px] font-semibold text-black ring-2 ring-[#141414]', top ? '-top-0.5' : '-bottom-0.5', mark === 'fake' ? 'bg-red-300' : 'bg-amber-200')}>
       {mark === 'fake' ? '!' : '?'}
     </span>
   );

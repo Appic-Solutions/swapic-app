@@ -1,7 +1,7 @@
 'use client';
 // Moved from the design's home-screens.tsx (sha 04ec3f6bf50c). The live FAQ: topics on the left, the open topic's questions on the right; the text exactly as designed.
 import * as React from 'react';
-import { ArrowRightIcon, ChevronDownIcon } from '@/components/landing/icons';
+import { ArrowRightIcon, ChevronDownIcon } from '@/components/icons';
 import { cn } from '@/lib/cn';
 import { section, titleText } from './Title';
 
@@ -43,22 +43,20 @@ export function Faq() {
       <div className="flex flex-col gap-y-8 lg:min-w-[400px] lg:gap-y-12">
         <div className="flex flex-col gap-y-3">
           <p className={titleText}>FAQ</p>
-          <p className="max-w-[375px] text-sm leading-[18px] text-white md:text-[18px] md:leading-[22px]">Quick answers about swapping, the pool and safety.</p>
+          <p className="max-w-[375px] text-sm leading-6 text-secondary md:text-base">Quick answers about swapping, the pool and safety.</p>
         </div>
-        <div className="flex flex-col gap-4 md:flex-row lg:flex-col">
+        <div className="flex flex-col gap-3 md:flex-row lg:flex-col">
           {FAQ.map((t, i) => (
             <div
               key={t.title}
               onClick={() => { setTopic(i); setOpen(0); }}
               className={cn(
-                'flex flex-1 cursor-pointer items-center justify-between gap-x-4 rounded-[24px] px-8 py-5 text-black transition-all duration-200 active:scale-[0.98]',
-                'bg-[linear-gradient(90deg,rgba(217,217,217,_0.7)_0%,rgba(115,115,115,_0.9)_100%)]',
-                'xl:text-[22px] xl:font-semibold',
-                topic === i && 'bg-[linear-gradient(159.81deg,_#1343A0_-34.87%,rgba(19,67,160,_0.5)_151.64%)] font-bold text-white',
+                'flex flex-1 cursor-pointer items-center justify-between gap-x-4 rounded-3xl border p-5 font-medium text-white transition-colors duration-200 active:scale-[0.98]',
+                topic === i ? 'border-blue-600 bg-highlighted-card' : 'border-line bg-input-fields hover:border-line-strong',
               )}
             >
               {t.title}
-              <ArrowRightIcon width={24} height={24} />
+              <ArrowRightIcon width={20} height={20} />
             </div>
           ))}
         </div>
@@ -69,15 +67,15 @@ export function Faq() {
             key={q}
             onClick={() => setOpen(i)}
             className={cn(
-              'flex cursor-pointer flex-col gap-y-3 overflow-hidden rounded-[10px] bg-[#42424280] px-6 py-5 text-white transition-colors duration-200 md:text-lg',
-              open === i && 'bg-[#1343A0] drop-shadow-[0_3px_20px_5px_#651FFF33]',
+              'flex cursor-pointer flex-col gap-y-3 overflow-hidden rounded-3xl border bg-input-fields p-5 text-white transition-colors duration-200',
+              open === i ? 'border-line-strong' : 'border-line hover:border-line-strong',
             )}
           >
-            <div className="flex items-center justify-between gap-x-2 font-semibold">
+            <div className="flex items-center justify-between gap-x-2 font-medium">
               {q}
-              <ChevronDownIcon className={cn('shrink-0 duration-200', open === i ? 'rotate-180' : 'rotate-0')} />
+              <ChevronDownIcon className={cn('shrink-0 text-secondary duration-200', open === i ? 'rotate-180' : 'rotate-0')} />
             </div>
-            {open === i && <p className="animate-fade text-sm leading-6 text-white/90 md:text-base">{a}</p>}
+            {open === i && <p className="animate-fade text-sm leading-6 text-secondary">{a}</p>}
           </div>
         ))}
       </div>

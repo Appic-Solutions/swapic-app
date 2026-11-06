@@ -1,24 +1,45 @@
 // Moved from the design's orders-ui.tsx (sha 61b00a56d513): mock data became props (types.tsx).
 import * as React from 'react';
-import Skeleton from '@/components/ui/skeleton';
+import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 
-/** Skeleton of a History row while the orders load. */
+const Side = ({ end }: { end?: boolean }) => (
+  <div className={end ? 'items-end' : undefined}>
+    <SkeletonText className="w-24" />
+    <SkeletonText className="w-20 text-xl leading-7" />
+    <SkeletonText className="w-14" />
+  </div>
+);
+
+/** A History row while the orders load (OrderRow.tsx, part for part, shut): its top line, the tokens and the status line, the amounts, the footer. */
 export function OrderRowSkeleton() {
   return (
-    <div className="flex w-full flex-col gap-y-4 rounded-2xl bg-input-fields bg-cover p-5 md:rounded-[36px] md:p-6">
-      <div className="flex items-center justify-between"><Skeleton className="h-4 w-28" /><Skeleton className="h-4 w-20" /></div>
-      <div className="flex items-center gap-x-2">
-        <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
-        <Skeleton className="h-1 flex-1" />
-        <Skeleton className="h-11 w-11 shrink-0 rounded-full" />
-        <Skeleton className="h-1 flex-1" />
-        <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+    <div className="flex w-full flex-col rounded-3xl border border-line bg-input-fields p-5 md:p-6">
+      <div className="flex items-center justify-between gap-x-3 text-sm font-medium">
+        <div className="flex min-w-0 items-center gap-x-2">
+          <SkeletonText className="w-10" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+        <SkeletonText className="w-24" />
       </div>
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-y-1.5"><Skeleton className="h-3 w-24" /><Skeleton className="h-6 w-20" /></div>
-        <div className="flex flex-col items-end gap-y-1.5"><Skeleton className="h-3 w-24" /><Skeleton className="h-6 w-20" /></div>
+      <div className="my-4 flex w-full items-center justify-between">
+        <Skeleton className="h-12 w-12 shrink-0" />
+        <div className="flex w-full items-center justify-center">
+          <div className="flex-1 border-t-[3px] border-white/10" />
+          <Skeleton className="h-10 w-10 shrink-0 md:h-11 md:w-11" />
+          <div className="flex-1 border-t-[3px] border-white/10" />
+        </div>
+        <Skeleton className="h-12 w-12 shrink-0" />
       </div>
-      <div className="flex items-center justify-between"><Skeleton className="h-6 w-28 rounded-full" /><Skeleton className="h-4 w-24" /><Skeleton className="h-4 w-12" /></div>
+      <div className="mb-4 flex items-start justify-between gap-x-4 text-xs font-medium *:flex *:flex-1 *:flex-col *:justify-center">
+        <Side />
+        <div className="items-center self-center max-md:hidden"><SkeletonText className="w-24" /></div>
+        <Side end />
+      </div>
+      <div className="flex items-center justify-between gap-x-3 text-xs">
+        <SkeletonText className="w-20" />
+        <SkeletonText className="w-24 text-sm" />
+        <SkeletonText className="w-12" />
+      </div>
     </div>
   );
 }

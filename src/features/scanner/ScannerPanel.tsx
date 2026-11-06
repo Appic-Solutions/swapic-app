@@ -11,10 +11,11 @@ import { useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
-import { ManageSearchIcon } from '@/components/icons';
+import { ScannerIcon } from '@/components/icons';
 import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
 import { T, fade, tw } from '@/lib/motion';
 import { cn } from '@/lib/cn';
+import { QUIET } from '@/components/ui/styles';
 import { mergeRows, orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { LiveDot } from './LiveDot';
@@ -40,6 +41,27 @@ export function chipsOf(q: string | null): Chip[] {
 
 // The Scanner panel's size and layout outside an in place frame.
 const SCANNER_BOX = 'gap-y-6 md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden md:pb-5';
+
+const quiet = () => {};
+
+/** The Scanner before the page has started (its Suspense fallback, the first paint of the static page): the list, part for part. */
+export function ScannerLoading() {
+  return (
+    <PanelBox className={SCANNER_BOX}>
+      <div className="w-full"><Tiles tiles={null} /></div>
+      <section className="flex w-full flex-col gap-y-3 md:gap-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-x-2 text-lg font-medium text-white md:text-xl">
+            <ScannerIcon width={24} height={24} />
+            <div className="flex items-center gap-x-2">Latest transactions <LiveDot /></div>
+          </div>
+          <SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} />
+        </div>
+        <div className="w-full"><Results orders={[]} loading onOpen={quiet} /></div>
+      </section>
+    </PanelBox>
+  );
+}
 
 /**
  * `onOpen` opens one order (a row, or the one an id or hash search found); `onLink` hears the chips the panel writes into
@@ -127,14 +149,14 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
       <motion.section variants={fade} className="flex w-full flex-col gap-y-3 md:gap-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-x-2 text-lg font-medium text-white md:text-xl">
-            <ManageSearchIcon width={24} height={24} />
+            <ScannerIcon width={24} height={24} />
             <AnimatePresence initial={false} mode="wait">
               <motion.div key={searching ? 'search' : 'live'} className="flex items-center gap-x-2" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }} exit={{ opacity: 0, transition: T.exit }}>
                 {searching ? (
                   <>
                     Orders for {chips.length === 1 ? '1 wallet' : `${chips.length} wallets`}
-                    <span className="text-sm text-[#898989]">{orders.length} found</span>
-                    <a onClick={() => setChipsAndLink([])} className="cursor-pointer text-sm text-[#898989] underline-offset-2 transition-colors hover:text-white hover:underline">Clear</a>
+                    <span className="text-sm text-secondary">{orders.length} found</span>
+                    <a onClick={() => setChipsAndLink([])} className="cursor-pointer text-sm text-secondary underline-offset-2 transition-colors hover:text-white hover:underline">Clear</a>
                   </>
                 ) : (
                   <>Latest transactions <LiveDot /></>
@@ -144,7 +166,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
           </div>
           <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={() => void onSubmit()} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
         </div>
-        {error && <p className="text-xs text-yellow-600">{error}</p>}
+        {error && <p className="text-xs text-warn">{error}</p>}
         {/* Results and "Nothing found" cross fade (out 180 ms, then in 250 ms). */}
         <AnimatePresence initial={false} mode="wait">
           <motion.div key={notFound !== null ? 'none' : 'results'} className="w-full" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }} exit={{ opacity: 0, transition: T.exit }}>
@@ -156,7 +178,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
           </motion.div>
         </AnimatePresence>
         {notFound === null && !searching && feed.hasNextPage && (
-          <button onClick={() => void feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className={cn('mx-auto mb-1 flex items-center gap-x-1.5 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/20', tw.quick, tw.press)}>
+          <button onClick={() => void feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className={cn(QUIET, 'mx-auto h-10 shrink-0 px-4 text-sm')}>
             Show older
           </button>
         )}

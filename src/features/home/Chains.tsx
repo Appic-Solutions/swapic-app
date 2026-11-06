@@ -13,15 +13,15 @@ export function Chains() {
       <Title title="Every chain, one swap" sub="Swap between any of these chains in one step. More chains are on the way." />
       <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
         {CHAINS.map(({ name, logo }) => (
-          <div key={name} className="flex items-center gap-x-3 rounded-full bg-white/10 py-2 pl-2 pr-5 text-white ring-1 ring-white/10 transition-colors hover:bg-white/15 md:py-2.5 md:pl-2.5 md:pr-6">
-            <Avatar src={logo} className="h-8 w-8 md:h-10 md:w-10" />
-            <span className="font-semibold md:text-lg">{name}</span>
+          <div key={name} className="flex items-center gap-x-3 rounded-full border border-line bg-input-fields py-1.5 pl-1.5 pr-4 text-white md:py-2 md:pl-2 md:pr-5">
+            <Avatar src={logo} className="h-8 w-8" />
+            <span className="text-sm font-medium md:text-base">{name}</span>
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-center gap-x-3 text-sm text-[#898989]">
+      <div className="flex items-center justify-center gap-x-3 text-sm text-secondary">
         <div className="flex -space-x-2">
-          {TOKENS.map(([s, logo]) => <Avatar key={s} src={logo} className="h-8 w-8 ring-2 ring-[#0B0B0B]" />)}
+          {TOKENS.map(([s, logo]) => <Avatar key={s} src={logo} className="h-8 w-8 ring-2 ring-[#060607]" />)}
         </div>
         USDC, USDT, ETH, BTC, ICP and more
       </div>

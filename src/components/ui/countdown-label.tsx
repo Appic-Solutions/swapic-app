@@ -11,6 +11,8 @@ import { T } from '@/lib/motion';
 
 /** The price updates this often (the quote's refetch, Swap and Review swap). Quotes stay valid 45 s. */
 export const QUOTE_CYCLE_MS = 20_000;
+/** Longer than the big change (350 ms). */
+const FETCH_LABEL_DELAY_MS = 500;
 
 /** "Updates in 12s": whole seconds until the next price, from when the one on screen was fetched; never below 1 (at zero
  *  a fresh price is loading and the label says so instead). */
@@ -19,12 +21,12 @@ export function secondsLeft(startedAt: number, now: number, cycleMs = QUOTE_CYCL
   return Math.max(1, Math.ceil((1 - p) * (cycleMs / 1000)));
 }
 
-/** Redraws its component every frame. */
-function useFrame() {
+/** Redraws its component four times a second: the number on screen changes once a second. */
+function useTick() {
   const [, tick] = React.useState(0);
   React.useEffect(() => {
-    let id = requestAnimationFrame(function loop() { tick((n) => n + 1); id = requestAnimationFrame(loop); });
-    return () => cancelAnimationFrame(id);
+    const id = setInterval(() => tick((n) => n + 1), 250);
+    return () => clearInterval(id);
   }, []);
   return Date.now();
 }
@@ -38,13 +40,21 @@ export interface CountdownLabelProps {
 }
 
 export function CountdownLabel({ startedAt, fetching, cycleMs = QUOTE_CYCLE_MS }: CountdownLabelProps) {
-  const now = useFrame();
+  const now = useTick();
   const secs = secondsLeft(startedAt, now, cycleMs);
+  // Review swap asks a fresh quote as it opens: the label changes only if that takes longer than the view's change, so a
+  // quick answer never flashes it
+  const [showFetching, setShowFetching] = React.useState(false);
+  React.useEffect(() => {
+    if (!fetching) { setShowFetching(false); return; }
+    const t = setTimeout(() => setShowFetching(true), FETCH_LABEL_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [fetching]);
   return (
-    <span data-testid="quote-timer" className="inline-flex h-7 items-center gap-x-1.5 whitespace-nowrap rounded-full bg-white/10 px-3 text-xs font-semibold text-[#9F9F9F]">
-      {fetching ? (
+    <span data-testid="quote-timer" className="inline-flex h-7 items-center gap-x-1.5 whitespace-nowrap rounded-full bg-white/10 px-3 text-xs font-medium text-secondary">
+      {showFetching ? (
         <>
-          <span className="w-3"><Spinner width={12} height={12} className="fill-white text-white/30" /></span>
+          <span className="w-3"><Spinner width={16} height={16} className="fill-white text-faint" /></span>
           Updating price
         </>
       ) : (

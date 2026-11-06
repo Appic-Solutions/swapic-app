@@ -5,10 +5,12 @@ export type SpinnerProps = SVGProps<SVGSVGElement>;
 
 export default function Spinner({ className, ...props }: SpinnerProps) {
   return (
-    <div className="grid w-full place-items-center overflow-hidden rounded-lg lg:overflow-visible">
+    <div className="grid w-full place-items-center overflow-hidden rounded-xl lg:overflow-visible">
+      {/* an svg always spins on the main thread, a span around it on the GPU */}
+      <span className="inline-flex animate-spin">
       <svg
         aria-hidden="true"
-        className={cn('animate-spin fill-blue-600 text-gray-300', className)}
+        className={cn('fill-blue-600 text-faint', className)}
         width={24}
         height={24}
         viewBox="0 0 100 101"
@@ -25,6 +27,7 @@ export default function Spinner({ className, ...props }: SpinnerProps) {
           fill="currentFill"
         />
       </svg>
+      </span>
     </div>
   );
 }

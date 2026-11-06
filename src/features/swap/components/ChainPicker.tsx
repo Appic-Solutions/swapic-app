@@ -5,7 +5,7 @@
 import * as React from 'react';
 import { Avatar } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { BlockchainIcon, ChevronDownIcon } from '@/components/icons';
+import { ChainsIcon, ChevronDownIcon } from '@/components/icons';
 import type { ChainInfo } from '@/lib/api';
 import { chainLogo, chainName, chainNumber } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
@@ -20,7 +20,7 @@ const nameOf = (chain: string) => (chain === ALL_CHAINS ? 'All chains' : chainNa
 function AllMark() {
   return (
     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-white">
-      <BlockchainIcon width={16} height={16} />
+      <ChainsIcon width={16} height={16} />
     </span>
   );
 }
@@ -39,12 +39,12 @@ export function ChainMenu({ chains, value, onChange }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className={cn('flex h-10 shrink-0 select-none items-center gap-2 rounded-md bg-white/30 pl-1.5 pr-3 text-white hover:bg-white/40', tw.quick, tw.press)}
+        className={cn('flex h-10 shrink-0 select-none items-center gap-2 rounded-xl border border-line bg-white/[0.06] pl-1.5 pr-3 text-white hover:bg-white/10', tw.quick, tw.press)}
         aria-label={`Chain: ${nameOf(value)}`}
       >
         <Mark chain={value} />
         <span className="max-w-[9rem] truncate whitespace-nowrap font-semibold max-md:max-w-[6.5rem]">{nameOf(value)}</span>
-        <ChevronDownIcon width={12} height={7} className={cn('shrink-0 transition-transform', tw.panel, open && 'rotate-180')} />
+        <ChevronDownIcon width={16} height={16} className={cn('shrink-0 text-secondary transition-transform', tw.panel, open && 'rotate-180')} />
       </PopoverTrigger>
       <PopoverContent
         align="end"
@@ -60,7 +60,7 @@ export function ChainMenu({ chains, value, onChange }: {
             data-chain-id={id === ALL_CHAINS ? 'all' : chainNumber(id)}
             aria-pressed={id === value}
             onClick={() => { onChange(id); setOpen(false); }}
-            className={cn('flex items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm font-semibold text-white hover:bg-[#2A2A2A]', tw.quick, tw.pressRow, id === value && 'bg-[#2A2A2A]')}
+            className={cn('flex items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm font-semibold text-white hover:bg-white/[0.06]', tw.quick, tw.pressRow, id === value && 'bg-white/[0.06]')}
           >
             <Mark chain={id} />
             <span className="truncate">{nameOf(id)}</span>

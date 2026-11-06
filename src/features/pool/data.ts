@@ -93,7 +93,7 @@ export function earningsSeries(h: PoolHistory, tf: Timeframe) {
 
 function ago(at: number, now: number): string {
   const s = Math.max(now - at, 0);
-  if (s < 60) return `${s} s ago`;
+  if (s < 60) return `${s} sec ago`;
   if (s < 3600) return `${Math.floor(s / 60)} min ago`;
   if (s < 86_400) return `${Math.floor(s / 3600)} h ago`;
   return `${Math.floor(s / 86_400)} days ago`;

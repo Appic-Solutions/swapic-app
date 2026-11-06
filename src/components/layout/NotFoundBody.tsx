@@ -9,9 +9,9 @@ export function NotFoundBody() {
   const router = useRouter();
   return (
     <div className="flex w-full max-w-[482px] flex-col gap-4 md:mx-auto">
-      <Card className="cursor-auto flex-col items-center justify-center gap-3 text-center hover:bg-[#000000]/0">
+      <Card className="cursor-auto flex-col items-center justify-center gap-3 text-center">
         <img src="/images/empty.png" alt="" width={80} height={80} />
-        <p className="text-xl font-bold">Page not found</p>
+        <p className="text-xl font-semibold">Page not found</p>
       </Card>
       <ActionButton isDisabled={false} onClick={() => router.push('/')}>
         Go to Swap

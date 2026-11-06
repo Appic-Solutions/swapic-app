@@ -49,7 +49,7 @@ const CustomTooltip = ({ active, payload, label }: TooltipContentProps<ValueType
     return (
       <div
         className={cn(
-          'rounded-xl border border-[#393939]/30',
+          'rounded-xl border border-line',
           'bg-gradient-to-b from-[#242424] to-[#212121]/30',
           'px-3 py-2 text-xs text-white',
           'flex flex-col gap-1',

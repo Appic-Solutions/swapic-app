@@ -3,6 +3,7 @@ import '@/style/colors.css';
 import '@/style/scrollbar.css';
 import '@/style/globals.css';
 import { Providers } from '@/lib/wallets';
+import { Backdrop } from '@/components/layout/Backdrop';
 import { HostRedirect } from '@/components/layout/HostRedirect';
 import { SentryInit } from '@/components/layout/SentryInit';
 import { MotionRoot } from '@/lib/motion';
@@ -20,6 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SentryInit />
         <Providers>
           <HostRedirect />
+          {/* here, not in a page: a page change must not blink the coins or send them back to their start */}
+          <Backdrop />
           {/* reduce motion follows the OS; the default transition is the entry one (src/lib/motion.ts) */}
           <MotionRoot>{children}</MotionRoot>
         </Providers>

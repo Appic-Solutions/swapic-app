@@ -25,10 +25,10 @@ export function CopyButton({ id, copied, onCopy, text }: { id: string; copied: s
         e.stopPropagation();
         void navigator.clipboard?.writeText(text).then(() => onCopy(id), () => {});
       }}
-      className={cn('cursor-pointer rounded-md p-0.5 hover:bg-white/10', tw.quick, tw.pressIcon)}
+      className={cn('cursor-pointer rounded-xl p-0.5 hover:bg-white/10', tw.quick, tw.pressIcon)}
     >
       <motion.span key={on ? 'check' : 'copy'} className="flex" initial={mounted ? { opacity: 0, scale: 0.6 } : false} animate={{ opacity: 1, scale: 1 }} transition={T.hover}>
-        {on ? <CheckIcon width={16} height={16} className="text-[#12b76a]" /> : <CopyIcon width={16} height={16} />}
+        {on ? <CheckIcon width={16} height={16} className="text-success" /> : <CopyIcon width={16} height={16} />}
       </motion.span>
     </span>
   );

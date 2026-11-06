@@ -25,11 +25,11 @@ export function TwoColumn({ title, onBack, left, right, action, inPlace, longTit
       <PanelBox className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
         <motion.div variants={fade} className={cn(BACK, longTitle && 'max-md:[&_p]:text-xl')}><BoxHeader title={title} onBack={onBack} /></motion.div>
         <div className="flex w-full flex-col gap-x-4 gap-y-4 lg:flex-row lg:items-stretch">
-          <div data-testid="col-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
+          <div data-testid="col-left" className="flex w-full min-w-0 flex-col lg:max-w-[482px] lg:shrink-0">
             {left}
             <motion.div variants={fade} className={cn('mt-4 w-full max-lg:hidden lg:mt-auto lg:pt-4', tw.quick, tw.press)}>{action}</motion.div>
           </div>
-          <div data-testid="col-right" className="flex w-full flex-col gap-y-4">{right}</div>
+          <div data-testid="col-right" className="flex w-full min-w-0 flex-col gap-y-4">{right}</div>
         </div>
         <motion.div variants={fade} className={cn('w-full lg:hidden', tw.quick, tw.press)}>{action}</motion.div>
       </PanelBox>
@@ -39,11 +39,11 @@ export function TwoColumn({ title, onBack, left, right, action, inPlace, longTit
     <Box className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
       <BoxHeader title={title} onBack={onBack} />
       <div className="flex w-full flex-col gap-x-4 gap-y-4 lg:flex-row lg:items-stretch">
-        <div data-testid="col-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
+        <div data-testid="col-left" className="flex w-full min-w-0 flex-col lg:max-w-[482px] lg:shrink-0">
           {left}
           <div className="mt-4 w-full transition-transform duration-150 active:scale-[0.98] max-lg:hidden lg:mt-auto lg:pt-4">{action}</div>
         </div>
-        <div data-testid="col-right" className="flex w-full flex-col gap-y-4">{right}</div>
+        <div data-testid="col-right" className="flex w-full min-w-0 flex-col gap-y-4">{right}</div>
       </div>
       <div className="w-full transition-transform duration-150 active:scale-[0.98] lg:hidden">{action}</div>
     </Box>

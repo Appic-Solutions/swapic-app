@@ -50,14 +50,14 @@ describe('how long it took (chain times, services d5e49ff)', () => {
   const row = c('scanner-search-tx.json').items[0];
   it('takes tookS when it is a number, never the watcher\'s clock (82 s by the watcher, 22 s by the chain)', () => {
     const r = { ...row, outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, startedAt: 1_010, deliveredAt: 1_032, tookS: 22 };
-    expect(tookOf(r)).toBe('22 s');
+    expect(tookOf(r)).toBe('22 sec');
     const v = orderView(r, 2_000, logo);
-    expect(v.took).toBe('22 s');
+    expect(v.took).toBe('22 sec');
     expect(v.deliveredAt).toBe(1_032);
   });
   it('falls back to endedAt - createdAt only for a row written before chain times (both null, or left out)', () => {
     expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, deliveredAt: null, tookS: null })).toBe('1 min');
-    expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_040 })).toBe('40 s');
+    expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_040 })).toBe('40 sec');
     // a chain time is known but tookS is not: no guess from the watcher's clock
     expect(tookOf({ outcome: 'delivered', createdAt: 1_000, endedAt: 1_082, deliveredAt: 1_032, tookS: null })).toBeNull();
   });
@@ -68,7 +68,7 @@ describe('how long it took (chain times, services d5e49ff)', () => {
     expect(v.took).toBeNull();
     expect(v.deliveredAt).toBeNull();
   });
-  it('never shows a negative time', () => expect(tookOf({ outcome: 'delivered', createdAt: 0, endedAt: 1, tookS: -3 })).toBe('0 s'));
+  it('never shows a negative time', () => expect(tookOf({ outcome: 'delivered', createdAt: 0, endedAt: 1, tookS: -3 })).toBe('0 sec'));
 });
 
 

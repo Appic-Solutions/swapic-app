@@ -4,6 +4,7 @@
 import * as React from 'react';
 import ActionButton from '@/components/ui/action-button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FIELD } from '@/components/ui/styles';
 import { findDeposit, userMessage } from '@/lib/api';
 import { POOL_CHAIN } from '@/lib/chains';
 import { cn } from '@/lib/cn';
@@ -32,15 +33,15 @@ export function FindSwap({ query }: { query: string }) {
     }
   };
   return (
-    <div className="mt-2 flex w-full max-w-[460px] flex-col gap-y-3 rounded-2xl bg-white/[0.04] p-4 text-left ring-1 ring-white/10">
+    <div className="mt-2 flex w-full max-w-[460px] flex-col gap-y-3 rounded-2xl bg-inset p-4 text-left">
       <p className="text-base font-semibold">Can&apos;t find your swap? Paste the transaction</p>
-      <p className="text-sm leading-6 text-[#898989]">If you paid and your swap shows nowhere, give us the chain and the hash of that transaction.</p>
+      <p className="text-sm leading-6 text-secondary">If you paid and your swap shows nowhere, give us the chain and the hash of that transaction.</p>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Select value={chain} onValueChange={setChain}>
-          <SelectTrigger className="border-none bg-[#565656] text-[#E3E3E3] outline-none ring-0 sm:max-w-[160px]">
+          <SelectTrigger className="border-line bg-white/[0.06] text-white outline-none ring-0 sm:max-w-[160px]">
             <SelectValue placeholder="Chain" />
           </SelectTrigger>
-          <SelectContent className="border-none bg-[#565656] text-[#E3E3E3] outline-none ring-0">
+          <SelectContent className="border-line bg-[#1c1c1e] text-white outline-none ring-0">
             {evm.map((c) => <SelectItem key={c.chainId} value={c.chainId}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -49,10 +50,10 @@ export function FindSwap({ query }: { query: string }) {
           placeholder="0x… transaction hash"
           value={tx}
           onChange={(e) => { setTx(e.target.value); setSaid(null); }}
-          className="w-full rounded-md bg-white/30 px-3 py-2 font-mono text-sm text-white placeholder:text-white/50"
+          className={'w-full px-3 py-2 font-mono text-sm ' + FIELD}
         />
       </div>
-      {tx && !ok && <p className="text-xs text-yellow-600">Enter the full hash: 0x and 64 characters.</p>}
+      {tx && !ok && <p className="text-xs text-warn">Enter the full hash: 0x and 64 characters.</p>}
       <div className={cn(tw.quick, ok && tw.press)}>
         <ActionButton isDisabled={!ok || busy} onClick={ok ? () => void find() : undefined}>{busy ? undefined : 'Find my swap'}</ActionButton>
       </div>
