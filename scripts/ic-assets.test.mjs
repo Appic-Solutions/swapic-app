@@ -63,8 +63,9 @@ describe('deep links with a trailing slash', () => {
 
 
 describe('the ii-alternative-origins file', () => {
-  it('lists the site under prod\'s derivation origin, and is not written without one', () => {
-    expect(JSON.parse(alternativeOriginsFor(siteFor('prod')))).toEqual({ alternativeOrigins: ['https://swapic.xyz'] });
+  it('lists the site under a derivation origin, and is not written without one, as on prod: OISY closes on one', () => {
+    expect(JSON.parse(alternativeOriginsFor({ derivationOrigin: 'https://a.example', siteOrigin: 'https://b.example' }))).toEqual({ alternativeOrigins: ['https://b.example'] });
+    expect(alternativeOriginsFor(siteFor('prod'))).toBeNull();
     expect(alternativeOriginsFor(siteFor('test'))).toBeNull();
   });
 });
