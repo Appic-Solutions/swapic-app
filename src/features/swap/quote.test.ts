@@ -57,8 +57,16 @@ describe('quoteQueryOf', () => {
 
 describe('the two asks: priced while choosing, the picked route by name at Review', () => {
   const full = quoteQueryOf(form, wallets)!;
-  it('prices every route naming no wallet, so nothing is built or stored', () => {
-    expect(priceQueryOf(full)).toEqual({ fromChain: full.fromChain, fromToken: full.fromToken, amount: full.amount, toChain: full.toChain, toToken: full.toToken, allRoutes: true });
+  it('prices every route naming an EVM payer and no recipient, so the card knows the allowance and nothing is built or stored', () => {
+    const { recipient: _shown, ...priced } = full;
+    expect(full.fromChain.startsWith('eip155:') && !!full.payer).toBe(true);
+    expect(priceQueryOf(full)).toEqual(priced);
+  });
+  it('names no payer with no wallet, nor an ICP one', () => {
+    const { payer: _payer, recipient: _recipient, ...bare } = full;
+    expect(priceQueryOf(bare)).toEqual(bare);
+    const icp = { ...bare, fromChain: 'icp:737ba355e855bd4b61279056603e0550' };
+    expect(priceQueryOf({ ...icp, payer: 'rrkah-fqaaa-aaaaa-aaaaq-cai' })).toEqual(icp);
   });
   it('names the picked route, its mode, the payer and the recipient', () => {
     expect(namedQueryOf(full, { mode: 'gasless', routeId: 'cctpFast+ckMinter', tags: ['Gasless'] })).toEqual({ ...full, routeId: 'cctpFast+ckMinter', gasMode: 'gasless' });

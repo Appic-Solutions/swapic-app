@@ -19,9 +19,31 @@ describe('reviewData', () => {
     expect(g.steps.map((s) => s.label)).toEqual(['Sign in your wallet (no gas)']);
     expect(g.button).toBe('Sign and swap');
     const p = reviewData({ option: paid!, quote: q, from, to, amountIn: 5_000_000n, native, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' } });
-    expect(p.steps.map((s) => s.label)).toEqual(['Approve USDC (once, you pay gas)', 'Confirm swap (you pay gas)']);
+    // the exact amount: this approve comes back on every swap, so it never says once
+    expect(p.steps.map((s) => s.label)).toEqual(['Approve USDC (you pay gas)', 'Confirm swap (you pay gas)']);
+    expect(p.steps[0]!.sub).toBe('Lets Swapic use 5 USDC for this swap');
     expect(p.steps[1]!.sub).toBe('About 0.00000429 ETH');
     expect(p.button).toBe('Approve and swap');
+  });
+  it('a gasless route that must approve shows the step before its named quote comes, and blocks with no coin', () => {
+    const [gasless] = pickOptions(q, { indicative: false });
+    const option = { ...gasless!, route: { ...gasless!.route, needsApproval: true } };
+    const data = (held: boolean | null) => reviewData({ option, quote: q, from, to, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: '3920.10', held }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' } });
+    const a = data(true);
+    expect(a.steps.map((s) => s.label)).toEqual(['Approve USDC (once, you pay gas)', 'Sign in your wallet (no gas)']);
+    expect(a.steps[0]!.sub).toBe('Lets Swapic use your USDC. Only the first time.');
+    expect(a.button).toBe('Approve and swap');
+    expect(a.blocked).toBe(false);
+    const b = data(false);
+    expect(b.button).toBe('Add ETH to continue');
+    expect(b.blocked).toBe(true);
+  });
+  it('a token whose allowance is set to 0 first says the wallet asks twice, on the one step', () => {
+    const [gasless] = pickOptions(q, { indicative: false });
+    const approval = { token: '0x1', spender: '0x2', amount: '1', resetFirst: true };
+    const option = { ...gasless!, route: { ...gasless!.route, sign: { ...gasless!.route.sign!, approval } } };
+    const d = reviewData({ option, quote: q, from, to, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: '3920.10', held: true }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' } });
+    expect(d.steps.map((s) => s.sub)).toEqual(['Lets Swapic use your USDC. Only the first time. Your wallet asks twice: first it sets your USDC approval to 0.', 'Swapic sends it and pays the gas']);
   });
 });
 

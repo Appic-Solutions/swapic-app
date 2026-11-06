@@ -19,6 +19,13 @@ export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin):
   return native.held === false ? `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway` : `Just sign, no ${native.symbol} needed`;
 }
 
+/** A gasless card whose wallet must approve Permit2 first (Jeff 2026-11-06): 'once' when it can pay that gas, 'noCoin' when
+ *  it holds none of the From chain's coin. Nothing on any other card: You pay gas shows its approve only on Review swap. */
+export function approveState(p: PickedOption, native: NativeCoin): 'once' | 'noCoin' | undefined {
+  if (p.mode !== 'gasless' || !(p.route.needsApproval || p.route.sign?.approval)) return undefined;
+  return native.held === false ? 'noCoin' : 'once';
+}
+
 /** The ck minter's route takes a network fee out of the swap: at least the canister's floor, in dollars, never a free card. */
 export const networkFeeText = (p: PickedOption): string => `${formatUsd(BigInt(p.route.icpCkSwap?.terms.networkFee ?? '0'))} network fee`;
 
@@ -74,6 +81,8 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     totalFeeText: formatUsd(fee),
     gasText: gasText(p, ctx.native),
     gaslessNote: gaslessNote(p, ctx.from, ctx.native),
+    approve: approveState(p, ctx.native),
+    approveBlocked: `You need a little ${ctx.native.symbol} to approve ${ctx.from.symbol} once`,
     warning: impactWarning(p, ctx),
     viaMinter: r.routeId.split('+').includes('ckMinter'),
   };

@@ -232,6 +232,24 @@ test.describe('Swap, signing (the panel changes in place)', () => {
   });
 });
 
+test.describe('Swap, a gasless card that must approve Permit2 first', () => {
+  test('Approve once, then sign, and its step on Review swap', async ({ page }) => {
+    await open(page, 'needs-approval');
+    await pickTokens(page);
+    await expect(page.getByText('Approve once, then sign').filter({ visible: true }).first()).toBeVisible();
+    await expect(page.getByText('0 gas fees')).toHaveCount(0);
+    await button(page, 'Review swap').click();
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await expect(page.getByText('Only the first time')).toBeVisible();
+  });
+  test('no coin: blocked, the button asks for the coin', async ({ page }) => {
+    await open(page, 'needs-approval-no-coin');
+    await pickTokens(page);
+    await expect(page.getByText('You need a little ETH to approve USDC once').filter({ visible: true }).first()).toBeVisible();
+    await expect(button(page, 'Add ETH to continue')).toBeDisabled();
+  });
+});
+
 test.describe('Swap, approve then confirm (you pay gas)', () => {
   test.skip(({ isMobile }) => isMobile, 'phones show only the top route, the gasless one here, so the you pay gas card cannot be picked');
   // the derived get_config's Swapic on Arbitrum and its USDC (tests/fixtures/derived/swapic-config.json), the amount typed
@@ -243,7 +261,7 @@ test.describe('Swap, approve then confirm (you pay gas)', () => {
     await pickTokens(page);
     await page.getByText('Fastest', { exact: true }).filter({ visible: true }).first().click();
     await button(page, 'Review swap').click();
-    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await expect(page.getByText('Approve USDC (you pay gas)')).toBeVisible();
     await expect(page.getByText('Confirm swap (you pay gas)')).toBeVisible();
   }
   test('a "no" on the approval keeps the review and sends nothing', async ({ page }) => {

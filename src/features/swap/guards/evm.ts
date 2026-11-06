@@ -3,8 +3,8 @@
 // Runner's money, a fixed transfer to anyone but the canister, a CCTP burn minted to someone other than the arrival the
 // plan names, a ck deposit into anything but the helper the canister names or for any account but the one shown, an Eco intent a foreign prover can claim or whose refund is locked far away, a swap paying anyone but the
 // Runner); a pool route whose ref commits other terms than the ones on screen; a transaction to anything but the source
-// chain's Swapic as the canister's get_config names it, or an approval to anyone but that Swapic (you pay gas) or Permit2
-// (gasless, once); a signature over typed data for another chain, token, verifying contract, payer, amount, spender or
+// chain's Swapic as the canister's get_config names it, or an approval to anyone but that Swapic (you pay gas, exactly the
+// amount) or Permit2 (gasless, the maximum, on Permit2's door only); a signature over typed data for another chain, token, verifying contract, payer, amount, spender or
 // order; an order whose payer, input or delivery differs from the screen; an anchor taken from the quoter itself
 // (route.contracts, /v2/chains), or a signature made while get_config, get_flow_settings or evm_address cannot be read.
 // How the design proves it: the order id is recomputed under the anchored Swapic and must equal route.orderId, the ABI
@@ -24,7 +24,7 @@
 // is at most the least USDC the plan delivers to the canister's own Base address, and a stake's move fee below it; any
 // other order carries an empty memo. The memo is inside the EIP-712 struct hash, so the order id recomputed here binds it.
 // Tests: memo.test.ts (the golden memos) and the pool tests in evm.test.ts.
-import { decodeAbiParameters, decodeFunctionData, getAddress, type Hex } from 'viem';
+import { decodeAbiParameters, decodeFunctionData, getAddress, maxUint256, type Hex } from 'viem';
 import type { Authorization, Door, Quote, Route, TypedDataJson } from '@/lib/api';
 import type { SignableTypedData } from '@/lib/wallets';
 import { chainNumber } from '@/lib/explorer';
@@ -46,7 +46,7 @@ export interface CheckedEvmRoute {
   chainId: number; orderId: Hex; amountIn: bigint; minOut: bigint; plan: Plan;
   /** A pool deposit's terms, read from the order's memo and bound to its ref; null for any other order. */
   terms: MemoTerms | null;
-  approval: { token: Hex; spender: Hex; amount: bigint } | null;
+  approval: { token: Hex; spender: Hex; amount: bigint; resetFirst: boolean } | null;
   sign: { door: Door; typedData: SignableTypedData[]; auth: Authorization } | null;
   tx: { to: Hex; data: Hex; value: bigint } | null;
 }
@@ -255,8 +255,11 @@ function checkSign(i: EvmCheckInput, r: Route, o: OrderValue, id: Hex, chainId: 
 function permit2Approval(i: EvmCheckInput, r: Route) {
   const a = r.sign!.approval;
   if (!a) return null;
-  must(r.sign!.door === 'permit2' && sameAddress(a.spender, PERMIT2) && sameToken(a.token, i.fromToken) && BigInt(a.amount) >= i.amountIn, 'approvalSpender');
-  return { token: getAddress(a.token), spender: PERMIT2 as Hex, amount: BigInt(a.amount) };
+  must(r.sign!.door === 'permit2' && sameAddress(a.spender, PERMIT2) && sameToken(a.token, i.fromToken), 'approvalSpender');
+  // the maximum (Jeff 2026-11-06); the exact amount still passes, so the app and the quoter can deploy in either order
+  const amount = BigInt(a.amount);
+  must(amount === maxUint256 || amount === i.amountIn, 'approvalAmount');
+  return { token: getAddress(a.token), spender: PERMIT2 as Hex, amount, resetFirst: a.resetFirst === true };
 }
 
 function swapicApproval(i: EvmCheckInput, r: Route, swapic: Hex) {
@@ -265,7 +268,7 @@ function swapicApproval(i: EvmCheckInput, r: Route, swapic: Hex) {
   must(!isNative(i.fromToken), 'approvalOnNative');
   must(sameAddress(a.spender, swapic), 'approvalSpender');
   must(sameToken(a.token, i.fromToken) && BigInt(a.amount) === i.amountIn, 'approvalAmount');
-  return { token: getAddress(a.token), spender: swapic, amount: i.amountIn };
+  return { token: getAddress(a.token), spender: swapic, amount: i.amountIn, resetFirst: false };
 }
 
 function checkTx(i: EvmCheckInput, r: Route, id: Hex, chainId: number, swapic: Hex) {

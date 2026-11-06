@@ -18,4 +18,9 @@ describe('swapButton (spec 5.1 texts)', () => {
     expect(swapButton({ ...ok, overBalance: true })).toEqual({ text: 'Review swap', enabled: false });
     expect(swapButton(ok)).toEqual({ text: 'Review swap', enabled: true });
   });
+  it('a gasless card with no coin to approve asks for the coin, after everything else a person must fix', () => {
+    expect(swapButton({ ...ok, needsCoin: 'POL' })).toEqual({ text: 'Add POL to continue', enabled: false });
+    expect(swapButton({ ...ok, needsCoin: 'POL', fromWallet: false })).toEqual({ text: 'Connect wallet', enabled: true });
+    expect(swapButton({ ...ok, needsCoin: 'POL', recipient: false })).toEqual({ text: 'Enter a valid address', enabled: false });
+  });
 });

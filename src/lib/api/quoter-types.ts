@@ -102,7 +102,11 @@ export interface EnvelopeJson {
 export interface ChainContracts { chainId: string; swapic: string; runner: string; cctpReceiver: string }
 export interface Contracts { source: ChainContracts; destination?: ChainContracts }
 /** answer/mod.rs:519-565 */
-export interface ApprovalRequest { token: string; spender: string; amount: string }
+export interface ApprovalRequest {
+  token: string; spender: string; amount: string;
+  /** The token refuses an approve over a live allowance (USDT on Ethereum): the wallet approves zero first. */
+  resetFirst?: boolean;
+}
 export interface Authorization { door: Door; validAfter: string; validBefore: string; nonce: string; deadline: string }
 export type Door = 'auth3009' | 'permit2612' | 'permit2';
 export interface TypedDataJson {
@@ -125,6 +129,8 @@ export interface Route {
   reason?: string; reasonDetail?: string;
   order?: OrderJson; orderId?: string; envelope?: EnvelopeJson; contracts?: Contracts;
   sign?: SignRequest; tx?: TxRequest; approval?: ApprovalRequest;
+  /** A gasless route whose wallet must approve Permit2 first: known before a route is named, when the ask names the payer. */
+  needsApproval?: boolean;
 }
 /** answer/mod.rs:68-78 */
 export interface Mode { allowed: boolean; whyNot?: string; routes: Route[] }

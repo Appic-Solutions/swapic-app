@@ -273,7 +273,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
             data={rv.data} pay={sideOf(rv.from, rv.amountIn)} get={sideOf(rv.to, rv.data.min)} toToken={{ symbol: rv.to.symbol, logo: rv.to.logo }}
             states={states} waiting={waiting || (busy && !note)} cancelled={cancelled} routeRef={routeRef}
             wasMinText={rv.wasMinText}
-            disabled={waitUntil !== null || !rv.named}
+            disabled={waitUntil !== null || !rv.named || rv.data.blocked}
             button={waitUntil !== null ? 'Try again in a minute' : rv.wasMinText ? 'Accept new price' : resume ? 'Try again' : undefined}
             note={note ? (
               <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={16} height={16} /> : <WarningIcon />}>{note.text}</Note>

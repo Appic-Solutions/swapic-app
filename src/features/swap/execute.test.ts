@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { decodeFunctionData, erc20Abi, getAddress, maxUint256, recoverTypedDataAddress, type Hex } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { Principal } from '@icp-sdk/core/principal';
 import { HttpFetchErrorCode, TransportError } from '@icp-sdk/core/agent';
 import { SignerError } from '@icp-sdk/signer';
@@ -8,6 +10,7 @@ import { ApiError } from '@/lib/api';
 import type { IcpClient } from '@/lib/icp';
 import { PoolErrorFailure } from '@/lib/icp';
 import type { EvmSigner } from '@/lib/wallets';
+import type { SignableTypedData } from '@/lib/wallets';
 import type { UiToken } from '@/components/ui/token-types';
 import { executeSwap, walletSteps, type ExecDeps, type ExecInput } from './execute';
 import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, load } from './guards/forge.fixture';
@@ -18,6 +21,7 @@ const tok = (q: Quote, side: 'fromToken' | 'toToken', chain: string): UiToken =>
   symbol: q[side].symbol, name: q[side].symbol, logo: '', decimals: q[side].decimals, priceUsd: null, verified: true,
 });
 const lower = (a: string) => a.toLowerCase() as `0x${string}`;
+const getAddressOf = (a: string) => getAddress(a);
 
 function signer(over: Partial<EvmSigner> = {}): EvmSigner {
   return {
@@ -72,6 +76,74 @@ describe('executeSwap, EVM', () => {
     });
     await executeSwap(input, deps);
     expect(order).toEqual(['send:0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', 'receipt', 'sign']);
+  });
+  const approved = (input: ExecInput) => (input.evm!.sendTransaction as ReturnType<typeof vi.fn>).mock.calls.map((c) => decodeFunctionData({ abi: erc20Abi, data: c[0].data }).args);
+  it('gasless Permit2: sends the maximum to Permit2 as the quote asks it', async () => {
+    const { deps, input, route } = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    route.sign!.approval!.amount = maxUint256.toString();
+    expect((await executeSwap(input, deps)).kind).toBe('started');
+    expect(approved(input)).toEqual([[getAddressOf(route.sign!.approval!.spender), maxUint256]]);
+  });
+  it('a token that refuses an approve over a live allowance: clears it, waits, then approves, all one step', async () => {
+    const { deps, input, route } = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    route.sign!.approval!.amount = maxUint256.toString();
+    route.sign!.approval!.resetFirst = true;
+    const order: string[] = [];
+    input.evm = signer({
+      sendTransaction: vi.fn(async () => { order.push('send'); return `0x${'cd'.repeat(32)}` as const; }),
+      waitForReceipt: vi.fn(async () => { order.push('receipt'); return 'success' as const; }),
+      signTypedData: vi.fn(async () => { order.push('sign'); return `0x${'ab'.repeat(65)}` as const; }),
+    });
+    expect((await executeSwap(input, deps)).kind).toBe('started');
+    expect(order).toEqual(['send', 'receipt', 'send', 'receipt', 'sign']);
+    const spender = getAddressOf(route.sign!.approval!.spender);
+    expect(approved(input)).toEqual([[spender, 0n], [spender, maxUint256]]);
+    expect((input.onStep as ReturnType<typeof vi.fn>).mock.calls).toEqual([[0, 'wait'], [0, 'done'], [1, 'wait'], [1, 'done']]);
+  });
+  it('a clear that does not land stops there, nothing approved or signed', async () => {
+    const { deps, input, route } = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    route.sign!.approval!.resetFirst = true;
+    input.evm = signer({ waitForReceipt: vi.fn(async () => 'reverted' as const) });
+    expect(await executeSwap(input, deps)).toEqual({ kind: 'failed', message: 'The approval did not go through. Try again.' });
+    expect(input.evm.sendTransaction).toHaveBeenCalledTimes(1);
+    expect(input.evm.signTypedData).not.toHaveBeenCalled();
+  });
+  it('gasless 2612: no approve, the permit then the acceptance signed, each in its slot of the submit', async () => {
+    const { deps, input, route, q } = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    const o = route.order!;
+    // what the quoter answers (order/mod.rs permit_2612, quote_acceptance), EIP712Domain and all
+    const domainTypes = [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }, { name: 'chainId', type: 'uint256' }, { name: 'verifyingContract', type: 'address' }];
+    route.sign = {
+      door: 'permit2612',
+      typedData: [
+        {
+          types: { EIP712Domain: domainTypes, Permit: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }, { name: 'value', type: 'uint256' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
+          primaryType: 'Permit',
+          domain: { name: 'Arbitrum', version: '1', chainId: 137, verifyingContract: o.tokenIn },
+          message: { owner: o.payer, spender: getAddressOf(SWAPIC), value: o.amountIn, nonce: '5', deadline: o.deadline },
+        },
+        {
+          types: { EIP712Domain: domainTypes, QuoteAcceptance: [{ name: 'orderId', type: 'bytes32' }, { name: 'payer', type: 'address' }, { name: 'tokenIn', type: 'address' }, { name: 'amountIn', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
+          primaryType: 'QuoteAcceptance',
+          domain: { name: 'Swapic', version: '3', chainId: 137, verifyingContract: getAddressOf(SWAPIC) },
+          message: { orderId: route.orderId, payer: o.payer, tokenIn: o.tokenIn, amountIn: o.amountIn, deadline: o.deadline },
+        },
+      ],
+      auth: { door: 'permit2612', validAfter: '0', validBefore: '0', nonce: '0', deadline: o.deadline },
+    };
+    // a real key, so viem must be able to encode each typed data as the wallet will
+    const key = privateKeyToAccount(generatePrivateKey());
+    const signed: { td: SignableTypedData; sig: Hex }[] = [];
+    input.evm = signer({ signTypedData: vi.fn(async (td: SignableTypedData) => { const sig = await key.signTypedData(td as never); signed.push({ td, sig }); return sig; }) });
+    expect(await executeSwap(input, deps)).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase() });
+    expect(input.evm.sendTransaction).not.toHaveBeenCalled();
+    expect(signed.map((s) => s.td.primaryType)).toEqual(['Permit', 'QuoteAcceptance']);
+    for (const { td, sig } of signed) expect(await recoverTypedDataAddress({ ...td, signature: sig } as never)).toBe(key.address);
+    expect(deps.submitGasless).toHaveBeenCalledWith({
+      orderId: route.orderId!.toLowerCase(),
+      auth: { door: 'permit2612', validAfter: '0', validBefore: '0', nonce: '0', deadline: o.deadline, signature: signed[0]!.sig, acceptance: signed[1]!.sig },
+      signedAt: (q.quotedAt + 3) * 1000,
+    });
   });
   it('you pay gas: approves Swapic, then sends run(order) to Swapic', async () => {
     const { input, deps, route } = setup('arb-usdc-to-pol-wbtc', 'userPays');
