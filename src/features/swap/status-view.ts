@@ -34,7 +34,7 @@ export function statusView(i: {
   const s = i.status;
   const refund = s.refund ?? null;
   const gasMode = i.gasMode;
-  const steps = i.steps ? stepViews(i.steps, { gasMode, refund, token: i.token }) : [];
+  const steps = i.steps ? stepViews(i.steps, { gasMode, refund, token: i.token, stage: s.stage }) : [];
   const rows = i.steps?.steps ?? [];
   const current = rows.findIndex((r) => r.state === 'wait');
   const at = rows.filter((r) => r.atMs !== null).map((r) => r.atMs!);

@@ -45,7 +45,7 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner }: { order: Orde
       open={open}
       onToggle={onToggle}
       onOpenScanner={onOpenScanner}
-      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw) }) : undefined}
+      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage }) : undefined}
     />
   );
 }
@@ -57,7 +57,7 @@ function OrderInPlace({ raw, onBack }: { raw: ActivityRow; onBack: () => void })
   return (
     <OrderDetail
       order={orderView(raw, Math.floor(Date.now() / 1000), logo)}
-      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw) }) : undefined}
+      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage }) : undefined}
       loading={false}
       onBack={onBack}
     />

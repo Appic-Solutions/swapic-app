@@ -100,7 +100,10 @@ function stepReason(code: string | null): string {
 
 type Meta = (chain: string | null, token: string | null) => { symbol: string; decimals: number } | null;
 
-export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays' | null; refund: Refund | null; token: Meta }): StepView[] {
+/** A deposit into ICP past Ethereum: the money reached the ck side and the mint is what the user waits for. */
+const MINTING = 'Minting ckUSDC on ICP';
+
+export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays' | null; refund: Refund | null; token: Meta; stage?: string }): StepView[] {
   let prev: number | null = null;
   const refundFollows = a.steps.some((s) => s.step === 'refunded');
   return a.steps.map((s, k) => {
@@ -112,7 +115,7 @@ export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays'
     const label =
       s.step === 'signed' ? (a.kind === 'withdraw' ? 'Withdrawal signed' : ctx.gasMode === 'gasless' ? 'Signed, no gas' : 'Signed')
       : s.step === 'sent' ? `Sent on ${where}`
-      : s.step === 'onItsWay' ? `On its way to ${where}`
+      : s.step === 'onItsWay' ? (ctx.stage === 'minting' && s.state === 'wait' ? MINTING : `On its way to ${where}`)
       : s.step === 'queued' ? 'Waiting in line'
       : s.step === 'paidOut' ? `Paid out on ${where}`
       : s.step === 'staked' ? `Staked ${amount() ?? 'USDC'}`
@@ -126,7 +129,8 @@ export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays'
     if (s.atMs !== null) prev = s.atMs;
     const tx = s.tx && s.chain ? { text: short(s.tx), href: txLink(s.chain, s.tx) }
       : s.block !== null && s.token ? { text: `block ${formatUnits(BigInt(s.block), 0)}`, href: icpBlockLink(s.token, s.block) } : undefined;
-    return { key: `${k}-${s.step}`, label, state: s.state, at: s.atMs === null ? undefined : clockText(s.atMs), took: k === 0 ? undefined : took, tx };
+    const sub = s.step === 'onItsWay' && ctx.stage === 'minting' && s.state === 'wait' ? 'Takes about 20 minutes' : undefined;
+    return { key: `${k}-${s.step}`, label, ...(sub ? { sub } : {}), state: s.state, at: s.atMs === null ? undefined : clockText(s.atMs), took: k === 0 ? undefined : took, tx };
   });
 }
 
@@ -134,6 +138,7 @@ export function stageText(row: { kind: string; stage: string; etaAt: number | nu
   const left = etaLeftText(row.etaAt, nowSec)?.replace(' left', '').replace('About', 'about');
   if (row.stage === 'queued') return left ? `In line, ${left}` : 'In line';
   if (row.stage === 'refunding') return 'Refunding';
+  if (row.stage === 'minting') return left ? `${MINTING}, ${left}` : MINTING;
   const to = row.to.chain ? ` to ${chainName(row.to.chain)}` : '';
   return left ? `On its way${to}, ${left}` : `On its way${to}`;
 }

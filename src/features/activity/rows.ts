@@ -38,6 +38,8 @@ export interface OrderView {
   direction: 'sent' | 'received' | 'self' | null; createdAt: number; endedAt: number | null;
   /** When it arrived, by the chain (unix s), or null (pending, or a row written before chain times). */
   deliveredAt: number | null;
+  /** It went through the ck minter: History and the Scanner name that route. */
+  viaMinter: boolean;
 }
 
 function agoText(createdAt: number, nowSec: number): string {
@@ -81,6 +83,7 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
     feeText: neverRan(ending) ? 'None' : r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
     payer: r.from.wallet, recipient: r.to.wallet, direction: r.direction ?? null, createdAt: r.createdAt, endedAt: r.endedAt,
     deliveredAt: pending ? null : r.deliveredAt ?? null,
+    viaMinter: r.viaMinter === true,
   };
 }
 

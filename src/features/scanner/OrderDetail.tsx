@@ -135,7 +135,7 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
           : (
             <>
               <InfoRow k="Order ID"><span className="font-mono font-normal">{short(o.id)}</span><CopyButton id="id" copied={copied} onCopy={copy} text={o.id} /></InfoRow>
-              <InfoRow k="Route"><ViaPill /></InfoRow>
+              <InfoRow k="Route"><ViaPill minter={o.viaMinter} /></InfoRow>
               <InfoRow k="From wallet"><span className="font-mono font-normal">{o.payer ? short(o.payer) : ''}</span>{o.payer && <CopyButton id="payer" copied={copied} onCopy={copy} text={o.payer} />}</InfoRow>
               <InfoRow k="Gas">{o.gas === 'Gasless' ? 'Gasless, Swapic paid it' : o.gas}</InfoRow>
               <InfoRow k="To wallet"><span className="font-mono font-normal">{o.recipient ? short(o.recipient) : ''}</span>{o.recipient && <CopyButton id="recipient" copied={copied} onCopy={copy} text={o.recipient} />}</InfoRow>

@@ -96,3 +96,11 @@ describe('endFlags and endText, one reading for the row, the Scanner and the ord
     expect(endText(v)).toMatch(/^In line/);
   });
 });
+
+describe('the route a row names', () => {
+  const row = c('orders-page.json').orders[0];
+  it('follows the row, and an older watcher reads as Swapic', () => {
+    expect(orderView(row, 1_793_397_300, logo).viaMinter).toBe(false);
+    expect(orderView({ ...row, viaMinter: true }, 1_793_397_300, logo).viaMinter).toBe(true);
+  });
+});

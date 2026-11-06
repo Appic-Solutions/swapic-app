@@ -49,7 +49,7 @@ function OrderPage({ id, onBack }: { id: string; onBack: () => void }) {
   return (
     <OrderDetail
       order={view}
-      steps={raw && steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw) }) : undefined}
+      steps={raw && steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage }) : undefined}
       loading={row.isLoading}
       onBack={onBack}
     />

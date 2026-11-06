@@ -6,8 +6,10 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// the one exception is the slow route, named on purpose so a user knows why it takes 20 minutes: "ckETH minter" as shown,
+// `ckMinter` as the route id is read
 export const BANNED = [
-  /\bshares?\b/i, /\bcircle\b/i, /\bcctp\b/i, /\beco\b/i, /\bck ?minter\b/i, /\bminter\b/i,
+  /\bshares?\b/i, /\bcircle\b/i, /\bcctp\b/i, /\beco\b/i, /\bck minter\b/i, /(?<!ckETH )\bminter\b/i,
   /\brebalanc/i, /\bpockets?\b/i, /\boperator\b/i, /\bkyber/i, /\bicpswap\b/i, /\bintent\b/i, /\brails?\b/i,
 ];
 const EM_DASH = /—/;

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { problems } from '../../../scripts/check-copy.mjs';
-import { endingOf, endSentence, endTitle, pillOf, refundLine, short, stepViews, tokenAmountText, tookText, type EndInput } from './status';
+import { endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepViews, tokenAmountText, tookText, type EndInput } from './status';
 
 const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const META: Record<string, { symbol: string; decimals: number }> = {
@@ -17,6 +17,20 @@ describe('status words', () => {
     expect(v[1]!.took).toBe('3.1 sec');
     expect(v[1]!.tx?.href).toMatch(/^https:\/\/arbiscan\.io\/tx\/0x684f/);
     expect(v[3]!.tx?.text).toBe('block 2,184,903');
+  });
+  it('says a ck deposit is minting, and how long that takes, only while it waits there', () => {
+    const steps = contract('steps-delivered.json');
+    const waiting = { ...steps, steps: steps.steps.map((s: { step: string; state: string }) => (s.step === 'onItsWay' ? { ...s, state: 'wait' } : s)) };
+    const row = stepViews(waiting, { gasMode: 'gasless', refund: null, token, stage: 'minting' }).find((s) => s.key.endsWith('onItsWay'))!;
+    expect(row.label).toBe('Minting ckUSDC on ICP');
+    expect(row.sub).toBe('Takes about 20 minutes');
+    const done = stepViews(steps, { gasMode: 'gasless', refund: null, token, stage: 'minting' }).find((s) => s.key.endsWith('onItsWay'))!;
+    expect(done.label).toBe('On its way to ICP');
+    expect(done.sub).toBeUndefined();
+    const line = { kind: 'swap', stage: 'minting', to: { chain: 'icp:737ba355e855bd4b61279056603e0550' } };
+    expect(stageText({ ...line, etaAt: 1_300 }, 100)).toBe('Minting ckUSDC on ICP, about 20 min');
+    expect(stageText({ ...line, etaAt: null }, 100)).toBe('Minting ckUSDC on ICP');
+    expect(problems(['Minting ckUSDC on ICP', 'Takes about 20 minutes'])).toEqual([]);
   });
   it('writes the refund from the data (spec 5.2)', () => {
     const row = contract('scanner-search-tx.json').items[0];

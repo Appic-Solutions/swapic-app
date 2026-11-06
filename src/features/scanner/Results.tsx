@@ -112,7 +112,7 @@ export function Results({ orders, loading, onOpen, freshId }: { orders: OrderVie
                       <p className={cn('font-semibold', o.status === 'refunded' && 'text-warn', live(o) && 'text-secondary')}>{out(o)}</p>
                       <p className="text-xs text-secondary">{outSub(o)}</p>
                     </td>
-                    <td colSpan={2}><ViaPill /></td>
+                    <td colSpan={2}><ViaPill minter={o.viaMinter} /></td>
                     <td colSpan={2}><StatusPill status={o.status} /></td>
                     <td colSpan={2} className="font-mono text-xs text-secondary">{short(o.id)}</td>
                   </motion.tr>

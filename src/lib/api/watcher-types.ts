@@ -31,6 +31,8 @@ export interface ActivityRow extends ChainTimes, HoldFlag {
   from: Side; to: Side; feeUsdc: string | null; payoutId: number | null; reason: string | null;
   reasonCode: ReasonCode | (string & {}) | null; refund: Refund | null;
   direction?: 'sent' | 'received' | 'self';
+  /** The order went through the ck minter; an older watcher leaves it out, which reads as not. */
+  viaMinter?: boolean;
 }
 /** contract 5.8, plus today's fields (api/mod.rs:801-817) */
 export interface OrderStatusAnswer extends ChainTimes, HoldFlag {

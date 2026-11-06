@@ -165,7 +165,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
       {/* Via, details toggle, fee */}
       <div className="flex items-center justify-between gap-x-3 text-xs text-secondary *:flex *:items-center *:font-medium">
         <div className="gap-x-1.5">
-          <ViaPill />
+          <ViaPill minter={o.viaMinter} />
           <span className="max-sm:hidden">{o.gas}</span>
         </div>
         <div onClick={onToggle} className={cn('cursor-pointer select-none gap-x-1 whitespace-nowrap text-sm hover:text-white sm:gap-x-2', tw.quick, tw.press)}>
