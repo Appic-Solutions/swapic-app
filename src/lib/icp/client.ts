@@ -28,6 +28,8 @@ export interface IcpClient {
   getConfig(): Promise<SwapicConfigView>;
   /** get_flow_settings().eco_prover: the one prover an Eco intent may name (canister pool/eco check_intent). */
   ecoProver(): Promise<`0x${string}` | null>;
+  /** get_flow_settings().ck_helper: the one contract a direct ck deposit may pay. */
+  ckHelper(): Promise<`0x${string}` | null>;
   canisterEvmAddress(): Promise<`0x${string}` | null>;
   poolState(): Promise<{ open: boolean; totalAssets: bigint; totalShares: bigint; tvlCap: bigint }>;
   poolAccount(owner: PoolAccount): Promise<{ shares: bigint; valueUsdc: bigint }>;

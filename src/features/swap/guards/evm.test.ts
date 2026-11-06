@@ -1,12 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { concat, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, pad, type Hex } from 'viem';
 import type { Quote, Route } from '@/lib/api';
-import { ECO_ROUTE, STEP_ABI, type OrderValue } from './abi';
-import { decodeEnvelope } from './envelope';
+import { ECO_ROUTE, STEP_ABI, orderValue, type OrderValue } from './abi';
+import { decodeEnvelope, principalWord } from './envelope';
 import type { GuardError } from './errors';
 import { routeOffered, verifyEvmRoute, type EvmCheckInput } from './evm';
 import { ATTACKER, CANISTER, GUARD, ICP_ME, PAYER, clone, executable, forge, load } from './forge.fixture';
 import { memoRef, type MemoTerms } from './memo';
+import { readPlan } from './plan';
 import { encodeMemo, poolTerms } from './memo.fixture';
 
 function input(q: Quote, route: Route, mode: 'gasless' | 'userPays', over: Partial<EvmCheckInput> = {}): EvmCheckInput {
@@ -59,6 +61,61 @@ describe('verifyEvmRoute on real mainnet quotes', () => {
     const fork = (over: Partial<EvmCheckInput>) => rule(() => verifyEvmRoute(input(q, r, 'gasless', { guard, payer: r.order!.payer as Hex, recipient: principal, ...over })));
     expect(fork({})).toBe('passed');
     expect(fork({ recipient: ICP_ME })).toBe('recipient');
+  });
+});
+
+describe('a direct ck deposit, the quoter\'s own order for USDC on Ethereum (a fork quote, EVM to ckUSDC)', () => {
+  const q = load('eth-usdc-to-ckusdc.fork');
+  const r = executable(q, 'userPays')[0]!;
+  const f = r.contracts!.source;
+  const lowered = (a: string) => a.toLowerCase() as Hex;
+  const guard = { ...GUARD, config: { ...GUARD.config, chains: new Map([...GUARD.config.chains].map(([id, c]) => [id, { ...c, swapic: lowered(f.swapic), runner: lowered(f.runner), cctpReceiver: lowered(f.cctpReceiver) }])) } };
+  const payer = r.order!.payer as Hex;
+  const check = (route: Route, over: Partial<EvmCheckInput> = {}) => rule(() => verifyEvmRoute(input(q, route, 'userPays', { guard, payer, recipient: ICP_ME, ...over })));
+  const forged = (edit: (o: OrderValue) => OrderValue) => forge(q, r, edit, f.swapic as Hex);
+  it('reads the step, the account and the least, with nothing delivered on any EVM chain', () => {
+    const c = verifyEvmRoute(input(q, r, 'userPays', { guard, payer, recipient: ICP_ME }));
+    expect(c.plan.rail).toBe('ck');
+    expect(c.plan.delivery).toBeNull();
+    expect(c.plan.envelope).toBeNull();
+    expect(c.plan.ck!.principal).toBe(principalWord(ICP_ME).toLowerCase());
+    expect(c.plan.ck!.min).toBe(BigInt(r.amountOutMin));
+  });
+  it('refuses another helper, whatever the quoter says', () => {
+    expect(check(forged((o) => ({ ...o, steps: o.steps.map((s) => ({ ...s, target: ATTACKER })) })))).toBe('ckHelper');
+    expect(check(r, { guard: { ...guard, ckHelper: ATTACKER } })).toBe('ckHelper');
+    expect(check(r, { guard: { ...guard, ckHelper: null } })).toBe('ckHelper');
+  });
+  it('refuses another account, and a subaccount the screen does not show', () => {
+    expect(check(r, { recipient: 'aaaaa-aa' })).toBe('recipient');
+    expect(check(forged(rewrite('depositErc20', (a) => [a[0], a[1], pad('0x01', { size: 32 }), a[3]])))).toBe('recipient');
+    expect(check(forged(rewrite('depositErc20', (a) => [a[0], a[1], a[2], pad('0x01', { size: 32 })])))).toBe('recipient');
+  });
+  it('refuses an amount of its own, a write elsewhere, and another token', () => {
+    expect(check(forged(rewrite('depositErc20', (a) => [a[0], 1n, a[2], a[3]])))).toBe('stepNotCanonical');
+    expect(check(forged((o) => ({ ...o, steps: o.steps.map((s) => ({ ...s, writes: [] })) })))).toBe('stepNotCanonical');
+    expect(check(forged((o) => ({ ...o, steps: o.steps.map((s) => ({ ...s, writes: [{ at: 68, minus: 0n }] })) })))).toBe('stepNotCanonical');
+    expect(check(forged(rewrite('depositErc20', (a) => [ATTACKER, a[1], a[2], a[3]])))).toBe('stepNotCanonical');
+    expect(check(forged((o) => ({ ...o, steps: o.steps.map((s) => ({ ...s, min: 0n })) })))).toBe('stepNotCanonical');
+  });
+  it('refuses a least under what the screen shows', () => {
+    expect(check(forged((o) => ({ ...o, steps: o.steps.map((s) => ({ ...s, min: s.min - 1n })) })))).toBe('minOut');
+  });
+  it('refuses a payout beside it, a second deposit, and a step after it', () => {
+    expect(check(forged((o) => ({ ...o, payout: { token: f.swapic as Hex, recipient: ATTACKER, minOut: 1n } })))).toBe('twoRails');
+    expect(check(forged((o) => ({ ...o, steps: [o.steps[0]!, o.steps[0]!] })))).toBe('twoRails');
+    const fee = { target: guard.config.chains.get(1)!.usdc, data: encodeFunctionData({ abi: STEP_ABI, functionName: 'transfer', args: [CANISTER, 1n] }), token: '0x0000000000000000000000000000000000000000' as Hex, min: 0n, writes: [] };
+    expect(check(forged((o) => ({ ...o, steps: [o.steps[0]!, fee] })))).toBe('twoRails');
+  });
+  it('reads a real KyberSwap step before it, paying the Runner', () => {
+    const k = JSON.parse(readFileSync('tests/fixtures/real/kyber-eth-weth-usdc.json', 'utf8'));
+    const swap = { target: k.routerAddress as Hex, data: k.data as Hex, token: k.params.tokenIn as Hex, min: BigInt(k.amountIn), writes: [] };
+    const ctx = { ...guard, sourceChainId: 1, payer, orderDeadline: 0n, nowSec: 0 };
+    const o = orderValue(r.order!);
+    const plan = readPlan({ ...o, tokenIn: k.params.tokenIn, steps: [swap, o.steps[0]!] }, ctx);
+    expect(plan.rail).toBe('ck');
+    expect(plan.ck!.min).toBe(o.steps[0]!.min);
+    expect(() => readPlan({ ...o, steps: [o.steps[0]!, swap] }, ctx)).toThrow();
   });
 });
 

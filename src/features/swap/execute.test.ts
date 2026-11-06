@@ -26,7 +26,7 @@ function signer(over: Partial<EvmSigner> = {}): EvmSigner {
   };
 }
 function icp(over: Partial<IcpClient> = {}): IcpClient {
-  return { getConfig: async () => GUARD.config, ecoProver: async () => GUARD.ecoProver, canisterEvmAddress: async () => GUARD.canisterEvm, ...over } as IcpClient;
+  return { getConfig: async () => GUARD.config, ecoProver: async () => GUARD.ecoProver, ckHelper: async () => GUARD.ckHelper, canisterEvmAddress: async () => GUARD.canisterEvm, ...over } as IcpClient;
 }
 /** A clock the test moves: every sleep moves it on. */
 function clockAt(ms: number) {

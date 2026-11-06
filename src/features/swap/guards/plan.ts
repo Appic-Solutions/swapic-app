@@ -10,12 +10,16 @@ import { GuardError, must } from './errors';
 
 export interface PlanContext extends GuardContext { sourceChainId: number; payer: Hex; orderDeadline: bigint; nowSec: number }
 export interface Delivery { chainId: number; recipient: Hex; token: Hex; minOut: bigint }
+/** A deposit into the ck minter's helper: the account its step names, and the least its Runner hands over. */
+export interface CkDeposit { principal: Hex; subaccount: Hex; min: bigint }
 export interface Plan {
   fees: { to: Hex; amount: bigint }[];
-  /** How the money leaves the source chain: stays (local), a CCTP burn (burn), an Eco intent (fill). */
-  rail: 'local' | 'burn' | 'fill';
+  /** How the money leaves the source chain: stays (local), a CCTP burn (burn), an Eco intent (fill), the ck helper (ck). */
+  rail: 'local' | 'burn' | 'fill' | 'ck';
   delivery: Delivery | null;
   envelope: Envelope | null;
+  /** Set on `rail: 'ck'`: nothing is delivered on any EVM chain, the minter mints to this account. */
+  ck?: CkDeposit;
 }
 
 const ZERO = '0x0000000000000000000000000000000000000000';
@@ -29,6 +33,8 @@ const ECO_TOKEN_AMOUNT = 0x120;
 const ECO_TRANSFER_AMOUNT = 0x224;
 const ECO_APPROVE_AMOUNT = 0x244;
 const ECO_FILL_AMOUNT = 0x324;
+// where the Runner writes a ck deposit's amount: the word after depositErc20's selector and its token
+const CK_AMOUNT = 36;
 
 type Step = OrderValue['steps'][number];
 type Write = { at: number; minus: bigint };
@@ -40,6 +46,7 @@ type Read =
   | { kind: 'fee'; to: Hex; amount: bigint }
   | { kind: 'burn'; destination: number; envelope: Envelope; mintRecipient: Hex; caller: Hex; maxFee: bigint; min: bigint }
   | { kind: 'fill'; destination: number; token: Hex; deliver: Hex | null; envelope: Envelope | null; fee: bigint; min: bigint }
+  | { kind: 'ck'; principal: Hex; subaccount: Hex; min: bigint }
   | { kind: 'swap' };
 
 const word = (a: string) => pad(a.toLowerCase() as Hex, { size: 32 }).toLowerCase();
@@ -101,6 +108,15 @@ function readStep(step: Step, ctx: PlanContext): Read {
       const destination = [...ctx.config.cctpDomains].find(([, domain]) => domain === a[1])?.[0];
       must(destination !== undefined && destination !== ctx.sourceChainId && ctx.config.chains.has(destination), 'burnDestination');
       return { kind: 'burn', destination: destination!, envelope: decodeEnvelope(a[7]), mintRecipient: a[2], caller: a[4], maxFee: a[5], min: step.min };
+    }
+    case 'depositErc20': {
+      // the helper the canister names, never the quoter: this step hands over all the USDC there is
+      must(!!ctx.ckHelper && sameAddress(step.target, ctx.ckHelper), 'ckHelper');
+      const [token, , principal, subaccount] = d.args as readonly [Hex, bigint, Hex, Hex];
+      must(same(encodeFunctionData({ abi: STEP_ABI, functionName: 'depositErc20', args: [token, 0n, principal, subaccount] }), step.data), 'stepNotCanonical');
+      must(sameAddress(step.token, source!.usdc) && sameAddress(token, source!.usdc) && sameWrites(step.writes, [{ at: CK_AMOUNT, minus: 0n }]), 'stepNotCanonical');
+      must(step.min > 0n, 'stepNotCanonical');
+      return { kind: 'ck', principal: principal.toLowerCase() as Hex, subaccount: subaccount.toLowerCase() as Hex, min: step.min };
     }
     case 'publishAndFund':
       return readIntent(step, d.args as readonly [bigint, Hex, Reward, boolean], ctx);
@@ -194,9 +210,16 @@ export function readPlan(o: OrderValue, ctx: PlanContext): Plan {
   const fees = reads.flatMap((r) => (r.kind === 'fee' ? [{ to: r.to, amount: r.amount }] : []));
   const burns = reads.filter((r): r is Extract<Read, { kind: 'burn' }> => r.kind === 'burn');
   const intents = reads.filter((r): r is Extract<Read, { kind: 'fill' }> => r.kind === 'fill');
-  must(burns.length + intents.length <= 1, 'twoRails');
+  const cks = reads.filter((r): r is Extract<Read, { kind: 'ck' }> => r.kind === 'ck');
+  must(burns.length + intents.length + cks.length <= 1, 'twoRails');
   const payout: Delivery | null = sameAddress(o.payout.token, ZERO) ? null
     : { chainId: ctx.sourceChainId, recipient: o.payout.recipient, token: o.payout.token, minOut: o.payout.minOut };
+  if (cks.length) {
+    // all of it into the helper, last: nothing is paid beside it, and nothing runs after it
+    must(!payout && reads[reads.length - 1]!.kind === 'ck', 'twoRails');
+    const { principal, subaccount, min } = cks[0]!;
+    return { fees, rail: 'ck', delivery: null, envelope: null, ck: { principal, subaccount, min } };
+  }
   if (!burns.length && !intents.length) {
     must(!!payout, 'noRecipient');
     return { fees, rail: 'local', delivery: payout, envelope: null };

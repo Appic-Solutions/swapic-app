@@ -56,6 +56,10 @@ export function realIcpClient(): IcpClient {
       const f = await swapic(await anon()).get_flow_settings();
       return f.eco_prover[0] ? hex(f.eco_prover[0]) : null;
     },
+    async ckHelper() {
+      const f = await swapic(await anon()).get_flow_settings();
+      return f.ck_helper[0] ? hex(f.ck_helper[0]) : null;
+    },
     async canisterEvmAddress() {
       const a = await swapic(await anon()).evm_address();
       return a[0] ? hex(a[0]) : null;

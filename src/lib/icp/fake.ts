@@ -17,6 +17,7 @@ export function fakeIcpClient(): IcpClient {
       ecoPortal: configJson.ecoPortal as `0x${string}`,
     }),
     ecoProver: async () => configJson.ecoProver as `0x${string}`,
+    ckHelper: async () => configJson.ckHelper as `0x${string}`,
     canisterEvmAddress: async () => configJson.canisterEvmAddress as `0x${string}`,
     poolState: async () => ({ open: true, totalAssets: 8_420_550_000n, totalShares: 8_346_065_000_000_000_000_000n, tvlCap: 10_000_000_000n }),
     poolAccount: async () => ({ shares: 1_182_254_000_000_000_000_000n, valueUsdc: 1_192_805_102n }),

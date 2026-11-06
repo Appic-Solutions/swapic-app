@@ -141,6 +141,12 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
     if (t.kind === 'stake') must(t.moveFee < t.minUsdc, 'moveFee');
     return t;
   }
+  if (plan.ck) {
+    // into the ck helper on this chain, nothing delivered beside it: the whole account, and at least what the screen shows
+    must(!i.recipient.includes('.') && plan.ck.principal === principalWord(i.recipient).toLowerCase() && /^0x0{64}$/i.test(plan.ck.subaccount), 'recipient');
+    must(plan.ck.min >= minOut, 'minOut');
+    return null;
+  }
   if (plan.envelope?.action === 'ckDeposit') {
     // the whole account: the shown principal, and no subaccount (the app only takes a principal, plan 1 Task 2)
     const e = plan.envelope;

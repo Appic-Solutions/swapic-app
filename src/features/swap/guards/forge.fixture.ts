@@ -19,7 +19,7 @@ const config: SwapicConfigView = {
   cctpDomains: new Map(Object.entries(cfg.cctpDomains).map(([id, d]) => [Number(id), d as number])),
   ecoPortal: cfg.ecoPortal,
 };
-export const GUARD: GuardContext = { config, ecoProver: cfg.ecoProver, canisterEvm: CANISTER };
+export const GUARD: GuardContext = { config, ecoProver: cfg.ecoProver, ckHelper: cfg.ckHelper, canisterEvm: CANISTER };
 /** A recorded quote, its orders brought to the memo Order (an empty memo; the ids, ABI bytes, transactions and gasless
  *  typed data recomputed under each route's own Swapic), as a quoter answers since the canister's interface 47a36c9. */
 export const load = (name: string): Quote => withMemo(JSON.parse(readFileSync(`tests/fixtures/real/quote/${name}.json`, 'utf8')));
@@ -56,13 +56,13 @@ function withMemo(q: Quote): Quote {
 export const executable = (q: Quote, mode: 'gasless' | 'userPays') => q[mode].routes.filter((r) => r.executable);
 
 /** A you pay gas route whose order a hostile quoter changed, with the id, the ABI bytes and the transaction recomputed. */
-export function forge(q: Quote, r: Route, edit: (o: OrderValue) => OrderValue): Route {
+export function forge(q: Quote, r: Route, edit: (o: OrderValue) => OrderValue, swapic: Hex = SWAPIC): Route {
   const chainId = Number(q.fromChain.split(':')[1]);
   const o = edit(orderValue(r.order!));
   return {
     ...clone(r),
     order: { ...orderJsonOf(o), abi: orderAbi(o) },
-    orderId: orderIdOf(o, chainId, SWAPIC),
+    orderId: orderIdOf(o, chainId, swapic),
     tx: r.tx ? { ...r.tx, data: encodeFunctionData({ abi: SWAPIC_RUN_ABI, functionName: 'run', args: [o as never] }) } : r.tx,
   };
 }

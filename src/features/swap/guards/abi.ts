@@ -56,6 +56,7 @@ export const STEP_ABI = parseAbi([
   'function transfer(address to, uint256 amount) returns (bool)',
   'function approve(address spender, uint256 amount) returns (bool)',
   'function depositForBurnWithHook(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken, bytes32 destinationCaller, uint256 maxFee, uint32 minFinalityThreshold, bytes hookData)',
+  'function depositErc20(address erc20Address, uint256 amount, bytes32 principal, bytes32 subaccount)',
   'struct EcoTokenAmount { address token; uint256 amount; }',
   'struct EcoReward { uint64 deadline; address creator; address prover; uint256 nativeAmount; EcoTokenAmount[] tokens; }',
   'function publishAndFund(uint64 destination, bytes route, EcoReward reward, bool allowPartial) payable returns (bytes32, address)',
