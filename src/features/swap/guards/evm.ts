@@ -1,7 +1,7 @@
 // Design note (signing and sending on EVM, plan 2 Task 1). Only the values this function returns reach a wallet.
 // Must never happen: an order signed or sent that runs a step the person cannot see (a call to any contract with the
 // Runner's money, a fixed transfer to anyone but the canister, a CCTP burn minted to someone other than the arrival the
-// plan names, an Eco intent a foreign prover can claim or whose refund is locked far away, a swap paying anyone but the
+// plan names, a ck deposit into anything but the helper the canister names or for any account but the one shown, an Eco intent a foreign prover can claim or whose refund is locked far away, a swap paying anyone but the
 // Runner); a pool route whose ref commits other terms than the ones on screen; a transaction to anything but the source
 // chain's Swapic as the canister's get_config names it, or an approval to anyone but that Swapic (you pay gas) or Permit2
 // (gasless, once); a signature over typed data for another chain, token, verifying contract, payer, amount, spender or
