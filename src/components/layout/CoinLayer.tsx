@@ -13,7 +13,7 @@ export function CoinLayer() {
           key={name}
           data-coin={name}
           className="coin"
-          style={{ left: `${x}%`, width: size, height: size, marginLeft: -size / 2, transform: `translate3d(0,calc(${y}vh - ${size / 2}px),0)` }}
+          style={{ left: `${x}%`, width: size, height: size, marginLeft: -size / 2, transform: `translate3d(0,calc(${y}vh + ${-size / 2}px),0)` }}
         >
           <div className="coin-face">
             <div className="coin-rest" style={{ backgroundPosition: `${cell(i % REST_ACROSS)} ${cell(Math.floor(i / REST_ACROSS))}` }} />
