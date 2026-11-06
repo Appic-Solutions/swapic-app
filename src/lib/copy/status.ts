@@ -104,7 +104,7 @@ type Meta = (chain: string | null, token: string | null) => { symbol: string; de
 const MINTING = 'Minting ckUSDC on ICP';
 /** Out of ICP through the ckETH minter: it pays the recipient on Ethereum, the real time measured on its own log. */
 const WITHDRAWING = 'The ckETH minter is paying USDC on Ethereum';
-const WITHDRAW_TIME = 'Usually about 2 minutes, 6 at most';
+const WITHDRAW_TIME = 'Usually 2 to 6 minutes';
 
 export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays' | null; refund: Refund | null; token: Meta; stage?: string }): StepView[] {
   let prev: number | null = null;

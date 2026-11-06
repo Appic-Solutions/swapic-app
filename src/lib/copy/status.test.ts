@@ -95,7 +95,7 @@ describe('a swap through the ckETH minter', () => {
     const ctx = { gasMode: 'gasless' as const, refund: null, token: () => null };
     const [wait] = stepViews(answer, { ...ctx, stage: 'withdrawing' });
     expect(wait!.label).toBe('The ckETH minter is paying USDC on Ethereum');
-    expect(wait!.sub).toBe('Usually about 2 minutes, 6 at most');
+    expect(wait!.sub).toBe('Usually 2 to 6 minutes');
     const [other] = stepViews(answer, { ...ctx, stage: 'swapping' });
     expect(other!.sub).toBeUndefined();
     expect(stageText({ kind: 'swap', stage: 'withdrawing', etaAt: null, to: { chain: 'eip155:1' } }, 0)).toBe('The ckETH minter is paying USDC on Ethereum');
