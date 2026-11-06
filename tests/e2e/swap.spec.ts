@@ -20,6 +20,9 @@ async function pickChain(page: Page, id: string) {
   await page.locator(`[data-chain-id="${id}"]`).click();
 }
 
+/** The amount field, a text input: a number box writes the phone's own decimal mark. */
+const amountField = (page: Page) => page.locator('input[inputmode=decimal]');
+
 async function pickTokens(page: Page) {
   await page.getByText('From', { exact: true }).click();
   await pickChain(page, '42161');
@@ -27,19 +30,26 @@ async function pickTokens(page: Page) {
   await page.getByText('To', { exact: true }).click();
   await pickChain(page, '137');
   await page.getByText('WBTC', { exact: true }).first().click();
-  await page.locator('input[type=number]').fill('5');
+  await amountField(page).fill('5');
 }
 
 test.describe('Swap', () => {
-  test('pick tokens, type an amount, see Gasless and one Fastest and Best price card, Review swap ready', async ({ page }) => {
+  test('pick tokens, type an amount, see Gasless and one Fastest and Best price card, Review swap ready', async ({ page }, info) => {
     await open(page, 'default');
     await expect(button(page, 'Select tokens to swap')).toBeDisabled();
     await pickTokens(page);
     await expect(page.getByText('Gasless', { exact: true })).toBeVisible();
-    await expect(page.getByText('Fastest', { exact: true })).toBeVisible();
-    await expect(page.getByText('Best price', { exact: true })).toBeVisible();
+    await expect(page.getByText('0 gas fees')).toBeVisible();
+    // phones and tablets show only the top route; the other card stays in the page, hidden by CSS
+    for (const tag of ['Fastest', 'Best price']) {
+      const shown = page.getByText(tag, { exact: true });
+      if (info.project.name === 'phone') await expect(shown).toBeHidden();
+      else await expect(shown).toBeVisible();
+    }
     await expect(page.getByText('via Swapic')).toHaveCount(2);
     await expect(page.getByText('You pay gas')).toHaveCount(1);
+    // only the You pay gas card has a fee row in the Swap list
+    await expect(page.getByTestId('swap-routes').getByText('Fee', { exact: true })).toHaveCount(1);
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
@@ -57,7 +67,7 @@ test.describe('Swap', () => {
     await open(page, 'default');
     await pickTokens(page);
     // the wallet toggle beside the button: one per layout, the visible one
-    await page.locator('.min-w-12').locator('visible=true').first().click();
+    await page.getByLabel('Send to another wallet').filter({ visible: true }).click();
     await page.getByPlaceholder(/0x0f70e/).fill('0x3A9c2E07b5F81dC4');
     await expect(button(page, 'Enter a valid address')).toBeDisabled();
   });
@@ -85,7 +95,7 @@ test.describe('Swap', () => {
     await page.getByText('To', { exact: true }).click();
     await pickChain(page, '8453');
     await page.getByText('USDC', { exact: true }).first().click();
-    await page.locator('input[type=number]').fill('5');
+    await amountField(page).fill('5');
     await expect(page.getByText('Swaps from ICP are paused for a few minutes while the pool refills. Try again soon.')).toBeVisible();
     await expect(button(page, 'Paused for now')).toBeDisabled();
   });
@@ -110,9 +120,9 @@ test.describe('Swap', () => {
   test('the route cards start open on phones (both), the picked one on desktop; the chevron closes them', async ({ page }, info) => {
     await open(page, 'default');
     await pickTokens(page);
-    await expect(page.getByText('Fastest', { exact: true })).toBeVisible();
-    // each card's details block (the parent of its "Option Details:" title)
-    const details = page.getByText('Option Details:').locator('xpath=../..');
+    await expect(page.getByText('Gasless', { exact: true })).toBeVisible();
+    // each card's details block (the one around its "You get at least" row)
+    const details = page.getByTestId('swap-routes').getByText('You get at least', { exact: true }).locator('xpath=../../..');
     await expect(details).toHaveCount(2);
     if (info.project.name === 'phone') {
       await expect(details.nth(0)).toHaveCSS('opacity', '1');
@@ -122,7 +132,7 @@ test.describe('Swap', () => {
       await expect(details.nth(1)).toHaveCSS('opacity', '0');
     }
     // the chevron of the first card closes it
-    await page.locator('[data-testid=swap-routes] button').first().click();
+    await page.getByRole('button', { name: 'Hide details', includeHidden: true }).filter({ visible: true }).first().click();
     await expect(details.nth(0)).toHaveCSS('opacity', '0');
   });
 
@@ -149,7 +159,7 @@ test.describe('Swap, the shareable link', () => {
     await openAt(page, 'default', `/?from=${ARB_USDC}&to=${POL_WBTC}&amount=5&send=0x000000000000000000000000000000000000dEaD`);
     await expect(page.getByTestId('swap-left').getByText('USDC', { exact: true })).toBeVisible();
     await expect(page.getByTestId('swap-left').getByText('WBTC', { exact: true })).toBeVisible();
-    await expect(page.locator('input[type=number]')).toHaveValue('5');
+    await expect(amountField(page)).toHaveValue('5');
     await expect(page.getByPlaceholder(/0x0f70e/)).toHaveValue('');
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
@@ -168,7 +178,9 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await open(page, 'default');
     await pickTokens(page);
     await button(page, 'Review swap').click();
-    await expect(page.getByText('You get at least')).toBeVisible();
+    // the left side and the route card both say it; Review swap shows the fee on every route, gasless too
+    await expect(page.getByText('You get at least').first()).toBeVisible();
+    await expect(page.getByTestId('col-right').getByText('Fee', { exact: true })).toBeVisible();
     await button(page, 'Sign and swap').click();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
     await expect(page.getByText('Delivered', { exact: true }).first()).toBeVisible();
@@ -221,6 +233,7 @@ test.describe('Swap, signing (the panel changes in place)', () => {
 });
 
 test.describe('Swap, approve then confirm (you pay gas)', () => {
+  test.skip(({ isMobile }) => isMobile, 'phones show only the top route, the gasless one here, so the you pay gas card cannot be picked');
   // the derived get_config's Swapic on Arbitrum and its USDC (tests/fixtures/derived/swapic-config.json), the amount typed
   const SWAPIC = '0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406';
   const USDC = '0xaf88d065e77c8cc2239327c5edb3a432268e5831';
@@ -267,7 +280,11 @@ test.describe('Swap, approve then confirm (you pay gas)', () => {
   test('an approval to anyone else is never offered (the guard)', async ({ page }) => {
     await open(page, 'approve-attacker');
     await pickTokens(page);
-    await expect(page.getByText('Gasless', { exact: true })).toBeVisible();
-    await expect(page.getByText('You pay gas')).toHaveCount(0);
+    // the Swap list is priced only: the guard reads the route once Review swap has it built, and refuses it there
+    await page.getByText('Fastest', { exact: true }).filter({ visible: true }).first().click();
+    await button(page, 'Review swap').click();
+    await expect(page.getByText('This option is not available right now. Go back to pick another.')).toBeVisible();
+    await expect(button(page, 'Approve and swap')).toBeDisabled();
+    expect(await page.evaluate(() => window.__SWAPIC_E2E__!.sent ?? [])).toEqual([]);
   });
 });

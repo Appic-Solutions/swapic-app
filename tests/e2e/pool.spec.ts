@@ -12,6 +12,8 @@ async function open(page: Page, path: string, scenario = 'default') {
 // IdentityKit keeps its Radix dialog open and hides it with a class, so the page is aria-hidden: role queries need
 // includeHidden. The panels draw their action button twice (desktop and phone layouts, one hidden by CSS): the shown one.
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true, includeHidden: true }).filter({ visible: true });
+/** The amount field, a text input: a number box writes the phone's own decimal mark. */
+const amountField = (page: Page) => page.locator('input[inputmode=decimal]');
 /** Back once the view that is leaving has faded out (the calm fade keeps it a moment: two Backs until then). */
 const back = async (page: Page) => { await expect(button(page, 'Back')).toHaveCount(1); await button(page, 'Back').click(); };
 
@@ -49,7 +51,7 @@ test.describe('Pool', () => {
 
   test('stake above the room says how much fits, before any wallet step', async ({ page }) => {
     await open(page, '/pool/stake');
-    await page.locator('input[type=number]').fill('2500');
+    await amountField(page).fill('2500');
     await expect(page.getByText('You can stake up to $1,579 right now.')).toBeVisible();
     await expect(button(page, 'Up to $1,579 right now')).toBeDisabled();
   });
@@ -65,16 +67,20 @@ test.describe('Pool', () => {
     for (const [path, ready] of [['/pool/stake?amount=100', 'Review stake'], ['/pool/withdraw?amount=100', 'Review withdrawal']]) {
       await open(page, path!, 'pool');
       await expect(button(page, ready!)).toBeVisible();
-      const l = await page.getByTestId('col-left').boundingBox();
-      const r = await page.getByTestId('col-right').boundingBox();
-      expect(Math.abs(l!.y + l!.height - (r!.y + r!.height))).toBeLessThanOrEqual(1);
+      // the panel shows early with its loading parts: max comes once the balance or the stake has answered
+      await expect(page.getByText('max', { exact: true })).toBeVisible();
+      await expect.poll(async () => {
+        const l = await page.getByTestId('col-left').boundingBox();
+        const r = await page.getByTestId('col-right').boundingBox();
+        return Math.abs(l!.y + l!.height - (r!.y + r!.height));
+      }).toBeLessThanOrEqual(1);
     }
   });
 
   test('withdraw 25% to an EVM chain: Review withdrawal (Back keeps the amount), one signature, the steps, the pool page', async ({ page }) => {
     await open(page, '/pool/withdraw', 'withdraw');
     await button(page, '25%').click();
-    const amount = await page.locator('input[type=number]').inputValue();
+    const amount = await amountField(page).inputValue();
     await expect(button(page, 'Review withdrawal')).toBeEnabled();
     await button(page, 'Review withdrawal').click();
     // the review: the least paid out from the checked record, the wallet it is paid to, one wallet step
@@ -83,7 +89,7 @@ test.describe('Pool', () => {
     await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible();
     await expect(page).toHaveURL(/\/pool\/withdraw$/);
     await back(page);
-    await expect(page.locator('input[type=number]')).toHaveValue(amount);
+    await expect(amountField(page)).toHaveValue(amount);
     await expect(page.getByText('You get at least')).toHaveCount(0);
     await button(page, 'Review withdrawal').click();
     await button(page, 'Sign withdrawal').click();
@@ -105,11 +111,11 @@ test.describe('Pool', () => {
     await setE2eWallets(page, 'withdraw');
     await page.goto('/pool/withdraw');
     await expect(button(page, '25%')).toBeDisabled();
-    await expect(page.locator('input[type=number]')).toBeDisabled();
-    await expect(page.locator('input[type=number]')).toHaveValue('');
+    await expect(amountField(page)).toBeDisabled();
+    await expect(amountField(page)).toHaveValue('');
     await expect(button(page, '25%')).toBeEnabled({ timeout: 10_000 });
     await button(page, '25%').click();
-    await expect(page.locator('input[type=number]')).not.toHaveValue(/^0?$/);
+    await expect(amountField(page)).not.toHaveValue(/^0?$/);
   });
 
   test('while the wallet asks, the button says so (its glow); then the status page', async ({ page }) => {
@@ -145,13 +151,14 @@ test.describe('Pool', () => {
     await expect(page.getByText('2 steps')).toBeVisible();
     // Back keeps the amount
     await back(page);
-    await expect(page.locator('input[type=number]')).toHaveValue('100');
+    await expect(amountField(page)).toHaveValue('100');
     await button(page, 'Review stake').click();
     await button(page, 'Confirm stake').click();
     // Your stake: each step checked only once its call returned
     await expect(page.getByText('Your stake', { exact: true }).filter({ visible: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Approved ckUSDC')).toBeVisible();
-    await expect(page.getByText('Staked 100.00 USDC')).toBeVisible();
+    // added to the stake: the 100 less the pool's $0.10 move fee
+    await expect(page.getByText('Staked 99.90 USDC')).toBeVisible();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered');
     // the fake account never grows: the new total is never named from an old read
     await expect(page.getByText(/Your stake is now/)).toHaveCount(0);
@@ -180,7 +187,7 @@ test.describe('Pool', () => {
     await expect(page.getByText('Added to your stake')).toBeVisible();
     await expect(page.getByText('Swapic Pool')).toHaveCount(0);
     await expect(page).toHaveURL(/\/pool\/stake$/);
-    await page.locator('input[type=number]').fill('100');
+    await amountField(page).fill('100');
     await page.getByText('From', { exact: true }).click();
     await expect(page.getByText('Stake From')).toBeVisible();
     // a picker keeps its parent's link
@@ -189,7 +196,7 @@ test.describe('Pool', () => {
     await expect(page.getByText('Added to your stake')).toHaveCount(0);
     await back(page);
     // the amount typed outlives the picker
-    await expect(page.locator('input[type=number]')).toHaveValue('100');
+    await expect(amountField(page)).toHaveValue('100');
     await expect(page.getByText('Stake From')).toHaveCount(0);
     await back(page);
     await expect(page.getByText('Swapic Pool')).toBeVisible();

@@ -8,6 +8,10 @@ const PAYER = '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC';
 const ICP = '3yfhk-v3nwx-2xo3k-pjyl5-ugvqk-ywkpy-qaq7m-aocl5-iz5re-kxxtc-2qe';
 const WOOF = '0x3f1b9c4e7d2a6058ac91e0b7d45f28c63a9e1d07';
 
+// The recorded quote as a quoter answers today (tests/fake/gen-memo-quote.mjs): the raw recording predates the memo field, so
+// the guards refuse its order id and no route could be signed; derived, manifest
+const QUOTE = 'tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json';
+
 // A stake quote built from the request (no real one exists yet: plan 4 Task 5 records one on staging): the StakeQuote shape
 // (services/quoter/src/api/answer/mod.rs, stake routes), one you pay gas route whose numbers follow the design's sample,
 // a $0.18 network fee and the rebalancing share at 0.1% of the amount (fees.moveFee, pool.moveFee); derived, manifest
@@ -167,12 +171,16 @@ const stepsRefunded = () => {
   ] } };
 };
 
+// The contract's 5.3 example with the move fees the quoter prices since it was written ($0.10 each way; without them the app
+// offers no stake or withdrawal on ICP); derived, manifest
+const poolAnswer = () => ({ status: 200, json: { ...C('pool.json'), moveFees: { baseToIcp: '100000', icpToBase: '100000' } } });
+
 const common = {
   '/v2/chains': contract('chains.json'),
   '/v2/tokens': (u) => ({ status: 200, file: contract(`tokens-${{ 'eip155:1': 1, 'eip155:137': 137, 'eip155:8453': 8453, 'eip155:42161': 42161 }[u.searchParams.get('chain')] ?? 0}.json`) }),
   // contract 5.1's example is Base; the Arbitrum answer is the same shape with Arbitrum's USDC (derived, manifest)
   '/v2/balances': (u) => ({ status: 200, file: u.searchParams.get('chain') === 'eip155:42161' ? 'tests/fixtures/derived/balances-42161.json' : contract('balances.json') }),
-  '/v2/pool': contract('pool.json'),
+  '/v2/pool': poolAnswer,
   'POST /v2/stake/quote': stakeQuote,
   '/v2/pool/history': contract('pool-history-7d.json'),
   '/v2/pool/activity': contract('pool-activity.json'),
@@ -188,10 +196,10 @@ const common = {
 };
 
 export const SCENARIOS = {
-  default: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
+  default: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
   // a smart wallet (plan 2 Smart wallets): the default quote, the EVM wallet flagged as holding contract code
-  'smart-wallet': { wallets: { evm: PAYER, icp: ICP, evmSmart: true }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
-  'no-wallet': { wallets: { evm: null, icp: null }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json') }, clockAt: 1792336073 },
+  'smart-wallet': { wallets: { evm: PAYER, icp: ICP, evmSmart: true }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
+  'no-wallet': { wallets: { evm: null, icp: null }, routes: { ...common, '/v2/quote': QUOTE }, clockAt: 1792336073 },
   'permit2': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/pol-wbtc-to-arb-usdc.json'), 'POST /v2/orders': real('submit/accepted.json') } },
   // a quote no route can carry (the quoter's 422 no_route, contract 1.4); derived, manifest
   'no-route': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': { status: 422, json: { code: 'no_route', message: 'no route could carry this swap: eco did not answer' } } }, clockAt: 1792336073 },
@@ -244,19 +252,19 @@ export const SCENARIOS = {
     '/v2/orders/*/steps': stepsFor,
   }, clockAt: POOL_CLOCK },
   // Your swap still on its way (plan 2 Task 10): derived, manifest
-  progress: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsPending, '/v2/orders/*': swapPending }, clockAt: SWAP_CLOCK },
+  progress: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsPending, '/v2/orders/*': swapPending }, clockAt: SWAP_CLOCK },
   // Your swap refunded (plan 2 Task 10): derived, manifest
-  refunded: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsRefunded, '/v2/orders/*': swapRefunded }, clockAt: SWAP_CLOCK },
+  refunded: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsRefunded, '/v2/orders/*': swapRefunded }, clockAt: SWAP_CLOCK },
   // too many tries: the watcher's rate limit answer to the submit (contract 1.4 shape); derived, manifest
-  'too-many': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 429, json: { code: 'rateLimited', message: 'too many requests' } } }, clockAt: SWAP_CLOCK },
+  'too-many': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': { status: 429, json: { code: 'rateLimited', message: 'too many requests' } } }, clockAt: SWAP_CLOCK },
   // approve then confirm (you pay gas): the recorded quote's cctpFast you pay gas route already carries the USDC approval
   // (the allowance was short when it was recorded), then the delivered tracking answers
-  approve: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json') }, clockAt: SWAP_CLOCK },
+  approve: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE }, clockAt: SWAP_CLOCK },
   // the same quote with the approval's spender swapped for another address: the guard must not offer that route; derived, manifest
   'approve-attacker': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': () => {
-    const q = JSON.parse(readFileSync(new URL('../fixtures/real/quote/arb-usdc-to-pol-wbtc.json', import.meta.url), 'utf8'));
+    const q = JSON.parse(readFileSync(new URL(`../../${QUOTE}`, import.meta.url), 'utf8'));
     for (const r of q.userPays.routes) if (r.approval) r.approval.spender = '0x000000000000000000000000000000000000dEaD';
     return { status: 200, json: q };
   } }, clockAt: SWAP_CLOCK },
-  'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': real('quote/arb-usdc-to-pol-wbtc.json'), 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
+  'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

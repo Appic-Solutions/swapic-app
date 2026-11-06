@@ -12,6 +12,8 @@ const TABS = ['Swap', 'Pool', 'History', 'Scanner'] as const;
 // IdentityKit (1.0.14 live and 2.0.0 here) keeps its Radix dialog open and hides it with a class, so Radix marks the rest
 // of the page aria-hidden: role queries need includeHidden. toBeVisible still checks what is drawn.
 const HIDDEN_TOO = { includeHidden: true } as const;
+/** The Header's wallet button: phones show only its icon, so it goes by its aria-label. */
+const walletButton = (page: Page, name: string) => page.getByRole('button', { ...HIDDEN_TOO, name, exact: true }).filter({ visible: true });
 
 test.describe('the shell', () => {
   test.beforeEach(async ({ page }) => open(page, 'default'));
@@ -37,7 +39,7 @@ test.describe('the shell', () => {
 
   test('with both wallets, the menu shows each with its Disconnect', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Connected Wallets', { exact: true }).click();
+    await walletButton(page, 'Connected Wallets').click();
     await expect(page.getByText('Your wallets', { exact: true })).toBeVisible();
     await expect(page.getByTestId('wallet-menu').getByRole('button', { ...HIDDEN_TOO, name: 'Disconnect', exact: true })).toHaveCount(2);
   });
@@ -64,7 +66,7 @@ test.describe('the wallet chooser', () => {
 
   test('Connect Wallet opens on two choices, ICP opens its own step with Plug, Back returns', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Connect Wallet', { exact: true }).click();
+    await walletButton(page, 'Connect Wallet').click();
     await expect(page.getByText('Connect a wallet', { exact: true })).toBeVisible();
     // scoped to our menu: IdentityKit's hidden signer list names OISY too
     const menu = page.getByTestId('wallet-menu');
@@ -87,7 +89,7 @@ test.describe('the wallet chooser', () => {
 
   test('EVM wallet opens the EVM wallet list with its wallet view drawn (it was an empty window)', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Connect Wallet', { exact: true }).click();
+    await walletButton(page, 'Connect Wallet').click();
     await page.getByTestId('wallet-menu').getByText('EVM wallet', { exact: true }).click();
     // AppKit's list lives in shadow roots: its Connect view must be defined and take up room
     const connectViewHeight = () => page.evaluate(() => {
@@ -106,7 +108,7 @@ test.describe('the wallet chooser', () => {
 
   test('without Plug, OISY still opens its own window (IdentityKit is not left waiting)', async ({ page }) => {
     await page.goto('/');
-    await page.getByText('Connect Wallet', { exact: true }).click();
+    await walletButton(page, 'Connect Wallet').click();
     const menu = page.getByTestId('wallet-menu');
     await menu.getByText('ICP wallet', { exact: true }).click();
     const popup = page.waitForEvent('popup');
@@ -118,7 +120,7 @@ test.describe('the wallet chooser', () => {
   test('with Plug installed, Plug asks the extension, and its no ends "Check your wallet"', async ({ page }) => {
     await page.addInitScript(FAKE_PLUG);
     await page.goto('/');
-    await page.getByText('Connect Wallet', { exact: true }).click();
+    await walletButton(page, 'Connect Wallet').click();
     const menu = page.getByTestId('wallet-menu');
     await menu.getByText('ICP wallet', { exact: true }).click();
     await expect(menu.getByText('Not found in this browser. Get it at plugwallet.ooo')).toHaveCount(0);

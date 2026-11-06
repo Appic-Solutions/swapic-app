@@ -1,5 +1,21 @@
 [
   {
+    "path": "tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json",
+    "kind": "derived",
+    "source": "tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json brought to the memo Order by tests/fake/gen-memo-quote.mjs (as load() in forge.fixture.ts)",
+    "recordedAt": "2026-11-06",
+    "replacedBy": null,
+    "note": "what the swap scenarios serve: the raw recording predates the memo field and the guards refuse its order id"
+  },
+  {
+    "path": "tests/fake/scenarios.mjs#poolAnswer",
+    "kind": "derived",
+    "source": "contract 5.3 example plus moveFees (PoolAnswer in src/lib/api/quoter-types.ts), $0.10 each way",
+    "recordedAt": "2026-11-06",
+    "replacedBy": null,
+    "note": "the contract example predates moveFees; the app offers no ICP stake or withdrawal without them"
+  },
+  {
     "path": "tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json",
     "kind": "real",
     "source": "/Users/jeff/appic/.worktrees/swapic-backend-staging/staging/run/mainnet/canary-20261018T150707Z/gasless/quote.json",
