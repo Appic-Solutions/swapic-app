@@ -2081,7 +2081,8 @@ export interface _SERVICE {
   /**
    * Controller-only, refused while halted. Sets the Base payouts' knobs: the least network
    * fee, how long a waiting payout waits for an order, the most gas a payout order is signed
-   * with, and whether a payout may leave Base over CCTP.
+   * with, whether a payout may leave Base over CCTP, and the ck route. Settings that name no ck
+   * route shut its door and keep its numbers.
    */
   'set_payout_settings' : ActorMethod<[PayoutSettings], Result_5>,
   /**
