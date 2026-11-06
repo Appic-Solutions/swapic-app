@@ -24,8 +24,20 @@ const NATIVE_LOGOS: Record<string, string> = {
   'eip155:9745': `${T}/xpl.svg`,
 };
 
+/** The other listed ICP tokens: most ledgers' own logos are too heavy for the quoter's list or missing, so one small image
+ *  per ledger (each ledger's `icrc1:logo`, or its SNS logo for CHAT, MOTOKO and GOLDAO, as 96 px WebP). */
+const ICP_LEDGERS = [
+  'ly36x-wiaaa-aaaai-aqj7q-cai', 'l3iu2-tyaaa-aaaal-qxm4q-cai', 'buwm7-7yaaa-aaaar-qagva-cai', '2ouva-viaaa-aaaaq-aaamq-cai',
+  '7pail-xaaaa-aaaas-aabmq-cai', 'dkqo7-cqaaa-aaaah-quxvq-cai', 'icaf7-3aaaa-aaaam-qcx3q-cai', 'vurva-zqaaa-aaaak-quezq-cai',
+  '6c7su-kiaaa-aaaar-qaira-cai', 'ca6gz-lqaaa-aaaaq-aacwa-cai', 'hvgxa-wqaaa-aaaaq-aacia-cai', 'lkwrt-vyaaa-aaaaq-aadhq-cai',
+  'd4oh6-cyaaa-aaaal-qxnkq-cai', 'igtdr-qyaaa-aaaac-qhjka-cai', 'gpmim-niaaa-aaaaj-qsnhq-cai', 'rh2pm-ryaaa-aaaan-qeniq-cai',
+  'pcj6u-uaaaa-aaaak-aewnq-cai', 'tyyy3-4aaaa-aaaaq-aab7a-cai', 'k45jy-aiaaa-aaaaq-aadcq-cai', 'druyg-tyaaa-aaaaq-aactq-cai',
+  '4c4fd-caaaa-aaaaq-aaa3a-cai',
+];
+
 /** Other tokens by `${chain}|${address}` (EVM addresses in lower case). */
 const TOKEN_LOGOS: Record<string, string> = {
+  ...Object.fromEntries(ICP_LEDGERS.map((ledger) => [`${ICP_CHAIN}|${ledger}`, `${T}/icp/${ledger}.webp`])),
   [`${ICP_CHAIN}|ryjl3-tyaaa-aaaaa-aaaba-cai`]: `${T}/icp.svg`,
   [`${ICP_CHAIN}|mxzaz-hqaaa-aaaar-qaada-cai`]: `${T}/ckbtc.svg`,
   [`${ICP_CHAIN}|ss2fx-dyaaa-aaaar-qacoq-cai`]: `${T}/cketh.svg`,
