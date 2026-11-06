@@ -1,7 +1,8 @@
 // Route option card, the layout Jeff picked 2026-11-05 (sample 4 on the canvas): tags and timer, the amount large with its
 // dollar value and the time, gas in its own box, and the details opening under it.
 // 1. Every route shows Swapic as the provider; a big price impact shows a yellow warning under the amount.
-// 2. A gasless card reads 0 gas fees in a green box. The fee row shows on a You pay gas card and on Review swap (Jeff
+// 2. A gasless card reads 0 gas fees in a green box, unless the wallet must approve Permit2 first (Jeff 2026-11-06): then it
+//    says so, or, with none of the coin to pay for that approve, that it cannot go on. The fee row shows on a You pay gas card and on Review swap (Jeff
 //    2026-11-05: the home page promises the total fee before you sign), never on a gasless card in the Swap list.
 // 3. On the review page (review) the card is always open, has no chevron and is not clickable.
 // It shows texts the caller formats with @/lib/money (no number math here), and one pill per tag.
@@ -15,6 +16,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { ChevronDownIcon, ClockIcon, GasIcon, WarningIcon, ZapIcon } from '@/components/icons';
 import { MotionCard } from '@/components/motion/parts';
 import { heroSize } from '@/components/ui/amount-size';
+import { NOTE_YELLOW } from '@/components/ui/styles';
 import { T, fade, rise, tw, pressCard } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
@@ -43,6 +45,10 @@ export interface RouteOptionView {
   warning?: string;
   /** The green box's line on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
   gaslessNote?: string;
+  /** The wallet must approve first: it can ('once'), or it holds no coin to pay with ('noCoin'). */
+  approve?: 'once' | 'noCoin';
+  /** The line on a card that cannot go on. */
+  approveBlocked?: string;
 }
 
 export interface RouteOptionProps {
@@ -101,6 +107,25 @@ const PayGasBox = ({ gasText }: { gasText: string }) => (
       You pay gas
     </span>
     <span className="font-medium">{gasAmount(gasText)}</span>
+  </div>
+);
+
+/** Gas on a gasless card whose wallet must approve first: the swap is free, the approve is not. */
+const ApproveBox = () => (
+  <div className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-2xl bg-inset px-3 py-2.5 text-xs md:px-4 md:text-sm">
+    <span className="flex items-center gap-x-1 font-normal text-secondary">
+      <GasIcon width={16} height={16} />
+      Approve once, then sign
+    </span>
+    <span className="font-medium">You pay gas once</span>
+  </div>
+);
+
+/** The same card when the wallet holds no coin to pay for the approve. */
+const NoCoinBox = ({ text }: { text?: string }) => (
+  <div className={cn('flex w-full items-center gap-x-1.5 rounded-2xl px-3 py-2.5 text-xs font-medium text-warn md:px-4 md:text-sm', NOTE_YELLOW)}>
+    <WarningIcon width={16} height={16} className="shrink-0" />
+    <span className="[text-wrap:balance]">{text}</span>
   </div>
 );
 
@@ -183,7 +208,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           {o.warning}
         </p>
       )}
-      {o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
+      {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
       {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}
       <div className={cn('w-full transform transition-[opacity,transform]', tw.panel, open ? 'translate-y-0 opacity-100' : '-mt-3 h-0 -translate-y-2 overflow-hidden opacity-0')}>
         <div className="space-y-2 border-t border-line pt-3 text-xs md:text-sm">

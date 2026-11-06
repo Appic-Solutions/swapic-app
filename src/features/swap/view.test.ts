@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
 import type { UiToken } from '@/components/ui/token-types';
 import { pickOptions } from './options';
-import { etaText, gasText, routeView, sumFees } from './view';
+import { approveState, etaText, gasText, routeView, sumFees } from './view';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, priceUsd: string | null): UiToken => ({
@@ -27,6 +27,28 @@ describe('routeView', () => {
     expect(p.usdOutText).toBeNull();
     const noPrice = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { ...eth, priceUsd: null } });
     expect(noPrice.gasText).toBe('You pay it');
+  });
+  it('a gasless card that must approve: once with the coin, blocked with none, and every other card as it was', () => {
+    const [gasless, paid] = pickOptions(q, { indicative: false });
+    const needs = { ...gasless!, route: { ...gasless!.route, needsApproval: true } };
+    const coin = (held?: boolean | null) => ({ symbol: 'POL', decimals: 18, priceUsd: '0.2', held });
+    const view = (p: typeof gasless, held?: boolean | null) =>
+      routeView(p!, { from: tok('WBTC', 8, '103750'), to: tok('USDC', 6, '1'), amountIn: 250_000n, sameChainNoUsdc: false, native: coin(held) });
+    expect(view(needs, true).approve).toBe('once');
+    // the balance still loading is not a wallet with none
+    expect(view(needs, null).approve).toBe('once');
+    expect(view(needs, undefined).approve).toBe('once');
+    expect(view(needs, false).approve).toBe('noCoin');
+    expect(view(needs, false).approveBlocked).toBe('You need a little POL to approve WBTC once');
+    // a named route says it as its approval
+    const named = { ...gasless!, route: { ...gasless!.route, sign: { ...gasless!.route.sign!, approval: { token: '0x1', spender: '0x2', amount: '1' } } } };
+    expect(approveState(named, coin(false))).toBe('noCoin');
+    // Just sign: nothing to approve, with or without the coin
+    expect(view(gasless, true).approve).toBeUndefined();
+    expect(view(gasless, false).approve).toBeUndefined();
+    // You pay gas is never blocked here, not even with no coin
+    expect(view(paid, false).approve).toBeUndefined();
+    expect(view({ ...paid!, route: { ...paid!.route, needsApproval: true } }, false).approve).toBeUndefined();
   });
   it('the gasless card says Just sign, or that the wallet has none of the coin; the paid card says nothing', () => {
     const [gasless, paid] = pickOptions(q, { indicative: false });

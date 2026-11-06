@@ -36,8 +36,11 @@ export function quoteQueryOf(f: Pick<SwapFormState, 'from' | 'to' | 'amountText'
   };
 }
 
-/** While choosing: every route priced, with no wallet named, so the quoter builds and stores nothing. */
-export const priceQueryOf = ({ fromChain, fromToken, amount, toChain, toToken }: QuoteQuery): QuoteQuery => ({ fromChain, fromToken, amount, toChain, toToken, allRoutes: true });
+/** While choosing: every route priced, so the quoter builds and stores nothing. An EVM payer stays named, with no recipient
+ *  and no route: the quoter reads its Permit2 allowance for the gasless card (`needsApproval`). */
+export const priceQueryOf = ({ fromChain, fromToken, amount, toChain, toToken, payer }: QuoteQuery): QuoteQuery => ({
+  fromChain, fromToken, amount, toChain, toToken, ...(payer && fromChain.startsWith('eip155:') ? { payer } : {}), allRoutes: true,
+});
 
 /** At Review: the picked route alone, built for this payer and recipient and stored for the watcher (`routeId` may hold a
  *  `+`; the query string encodes it). */
@@ -82,8 +85,8 @@ export function useGuardContext() {
 
 /**
  * Every route priced, 600 ms after typing stops and again every 20 s (spec 5.1, my call); no retry (60 a minute per IP).
- * The ask names no wallet, so a wallet connecting never asks again and nothing is built: Review swap asks for the picked
- * route by name (namedQueryOf). `query` is the whole ask with the payer and recipient, which Review swap starts from.
+ * The ask names only an EVM payer, so a wallet connecting asks once more, and nothing is built: Review swap asks for the
+ * picked route by name (namedQueryOf). `query` is the whole ask with the payer and recipient, which Review swap starts from.
  */
 export function useSwapQuote() {
   const f = useSwapForm();

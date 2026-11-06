@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { concat, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, pad, type Hex } from 'viem';
+import { concat, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, maxUint256, pad, type Hex } from 'viem';
 import type { Quote, Route } from '@/lib/api';
 import { ECO_ROUTE, STEP_ABI, orderValue, type OrderValue } from './abi';
 import { decodeEnvelope, principalWord } from './envelope';
@@ -245,6 +245,41 @@ describe('the gasless doors, the transaction, the screen', () => {
     const r = clone(executable(p, 'gasless')[0]!);
     (r.sign!.typedData[0]!.message as { witness: { orderId: string } }).witness.orderId = `0x${'00'.repeat(32)}`;
     expect(rule(() => verifyEvmRoute(input(p, r, 'gasless')))).toBe('typedData');
+  });
+  describe('the approvals: the maximum to Permit2 on its door only, You pay gas exact', () => {
+    const p = load('pol-wbtc-to-arb-usdc');
+    const permit2 = () => { const r = clone(executable(p, 'gasless')[0]!); expect(r.sign!.door).toBe('permit2'); return r; };
+    const exact = BigInt(p.amountIn);
+    const amounted = (amount: bigint) => { const r = permit2(); r.sign!.approval!.amount = amount.toString(); return r; };
+    it('takes the maximum, and the exact amount a quoter not yet deployed asks', () => {
+      expect(verifyEvmRoute(input(p, amounted(maxUint256), 'gasless')).approval).toMatchObject({ amount: maxUint256, resetFirst: false });
+      expect(verifyEvmRoute(input(p, amounted(exact), 'gasless')).approval!.amount).toBe(exact);
+    });
+    it('refuses any other amount', () => {
+      expect(rule(() => verifyEvmRoute(input(p, amounted(exact + 1n), 'gasless')))).toBe('approvalAmount');
+      expect(rule(() => verifyEvmRoute(input(p, amounted(exact - 1n), 'gasless')))).toBe('approvalAmount');
+      expect(rule(() => verifyEvmRoute(input(p, amounted(maxUint256 - 1n), 'gasless')))).toBe('approvalAmount');
+    });
+    it('refuses the maximum to anyone but Permit2, on another token, or on another door', () => {
+      const spender = amounted(maxUint256); spender.sign!.approval!.spender = ATTACKER;
+      expect(rule(() => verifyEvmRoute(input(p, spender, 'gasless')))).toBe('approvalSpender');
+      const token = amounted(maxUint256); token.sign!.approval!.token = ATTACKER;
+      expect(rule(() => verifyEvmRoute(input(p, token, 'gasless')))).toBe('approvalSpender');
+      for (const door of ['permit2612', 'auth3009'] as const) {
+        const other = amounted(maxUint256); other.sign!.door = door; other.sign!.auth.door = door;
+        expect(rule(() => verifyEvmRoute(input(p, other, 'gasless')))).toBe('approvalSpender');
+      }
+    });
+    it('carries the quoter\'s reset to Permit2, the spender still pinned', () => {
+      const r = amounted(maxUint256); r.sign!.approval!.resetFirst = true;
+      expect(verifyEvmRoute(input(p, r, 'gasless')).approval).toMatchObject({ amount: maxUint256, resetFirst: true });
+    });
+    it('holds You pay gas to the exact amount, and never carries a reset there', () => {
+      const r = clone(u); r.approval!.amount = maxUint256.toString();
+      expect(rule(() => verifyEvmRoute(input(q, r, 'userPays')))).toBe('approvalAmount');
+      const reset = clone(u); reset.approval!.resetFirst = true;
+      expect(verifyEvmRoute(input(q, reset, 'userPays')).approval).toMatchObject({ amount: BigInt(q.amountIn), resetFirst: false });
+    });
   });
   it('offers a card only when its route reads; ICP routes and the not yet known are offered', () => {
     const bad = forge(q, u, (o) => ({ ...o, steps: [{ target: ATTACKER, data: '0x12345678', token: q.fromToken.address as Hex, min: 0n, writes: [] }, ...o.steps] }));

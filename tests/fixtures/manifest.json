@@ -1,5 +1,13 @@
 [
   {
+    "path": "tests/fake/scenarios.mjs#needsApproval",
+    "kind": "derived",
+    "source": "tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json with needsApproval on its gasless routes (Route in src/lib/api/quoter-types.ts); noCoin is the balances answer with no coin",
+    "recordedAt": "2026-11-07",
+    "replacedBy": null,
+    "note": "no recording of the field yet; the From token stays USDC, which the quoter never marks, because the cards read only the field"
+  },
+  {
     "path": "tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json",
     "kind": "derived",
     "source": "tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json brought to the memo Order by tests/fake/gen-memo-quote.mjs (as load() in forge.fixture.ts)",

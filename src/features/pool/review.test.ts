@@ -60,7 +60,7 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
 
 describe('the wallet steps of a checked stake route', () => {
   const option = { key: 'k', tags: ['Fastest'], mode: 'userPays', route: { fees: [], etaSeconds: 12 } } as unknown as PickedOption;
-  const approval = { token: '0x1' as Hex, spender: '0x2' as Hex, amount: 1n };
+  const approval = { token: '0x1' as Hex, spender: '0x2' as Hex, amount: 1n, resetFirst: false };
   const sign = { door: 'permit2612', typedData: [], auth: {} } as unknown as CheckedEvmRoute['sign'];
   const of = (c: Partial<CheckedEvmRoute>) => evmStakeSteps({ approval: null, sign: null, tx: null, ...c } as CheckedEvmRoute, option, USDC_BASE, NATIVE).map((s) => s.label);
   it('gasless: one signature', () => expect(of({ sign })).toEqual(['Sign in your wallet (no gas)']));

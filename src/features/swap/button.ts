@@ -11,6 +11,8 @@ export interface ButtonInput {
   recipient: boolean;
   /** The per swap cap in micro USD when the quote said the amount is over it. */
   cap?: bigint | null;
+  /** The picked gasless card must approve first and the wallet holds none of this coin. */
+  needsCoin?: string;
 }
 
 /** The action button's text (spec 5.1); undefined shows the spinner. */
@@ -26,5 +28,6 @@ export function swapButton(i: ButtonInput): { text: string | undefined; enabled:
   if (i.recipientShown && i.recipientError) return { text: 'Enter a valid address', enabled: false };
   if (!i.fromWallet) return { text: 'Connect wallet', enabled: true };
   if (!i.recipient) return { text: 'Enter a valid address', enabled: false };
+  if (i.needsCoin) return { text: `Add ${i.needsCoin} to continue`, enabled: false };
   return { text: 'Review swap', enabled: !i.overBalance };
 }

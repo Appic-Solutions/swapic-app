@@ -175,6 +175,12 @@ const stepsRefunded = () => {
 // offers no stake or withdrawal on ICP); derived, manifest
 const poolAnswer = () => ({ status: 200, json: { ...C('pool.json'), moveFees: { baseToIcp: '100000', icpToBase: '100000' } } });
 
+const needsApproval = () => {
+  const q = JSON.parse(readFileSync(new URL(`../../${QUOTE}`, import.meta.url), 'utf8'));
+  for (const r of q.gasless.routes) r.needsApproval = true;
+  return { status: 200, json: q };
+};
+const noCoin = (u) => ({ status: 200, json: { chain: u.searchParams.get('chain'), wallet: PAYER.toLowerCase(), block: 1, balances: [{ token: '0x0000000000000000000000000000000000000000', balance: '0' }, { token: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', balance: '250000000' }] } });
 const common = {
   '/v2/chains': contract('chains.json'),
   '/v2/tokens': (u) => ({ status: 200, file: contract(`tokens-${{ 'eip155:1': 1, 'eip155:137': 137, 'eip155:8453': 8453, 'eip155:42161': 42161 }[u.searchParams.get('chain')] ?? 0}.json`) }),
@@ -266,5 +272,9 @@ export const SCENARIOS = {
     for (const r of q.userPays.routes) if (r.approval) r.approval.spender = '0x000000000000000000000000000000000000dEaD';
     return { status: 200, json: q };
   } }, clockAt: SWAP_CLOCK },
+  // a wallet that must approve Permit2 before it signs: the same quote, its gasless routes saying so; derived, manifest
+  'needs-approval': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': needsApproval }, clockAt: SWAP_CLOCK },
+  // the same with none of the chain's coin to pay for the approve; derived, manifest
+  'needs-approval-no-coin': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': needsApproval, '/v2/balances': noCoin }, clockAt: SWAP_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

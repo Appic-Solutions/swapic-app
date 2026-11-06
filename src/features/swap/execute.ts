@@ -103,12 +103,16 @@ export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d
   try {
     await evm.ensureChain(chainId);
     if (checked.approval) {
+      const a = checked.approval;
       i.onStep(step, 'wait');
-      const hash = await evm.sendTransaction({
-        chainId, to: checked.approval.token, value: 0n,
-        data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [checked.approval.spender, checked.approval.amount] }),
-      });
-      if ((await evm.waitForReceipt(chainId, hash)) !== 'success') { i.onStep(step, 'fail'); return failed('The approval did not go through. Try again.'); }
+      // a token that refuses an approve over a live allowance has it cleared first, each receipt awaited
+      for (const amount of a.resetFirst ? [0n, a.amount] : [a.amount]) {
+        const hash = await evm.sendTransaction({
+          chainId, to: a.token, value: 0n,
+          data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [a.spender, amount] }),
+        });
+        if ((await evm.waitForReceipt(chainId, hash)) !== 'success') { i.onStep(step, 'fail'); return failed('The approval did not go through. Try again.'); }
+      }
       i.onStep(step++, 'done');
     }
     i.onStep(step, 'wait');
@@ -236,7 +240,6 @@ async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked:
 
 /** The review's "In your wallet" list, in the order of onStep indexes (review-screens.tsx:60-73). */
 export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigint, native: NativeCoin): { label: string; sub: string }[] {
-  const once = { label: `Approve ${from.symbol} (once, you pay gas)`, sub: `Lets Swapic use your ${from.symbol}. Only the first time.` };
   if (option.mode === 'icpPull') {
     return [
       { label: `Approve ${from.symbol}`, sub: `Lets Swapic take ${formatAmount(amountIn, from.decimals)} ${from.symbol} from your wallet` },
@@ -245,9 +248,15 @@ export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigin
   }
   if (option.mode === 'gasless') {
     const sign = { label: 'Sign in your wallet (no gas)', sub: 'Swapic sends it and pays the gas' };
-    return option.route.sign?.approval ? [once, sign] : [sign];
+    const approval = option.route.sign?.approval;
+    // before the named quote comes, the priced route's needsApproval says the same
+    if (!approval && !option.route.needsApproval) return [sign];
+    const first = `Lets Swapic use your ${from.symbol}. Only the first time.`;
+    return [{ label: `Approve ${from.symbol} (once, you pay gas)`, sub: approval?.resetFirst ? `${first} Your wallet asks twice: first it sets your ${from.symbol} approval to 0.` : first }, sign];
   }
   const g = gasText(option, native);
   const confirm = { label: 'Confirm swap (you pay gas)', sub: g.startsWith('~ ') ? `About ${g.slice(2).replace(', you pay it', '')}` : 'You pay the network fee' };
-  return option.route.approval ? [once, confirm] : [confirm];
+  // the exact amount (Jeff 2026-11-06): this step comes back on every swap
+  const each = { label: `Approve ${from.symbol} (you pay gas)`, sub: `Lets Swapic use ${formatAmount(amountIn, from.decimals)} ${from.symbol} for this swap` };
+  return option.route.approval ? [each, confirm] : [confirm];
 }

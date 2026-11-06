@@ -23,7 +23,7 @@ import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
 import { useBalance, useChains, useTokenList } from '../tokens';
-import { isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
+import { approveState, isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
 import type { PickedOption } from '../options';
 import type { Quote, QuoteQuery } from '@/lib/api';
 
@@ -110,6 +110,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const button = linkBoth ? { text: undefined, enabled: false } : swapButton({
     from: !!from, to: !!to, amount, amountError, overBalance, quote: settling ? 'loading' : state, hasOptions: options.length > 0,
     recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient, cap,
+    needsCoin: picked && approveState(picked, native) === 'noCoin' ? native.symbol : undefined,
   });
 
   const onMax = async () => {

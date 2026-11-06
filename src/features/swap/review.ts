@@ -6,7 +6,7 @@ import { tokenAmountText } from '@/lib/copy/format';
 import { formatUsd, usdMicro } from '@/lib/money';
 import { walletSteps } from './execute';
 import { minOutOf, type PickedOption } from './options';
-import { routeView, isSameChainNoUsdc, type NativeCoin } from './view';
+import { approveState, routeView, isSameChainNoUsdc, type NativeCoin } from './view';
 
 /** The least the route pays out, as the checks bind it (an ICP sale's planned minimum, else amountOutMin). */
 export { minOutOf };
@@ -25,6 +25,8 @@ export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToke
   const min = minOutOf(i.option);
   const usd = (v: bigint, t: UiToken) => { const m = usdMicro(v, t.decimals, t.priceUsd); return m === null ? null : formatUsd(m); };
   const steps = walletSteps(i.option, i.from, i.amountIn, i.native);
+  // the named route can ask an approve the list did not: no coin to pay it, nothing to sign yet
+  const blocked = approveState(i.option, i.native) === 'noCoin';
   return {
     payText: `${tokenAmountText(i.amountIn, i.from.decimals, i.from.symbol)} ${i.from.symbol}`,
     payUsd: usd(i.amountIn, i.from),
@@ -35,6 +37,7 @@ export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToke
     steps,
     recipient: i.recipient,
     refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
-    button: i.option.mode === 'gasless' && steps.length === 1 ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
+    blocked,
+    button: blocked ? `Add ${i.native.symbol} to continue` : i.option.mode === 'gasless' && steps.length === 1 ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
   };
 }
