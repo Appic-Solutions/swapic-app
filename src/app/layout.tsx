@@ -18,6 +18,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="font-rethink-sans relative bg-[#060607] md:h-full" data-scroll-behavior="smooth">
+      <head>
+        {/* the resting coins, ahead of the app's code on a slow connection; only a screen that shows them asks */}
+        <link rel="preload" as="image" href="/images/coins/rest.webp" media="(min-width: 1024px) and (hover: hover)" fetchPriority="high" />
+      </head>
       <body>
         {/* the coins are in the page itself, so they show with the first paint, and a page change never touches them */}
         <CoinLayer />
