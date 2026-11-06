@@ -140,6 +140,8 @@ export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badg
  *  details, note and buttons. Its cards fade in without the rise (the calm fade, motion row 71). */
 export interface StatusText {
   title: string;
+  /** The status pill's word when it ends well, where it is not Delivered (Staked). */
+  done?: string;
   /** Label of what went in ("You staked"). */
   paid: string;
   /** Label of what comes out ("Added to your stake"). */
@@ -175,7 +177,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
       left={
         <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-5 lg:flex-1">
           <motion.div variants={fade} className="flex w-full items-center justify-between gap-3">
-            <motion.span key={d.phase} variants={fade} className="flex"><StatusPill status={PILL[d.phase]} /></motion.span>
+            <motion.span key={d.phase} variants={fade} className="flex"><StatusPill status={PILL[d.phase]} label={d.phase === 'delivered' ? text?.done : undefined} /></motion.span>
             <p className="text-sm font-medium text-secondary">{d.when}</p>
           </motion.div>
           <div className="flex w-full flex-col items-center gap-2 text-center">

@@ -19,6 +19,8 @@ import { T, fade, rise, tw, pressCard } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { SWAPIC_LOGO } from './swapic-logo';
 
+const ICP_LOGO = '/images/tokens/icp.svg';
+
 export interface RouteOptionView {
   /** Unique id of the route. */
   key: string;
@@ -35,6 +37,8 @@ export interface RouteOptionView {
   minOutText: string;
   /** What the gas costs: the You pay gas box. */
   gasText: string;
+  /** The ck minter's slow path, the fallback when Swapic's pool cannot cover the swap: its own name and the ICP logo. */
+  viaMinter?: boolean;
   /** Yellow warning under the amount, e.g. when the price impact is big. */
   warning?: string;
   /** The green box's line on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
@@ -187,8 +191,8 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
           {(!o.gasless || review) && <Row label="Fee">{o.totalFeeText}</Row>}
           <Row label="Route">
             <span className="inline-flex items-center gap-x-1">
-              <span className="font-normal text-secondary">via</span> Swapic
-              <img src={SWAPIC_LOGO} alt="" width={16} height={16} className="h-4 w-4 rounded-full bg-black p-0.5" />
+              <span className="font-normal text-secondary">via</span> {o.viaMinter ? 'ckETH minter' : 'Swapic'}
+              <img src={o.viaMinter ? ICP_LOGO : SWAPIC_LOGO} alt="" width={14} height={14} className="h-3.5 w-3.5" />
             </span>
           </Row>
         </div>

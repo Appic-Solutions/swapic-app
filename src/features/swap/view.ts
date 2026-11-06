@@ -71,6 +71,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     gasText: gasText(p, ctx.native),
     gaslessNote: gaslessNote(p, ctx.from, ctx.native),
     warning: impactWarning(p, ctx),
+    viaMinter: r.routeId.split('+').includes('ckMinter'),
   };
 }
 

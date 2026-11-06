@@ -116,7 +116,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
         <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
         {connected && <WalletChips wallets={h.wallets} />}
       </div>
-      {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={countRows(h.rows)} />}
+      {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={h.state === 'loading' ? undefined : countRows(h.rows)} />}
       <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>
         {h.state === 'loading' && [0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
         {h.state === 'nowallet' && (

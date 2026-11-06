@@ -7,7 +7,7 @@ export function ViaPill() {
   return (
     <span className="inline-flex shrink-0 items-center gap-x-1 whitespace-nowrap text-xs font-normal text-secondary">
       via <span className="font-medium text-white">Swapic</span>
-      <img src={SWAPIC_LOGO} alt="" width={16} height={16} className="h-4 w-4 rounded-full bg-black p-0.5" />
+      <img src={SWAPIC_LOGO} alt="" width={14} height={14} className="h-3.5 w-3.5" />
     </span>
   );
 }

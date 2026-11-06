@@ -12,8 +12,9 @@ const PILL: Record<OrderStatus, [string, string]> = {
   onHold: ['On hold', 'bg-warn/10 text-warn'],
 };
 
-export function StatusPill({ status }: { status: OrderStatus }) {
-  const [label, tone] = PILL[status];
+/** `label`: the same pill in the words of what finished (a stake ends Staked, not Delivered). */
+export function StatusPill({ status, label }: { status: OrderStatus; label?: string }) {
+  const [word, tone] = PILL[status];
   const live = status === 'pending' || status === 'queued';
   return (
     <span className={cn('inline-flex shrink-0 items-center gap-x-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium', tone)}>
@@ -23,7 +24,7 @@ export function StatusPill({ status }: { status: OrderStatus }) {
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-300" />
         </span>
       )}
-      {label}
+      {label ?? word}
     </span>
   );
 }

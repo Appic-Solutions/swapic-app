@@ -133,6 +133,7 @@ export function StakeStatus({ start, started, review, apy, onPool, onMore }: {
       ring={{ progress, fillFor, refunding: data.steps.some((s) => s.state === 'fail') }}
       text={{
         title: 'Your stake',
+        done: 'Staked',
         paid: 'You staked',
         get: 'Added to your stake',
         rows,

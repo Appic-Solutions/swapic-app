@@ -90,7 +90,7 @@ function Connected({ logo, name, address, onDisconnect }: { logo: string; name: 
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-white">{name}</p>
         <div className="flex items-center gap-x-1.5 text-sm text-white">
-          <span className="font-mono">{short(address)}</span>
+          <span className="font-mono">{short(address.toLowerCase())}</span>
           <button className="relative rounded-xl p-0.5 transition-colors hover:bg-white/10 active:scale-90" onClick={copy}>
             <CopyIcon width={16} height={16} />
             {copied && <div className="absolute -left-5 -top-8 animate-fade rounded-xl border border-line bg-[#1c1c1e] px-2 py-1 text-white">Copied!</div>}

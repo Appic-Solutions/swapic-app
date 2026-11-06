@@ -219,7 +219,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
             small={apy && apy !== 'Not yet' ? `Starts earning ${apy} APY right away` : 'Starts earning right away'}
             rows={[
               ['Fee', view ? view.feeText : '0.00 USDC'],
-              ['Ready in', view ? view.readyText : ''],
+              ['Ready in', view ? view.readyText : '-'],
               ['Withdraw', fromIcp ? 'Anytime on ICP' : 'Anytime', 'green'],
             ]}
           />
