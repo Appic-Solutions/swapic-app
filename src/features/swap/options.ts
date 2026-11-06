@@ -3,6 +3,9 @@ import type { Quote, Route } from '@/lib/api';
 export type OptionTag = 'Gasless' | 'Fastest' | 'Best price';
 export interface PickedOption { key: string; tags: OptionTag[]; mode: 'gasless' | 'userPays' | 'icpPull'; route: Route }
 
+/** The least the route pays: what the canister's door takes on a route out of ICP, else the quote's. */
+export const minOutOf = (o: PickedOption): bigint => (o.route.icpCkSwap ? BigInt(o.route.icpCkSwap.terms.minOut) : o.route.icpSwap ? BigInt(o.route.icpSwap.planned.minOut) : BigInt(o.route.amountOutMin));
+
 /** Routes priced only: no wallet yet, or (since the quoter builds only a named route) not named. */
 const WAITS_FOR_WALLET = new Set(['payerNotGiven', 'recipientNotGiven', 'routeNotNamed']);
 const usable = (indicative: boolean) => (r: Route) => r.executable || (indicative && !!r.reason && WAITS_FOR_WALLET.has(r.reason));
@@ -31,7 +34,9 @@ export function pickOptions(q: Quote, o: { indicative: boolean; accept?: (r: Rou
     const routes = q.icpPull.routes.filter(ok('icpPull')).sort(byRank);
     if (!routes.length) return [];
     const [best, ...rest] = routes;
-    return [{ key: keyOf('icpPull', best!), tags: ['Gasless'], mode: 'icpPull', route: best! }, ...speedAndPrice('icpPull', rest)];
+    // the ck minter's route takes a network fee out of the swap: no gasless card
+    const tags: OptionTag[] = best!.icpCkSwap ? [] : ['Gasless'];
+    return [{ key: keyOf('icpPull', best!), tags, mode: 'icpPull', route: best! }, ...speedAndPrice('icpPull', rest)];
   }
   const cards: PickedOption[] = [];
   const g = q.gasless.allowed ? q.gasless.routes.filter(ok('gasless')).sort(byRank)[0] : undefined;

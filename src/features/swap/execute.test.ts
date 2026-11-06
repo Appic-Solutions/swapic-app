@@ -2,14 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { Principal } from '@icp-sdk/core/principal';
 import { HttpFetchErrorCode, TransportError } from '@icp-sdk/core/agent';
 import { SignerError } from '@icp-sdk/signer';
-import type { Quote } from '@/lib/api';
+import type { Quote, Route } from '@/lib/api';
+import { config } from '@/config';
 import { ApiError } from '@/lib/api';
 import type { IcpClient } from '@/lib/icp';
 import { PoolErrorFailure } from '@/lib/icp';
 import type { EvmSigner } from '@/lib/wallets';
 import type { UiToken } from '@/components/ui/token-types';
-import { executeSwap, type ExecDeps, type ExecInput } from './execute';
-import { GUARD, ICP_ME, PAYER, SWAPIC, load } from './guards/forge.fixture';
+import { executeSwap, walletSteps, type ExecDeps, type ExecInput } from './execute';
+import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, load } from './guards/forge.fixture';
 import { CKUSDC, ICP_FIXTURE, icpRoute } from './guards/icp.fixture';
 
 const tok = (q: Quote, side: 'fromToken' | 'toToken', chain: string): UiToken => ({
@@ -119,6 +120,34 @@ describe('executeSwap, EVM', () => {
 describe('executeSwap, ICP', () => {
   const caller = { agent: {} as never, principal: Principal.fromText(ICP_ME) };
   const lost = () => new TypeError('fetch failed');
+  it('takes a ck route through its own door, and never the pool\'s', async () => {
+    const usdc = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    const route = { ...icpRoute(), routeId: 'ckMinter', amountOut: '310000', amountOutMin: '310000', icpSwap: undefined } as Route;
+    route.icpCkSwap = {
+      canister: config.swapicCanisterId, approve: { ledger: ICP_FIXTURE.from.address, spender: config.swapicCanisterId, amount: '1010000' },
+      terms: {
+        tokenIn: ICP_FIXTURE.from.address, amountIn: '1000000', fromSubaccount: null, refundTo: null, deadlineNs: (ICP_FIXTURE.nowNs + 600_000_000_000n).toString(),
+        dstChain: 1, recipient: ICP_FIXTURE.recipient, tokenOut: usdc, minOut: '310000', minUsdc: '1000000', networkFee: '670000',
+      },
+      expectedSale: '1000000', expectedOut: '310000', ledgerFees: '20000',
+    };
+    const swapFromIcpCk = vi.fn(async () => ({ id: 42n, status: { CkWithdrawn: null } }));
+    const s = icpSetup({ swapFromIcpCk, swapFromIcp: vi.fn(async () => { throw new Error('the pool door'); }) }, route);
+    const chains = new Map([[1, { swapic: ATTACKER, usdc: usdc as `0x${string}`, runner: ATTACKER, cctpReceiver: ATTACKER, tokenMessenger: ATTACKER }]]);
+    const q = await s.deps.getQuote({} as never);
+    s.deps.getQuote = vi.fn(async () => ({ ...q, toChain: 'eip155:1' }));
+    s.icpc.getConfig = async () => ({ poolChain: 8453, chains, cctpDomains: new Map(), ecoPortal: null });
+    const out = await executeSwap({ ...s.input, pick: { mode: 'icpPull', routeId: 'ckMinter', tags: [] }, to: { ...s.input.to, address: usdc, chainId: 1 } }, s.deps);
+    expect(out).toEqual({ kind: 'started', activityId: 'payout-42' });
+    expect(swapFromIcpCk).toHaveBeenCalledTimes(1);
+    expect(s.icpc.swapFromIcp).not.toHaveBeenCalled();
+  });
+  it('says the network fee in the wallet step of a ck route, never no fee', () => {
+    const route = { ...icpRoute(), icpSwap: undefined, icpCkSwap: { terms: { networkFee: '670000' } } } as unknown as Route;
+    const steps = walletSteps({ key: 'k', tags: [], mode: 'icpPull', route }, ICP_FIXTURE.from, 1_000_000n, { symbol: null, decimals: 8, priceUsd: null, held: null } as never);
+    expect(steps[1]!.sub).toBe('$0.67 network fee comes out of the swap, and the ledger fees with it');
+    expect(steps[1]!.sub).not.toMatch(/no gas/i);
+  });
   function icpSetup(client: Partial<IcpClient>, route = icpRoute()) {
     const q = { ...ICP_FIXTURE.quote, gasless: { allowed: false, routes: [] }, userPays: { allowed: false, routes: [] }, icpPull: { allowed: true, routes: [route] } };
     const icpc = icp({

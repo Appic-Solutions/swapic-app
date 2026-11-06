@@ -103,6 +103,9 @@ export function realIcpClient(): IcpClient {
     async swapFromIcp(caller, terms) {
       return unwrap(await swapic(caller.agent).swap_from_icp(terms));
     },
+    async swapFromIcpCk(caller, terms) {
+      return unwrap(await swapic(caller.agent).swap_from_icp_ck(terms));
+    },
     async stakeIcp(caller, args) {
       return unwrap(await swapic(caller.agent).stake_icp(args));
     },

@@ -12,7 +12,7 @@
 import { Principal } from '@icp-sdk/core/principal';
 import { decodeAbiParameters, getAddress, hexToBytes, type Hex } from 'viem';
 import type { Route } from '@/lib/api';
-import type { IcpSwapTerms } from '@/lib/icp';
+import type { CkSwapTerms, IcpSwapTerms } from '@/lib/icp';
 import { ORDER_TUPLE, orderIdOf, sameAddress, sameToken, type OrderValue } from './abi';
 import type { GuardContext } from './context';
 import { GuardError, must } from './errors';
@@ -24,7 +24,7 @@ export interface IcpCheckInput {
   canisterId: string; guard: GuardContext | undefined; nowNs: bigint;
 }
 export interface CheckedIcpSwap {
-  ledger: string; approveAmount: bigint; amountIn: bigint; minOut: bigint; expectedOut: bigint; terms: IcpSwapTerms; deadlineNs: bigint;
+  door: 'pool'; ledger: string; approveAmount: bigint; amountIn: bigint; minOut: bigint; expectedOut: bigint; terms: IcpSwapTerms; deadlineNs: bigint;
 }
 
 const MIN_AHEAD_NS = 330n * 1_000_000_000n; // the canister's 5 minutes, plus 30 s to sign and send
@@ -70,6 +70,7 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');
 
   return {
+    door: 'pool',
     ledger: i.fromLedger,
     approveAmount: i.amountIn + i.ledgerFee,
     amountIn: i.amountIn,
@@ -84,6 +85,70 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
       slippage_bps: terms.slippageBps,
       deadline_ns: deadlineNs,
       plan: { order: hexToBytes(terms.plan.order as Hex), gas_limit: BigInt(terms.plan.gasLimit) },
+    },
+  };
+}
+
+export interface CheckedIcpCkSwap {
+  door: 'ck'; ledger: string; approveAmount: bigint; amountIn: bigint; minOut: bigint; expectedOut: bigint; terms: CkSwapTerms; deadlineNs: bigint;
+}
+export type CheckedIcp = CheckedIcpSwap | CheckedIcpCkSwap;
+
+const ETHEREUM = 1;
+
+/**
+ * The ck minter's route, swap_from_icp_ck: must never reach the canister paying someone else, another token, another
+ * chain, or less than the screen shows; never an approval beyond amount_in + fee; never a refund anywhere but the
+ * caller. USDC is anchored on the canister's own get_config, and a route offers one door: the pool's check never
+ * accepts these terms, nor this one the pool's. What the fee takes is the door's to refuse: min_usdc covers min_out,
+ * the network fee and both ledger fees.
+ */
+export function verifyIcpCkSwap(i: IcpCheckInput): CheckedIcpCkSwap {
+  const s = i.route.icpCkSwap;
+  must(!!s && !i.route.icpSwap, 'notIcpCkSwap');
+  const { approve, terms } = s!;
+  const usdc = i.guard?.config.chains.get(ETHEREUM)?.usdc;
+  must(!!usdc, 'noAnchor');
+
+  must(terms.tokenIn === i.fromLedger && approve.ledger === i.fromLedger, 'tokenIn');
+  must(BigInt(terms.amountIn) === i.amountIn, 'amountIn');
+  must(approve.spender === i.canisterId && (s!.canister === null || s!.canister === i.canisterId), 'approveSpender');
+  must(BigInt(approve.amount) === i.amountIn + i.ledgerFee, 'approveAmount');
+  const deadlineNs = BigInt(terms.deadlineNs);
+  must(deadlineNs >= i.nowNs + MIN_AHEAD_NS && deadlineNs <= i.nowNs + MAX_AHEAD_NS, 'deadline');
+  must(terms.fromSubaccount === null, 'fromSubaccount');
+  must(terms.refundTo === null, 'refundTo');
+
+  must(terms.dstChain === ETHEREUM && i.toChainId === ETHEREUM, 'dstChain');
+  must(sameAddress(terms.recipient, i.recipientEvm), 'recipient');
+  must(sameToken(terms.tokenOut, i.toToken) && sameToken(terms.tokenOut, usdc!), 'tokenOut');
+  const minOut = BigInt(terms.minOut);
+  const minUsdc = BigInt(terms.minUsdc);
+  const networkFee = BigInt(terms.networkFee);
+  must(BigInt(i.route.amountOutMin) === minOut, 'minOut');
+  must(minOut > 0n && networkFee > 0n, 'minOut');
+  must(minUsdc >= minOut + networkFee + BigInt(s!.ledgerFees), 'minUsdc');
+
+  return {
+    door: 'ck',
+    ledger: i.fromLedger,
+    approveAmount: i.amountIn + i.ledgerFee,
+    amountIn: i.amountIn,
+    minOut,
+    expectedOut: BigInt(s!.expectedOut),
+    deadlineNs,
+    terms: {
+      token_in: Principal.fromText(terms.tokenIn),
+      amount_in: i.amountIn,
+      from_subaccount: [],
+      refund_to: [],
+      deadline_ns: deadlineNs,
+      dst_chain: BigInt(terms.dstChain),
+      recipient: terms.recipient,
+      token_out: terms.tokenOut,
+      min_out: minOut,
+      min_usdc: minUsdc,
+      network_fee: networkFee,
     },
   };
 }

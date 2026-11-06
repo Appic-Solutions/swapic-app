@@ -5,11 +5,11 @@ import type { UiToken } from '@/components/ui/token-types';
 import { tokenAmountText } from '@/lib/copy/format';
 import { formatUsd, usdMicro } from '@/lib/money';
 import { walletSteps } from './execute';
-import type { PickedOption } from './options';
+import { minOutOf, type PickedOption } from './options';
 import { routeView, isSameChainNoUsdc, type NativeCoin } from './view';
 
 /** The least the route pays out, as the checks bind it (an ICP sale's planned minimum, else amountOutMin). */
-export const minOutOf = (o: PickedOption): bigint => (o.route.icpSwap ? BigInt(o.route.icpSwap.planned.minOut) : BigInt(o.route.amountOutMin));
+export { minOutOf };
 
 /**
  * Review swap's 20 s refresh (approved 2026-10-31): the fresh quote's option with the same tag against the least out on

@@ -26,13 +26,13 @@ import { isLostSignerAnswer, isUserRejection } from '@/lib/wallets/rejection';
 import { AgentError, ErrorKindEnum, HttpErrorCode, TimeoutWaitingForResponseErrorCode } from '@icp-sdk/core/agent';
 import type { UiToken } from '@/components/ui/token-types';
 import { formatAmount } from '@/lib/money';
-import { gasText, type NativeCoin } from './view';
+import { gasText, networkFeeText, type NativeCoin } from './view';
 import { sameAddress, sameToken } from './guards/abi';
 import { loadGuardContext, type GuardContext } from './guards/context';
 import { routeOffered, verifyEvmRoute, type CheckedEvmRoute } from './guards/evm';
-import { verifyIcpSwap, type CheckedIcpSwap } from './guards/icp';
+import { verifyIcpCkSwap, verifyIcpSwap, type CheckedIcp } from './guards/icp';
 import { GuardError, GUARD_MESSAGE } from './guards/errors';
-import { namedOption, type PickedOption, type RoutePick } from './options';
+import { minOutOf, namedOption, type PickedOption, type RoutePick } from './options';
 import { settleLost } from './lost';
 
 export type ExecOutcome =
@@ -76,7 +76,7 @@ export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcom
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
   const option = namedOption(quote, i.pick, accept);
   if (!option) return failed('No route found for this amount');
-  const min = option.mode === 'icpPull' && option.route.icpSwap ? BigInt(option.route.icpSwap.planned.minOut) : BigInt(option.route.amountOutMin);
+  const min = minOutOf(option);
   if (min < i.shownMin) return { kind: 'newPrice', quote, option };
   return option.mode === 'icpPull' ? runIcp(i, d, quote, option, guard) : runEvm(i, d, quote, option, guard);
 }
@@ -150,11 +150,13 @@ async function submit(i: Pick<ExecInput, 'onStep'>, d: ExecDeps, body: GaslessSu
 async function runIcp(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOption, guard: GuardContext | undefined): Promise<ExecOutcome> {
   const caller = i.icpCaller;
   if (!caller) return failed('Connect wallet');
-  let checked: CheckedIcpSwap;
+  let checked: CheckedIcp;
   let fee: bigint;
   try {
     fee = await d.icp.ledgerFee(i.from.address);
-    checked = verifyIcpSwap({
+    // the route names its own door: a ck route never goes through the pool's check, nor the pool's through this one
+    const check = option.route.icpCkSwap ? verifyIcpCkSwap : verifyIcpSwap;
+    checked = check({
       route: option.route, fromLedger: i.from.address, amountIn: i.amountIn, ledgerFee: fee,
       recipientEvm: i.recipient as Hex, toToken: i.to.address, toChainId: chainNumber(quote.toChain),
       canisterId: config.swapicCanisterId, guard, nowNs: BigInt(d.nowMs()) * 1_000_000n,
@@ -178,13 +180,13 @@ async function runIcp(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOpt
   return callSwap(i, d, caller, checked);
 }
 
-async function callSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcpSwap): Promise<ExecOutcome> {
+async function callSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcp): Promise<ExecOutcome> {
   // the ledger's own record before the call: a pull always takes amount_in + fee out of this balance
   const before = await d.icp.balance(checked.ledger, caller.principal).catch(() => null);
   const sentAtMs = d.nowMs();
   try {
     i.onStep(1, 'wait');
-    const ok = await d.icp.swapFromIcp(caller, checked.terms);
+    const ok = checked.door === 'ck' ? await d.icp.swapFromIcpCk(caller, checked.terms) : await d.icp.swapFromIcp(caller, checked.terms);
     i.onStep(1, 'done');
     return { kind: 'started', activityId: `payout-${ok.id}` };
   } catch (e) {
@@ -197,7 +199,7 @@ async function callSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: C
 const CANNOT_TELL: ExecOutcome = { kind: 'unknown', message: 'We cannot tell yet whether your swap started. Check History before you try again.', resume: null };
 
 /** M4: the answer was lost. The balance (the pull's own record) and the canister's payout record decide, never the allowance alone. */
-async function afterLostSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcpSwap, before: bigint | null, sentAtMs: number): Promise<ExecOutcome> {
+async function afterLostSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcp, before: bigint | null, sentAtMs: number): Promise<ExecOutcome> {
   if (before === null) return CANNOT_TELL;
   i.onNote?.('We could not reach Swapic. Checking whether your swap started; this can take up to 6 minutes.');
   const seen = await settleLost(async () => {
@@ -221,7 +223,7 @@ async function afterLostSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, check
 }
 
 /** The payout the pull opened: History names it (one wallet lookup), the canister's own record confirms it is this swap. */
-async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcpSwap, sentAtMs: number): Promise<bigint | null> {
+async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcp, sentAtMs: number): Promise<bigint | null> {
   const page = await d.getOrders([caller.principal.toText()]);
   for (const row of page.orders) {
     if (!row.id.startsWith('payout-') || row.createdAt < Math.floor(sentAtMs / 1000) - 60 || row.from.amount !== checked.amountIn.toString()) continue;
@@ -238,7 +240,7 @@ export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigin
   if (option.mode === 'icpPull') {
     return [
       { label: `Approve ${from.symbol}`, sub: `Lets Swapic take ${formatAmount(amountIn, from.decimals)} ${from.symbol} from your wallet` },
-      { label: 'Confirm swap', sub: 'No gas, only a small ledger fee' },
+      { label: 'Confirm swap', sub: option.route.icpCkSwap ? `${networkFeeText(option)} comes out of the swap, and the ledger fees with it` : 'No gas, only a small ledger fee' },
     ];
   }
   if (option.mode === 'gasless') {

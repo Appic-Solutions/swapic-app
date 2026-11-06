@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { Quote } from '@/lib/api';
-import { namedOption, pickOf, pickOptions } from './options';
+import type { Quote, Route } from '@/lib/api';
+import { minOutOf, namedOption, pickOf, pickOptions } from './options';
 
 const load = (n: string): Quote => JSON.parse(readFileSync(`tests/fixtures/real/quote/${n}.json`, 'utf8'));
 const cards = (q: Quote, indicative = false) => pickOptions(q, { indicative }).map((o) => `${o.tags.join('+')}:${o.mode}:${o.route.routeId}`);
@@ -63,5 +63,15 @@ describe('namedOption: the picked route in the answer that names it', () => {
     expect(namedOption(off, { mode: 'gasless', routeId: 'cctpFast', tags: ['Gasless'] })).toBeUndefined();
     for (const r of q.userPays.routes) r.executable = false;
     expect(namedOption(q, { mode: 'userPays', routeId: 'cctpFast', tags: ['Fastest'] })).toBeUndefined();
+  });
+});
+
+describe('a ck minter route out of ICP', () => {
+  it('takes no Gasless tag, and its least is what the door takes', () => {
+    const route = { routeId: 'ckMinter', executable: true, amountOut: '10', amountOutMin: '9', fees: { network: '0', bridge: '0', platform: '0' }, etaSeconds: 330, warnings: [], icpCkSwap: { terms: { minOut: '8' } } } as unknown as Route;
+    const quote = { icpPull: { allowed: true, routes: [route] }, gasless: { allowed: false, routes: [] }, userPays: { allowed: false, routes: [] } } as unknown as Quote;
+    const [card] = pickOptions(quote, { indicative: true });
+    expect(card!.tags).toEqual([]);
+    expect(minOutOf(card!)).toBe(8n);
   });
 });

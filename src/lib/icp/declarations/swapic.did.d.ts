@@ -125,6 +125,95 @@ export interface ChainData {
 export type ChainRef = { 'Evm' : bigint } |
   { 'Solana' : null };
 /**
+ * A controller's answer to a withdrawal through the ck minter (`resolve_ck_withdrawal`).
+ */
+export type CkResolution = {
+    /**
+     * Its USDC was found paid on Ethereum in this transaction, the minter's word not come.
+     */
+    'Delivered' : { 'tx_hash' : Uint8Array | number[] }
+  } |
+  {
+    /**
+     * A stopped withdrawal read again: nothing moves.
+     */
+    'Retry' : null
+  } |
+  {
+    /**
+     * Its ckUSDC is back in its burn subaccount though the minter never said so: the way
+     * back starts. Refused unless the subaccount holds the whole sum.
+     */
+    'Reimbursed' : null
+  };
+/**
+ * The ck minter's slow route, the numbers door and quote read alike.
+ */
+export interface CkSettings {
+  /**
+   * Whether `swap_from_icp_ck` takes new swaps.
+   */
+  'open' : boolean,
+  /**
+   * Micro USDC, the least network fee a swap carries: at or above
+   * `ck_swap_fee_allowance` at ETH's price.
+   */
+  'min_network_fee' : bigint,
+  /**
+   * Wei of ckETH, the most the minter may burn for one swap's gas.
+   */
+  'ck_swap_fee_allowance' : bigint,
+}
+/**
+ * An ICP user's swap through the ck minter, when the pool cannot carry it: USDC on Ethereum,
+ * paid by the minter to the recipient.
+ */
+export interface CkSwapTerms {
+  /**
+   * ckUSDC or a listed ICP token.
+   */
+  'token_in' : Principal,
+  /**
+   * Ethereum.
+   */
+  'dst_chain' : bigint,
+  /**
+   * The least USDC the recipient gets.
+   */
+  'min_out' : bigint,
+  /**
+   * An EVM address: the minter pays it directly.
+   */
+  'recipient' : string,
+  /**
+   * The least ckUSDC the sale must make: at least `min_out`, `network_fee` and two ckUSDC
+   * ledger fees.
+   */
+  'min_usdc' : bigint,
+  'from_subaccount' : [] | [Uint8Array | number[]],
+  /**
+   * Default: the caller's account.
+   */
+  'refund_to' : [] | [IcpAccount],
+  /**
+   * 5 minutes to 1 hour ahead: at its burn the swap is past undoing, and before it the
+   * deadline refunds it.
+   */
+  'deadline_ns' : bigint,
+  /**
+   * Pulled with `icrc2_transfer_from` from the caller's account.
+   */
+  'amount_in' : bigint,
+  /**
+   * USDC on Ethereum.
+   */
+  'token_out' : string,
+  /**
+   * Micro USDC: at least the route's least network fee (`payout_settings`).
+   */
+  'network_fee' : bigint,
+}
+/**
  * Every knob the canister reads at runtime. The rpc urls, the chain table and the key name
  * are what a deploy fills in.
  */
@@ -658,11 +747,12 @@ export interface FieldsDisplay {
  */
 export interface FinalizedSeen {
   /**
-   * It has stood still ten minutes or more: nothing on the chain closes until it moves.
+   * It has stood still ten minutes or more while something on the chain waits: nothing
+   * on it closes until it moves. An idle chain is never stalled.
    */
   'stalled' : boolean,
   /**
-   * When it last moved, IC time in nanoseconds (or when the first read was tried).
+   * When it last moved, IC time in nanoseconds (or when its clock last started).
    */
   'moved_at_ns' : bigint,
   /**
@@ -746,9 +836,13 @@ export interface IcpAccount {
 }
 export interface IcpRoute { 'via' : IcpRouteVia, 'ledger' : Principal }
 /**
- * The token/ckUSDC pool, or the token/ICP pool.
+ * The token/ckUSDC pool, the token/ICP pool, or the token's pool against a hub, a token listed
+ * Direct whose own ckUSDC pool ends the route.
  */
-export type IcpRouteVia = { 'Icp' : Principal } |
+export type IcpRouteVia = {
+    'Hub' : { 'hub' : Principal, 'pool' : Principal }
+  } |
+  { 'Icp' : Principal } |
   { 'Direct' : Principal };
 /**
  * `icp_routes`' answer.
@@ -928,8 +1022,18 @@ export interface PayoutPlan {
  * found paid.
  */
 export type PayoutResolution = { 'Refund' : null } |
-  { 'MarkPaid' : null };
+  { 'MarkPaid' : null } |
+  {
+    /**
+     * Back on the path it stopped on: stopped legs quoted again, a ck withdrawal read again.
+     */
+    'Retry' : null
+  };
 export interface PayoutSettings {
+  /**
+   * The ck minter's slow route. None: off.
+   */
+  'ck' : [] | [CkSettings],
   /**
    * Micro USDC, the least a payout's network fee may be.
    */
@@ -965,9 +1069,21 @@ export type PayoutStatus = { 'Queued' : null } |
      */
     'Delivering' : null
   } |
+  {
+    /**
+     * Through the ck minter: its withdrawal is on its way, nothing burned yet.
+     */
+    'CkWithdrawing' : null
+  } |
   { 'Paid' : null } |
   { 'Pulling' : null } |
   { 'Swapping' : null } |
+  {
+    /**
+     * Through the ck minter: burned. Its USDC reaches the recipient from the minter directly.
+     */
+    'CkWithdrawn' : null
+  } |
   { 'Undone' : string } |
   { 'Waiting' : null } |
   { 'Signed' : bigint };
@@ -1005,7 +1121,15 @@ export interface PayoutView {
    * The plan's amount (`amountIn`), for a swap opened with a plan.
    */
   'planned' : [] | [bigint],
+  /**
+   * Through the ck minter: what it burns and pays, once its withdrawal began.
+   */
+  'ck_amount' : [] | [bigint],
   'order_id' : [] | [Uint8Array | number[]],
+  /**
+   * Through the ck minter: the minter's id of its withdrawal, once burned.
+   */
+  'ck_withdrawal_id' : [] | [bigint],
   'tx_hash' : [] | [Uint8Array | number[]],
   /**
    * The exact USDC the payout order must spend on Base.
@@ -1617,8 +1741,8 @@ export interface _SERVICE {
   'evm_address' : ActorMethod<[], [] | [string]>,
   /**
    * Each chain that waits for its finalized block: the last finalized block a read gave, when
-   * it last moved (IC time in nanoseconds, or of the first read tried before any gave one),
-   * and whether it has stood still long enough to be a stall. Nothing on a stalled chain
+   * it last moved (IC time in nanoseconds, or when its clock last started), and whether it has
+   * stood still long enough, while something waits, to be a stall. Nothing on a stalled chain
    * closes until it moves.
    */
   'finalized_seen' : ActorMethod<[], Array<[bigint, FinalizedSeen]>>,
@@ -1681,7 +1805,7 @@ export interface _SERVICE {
    */
   'icrc10_supported_standards' : ActorMethod<[], Array<SupportedStandard>>,
   /**
-   * ICRC-21: a plain-words description of a call to `swap_from_icp`, `stake_icp`,
+   * ICRC-21: a plain-words description of a call to `swap_from_icp`, `swap_from_icp_ck`, `stake_icp`,
    * `withdraw_icp` or `withdraw_evm`, read from its argument exactly as that door reads it,
    * for a wallet to show its user before it signs; an ICRC-21 error for any other call or an
    * argument the door would not take. Any caller, anonymous included; never halted; writes
@@ -1852,6 +1976,14 @@ export interface _SERVICE {
    */
   'rescue_eco_intent' : ActorMethod<[Uint8Array | number[]], Result_6>,
   /**
+   * Controller-only, refused while halted. A withdrawal through the ck minter that the canister
+   * stopped, or that the minter leaves open: `Retry` reads a stopped one again, `Delivered`
+   * closes one found paid on Ethereum, `Reimbursed` starts the way back for one whose ckUSDC is
+   * back in its subaccount without the minter's word (a quarantined reimbursement), and only
+   * then. Nothing here refunds on a controller's word alone.
+   */
+  'resolve_ck_withdrawal' : ActorMethod<[bigint, CkResolution], Result_5>,
+  /**
    * Controller-only, refused while halted: an EVM to ICP deposit held for a
    * human (`PayoutFailed`: a payout stopped after its tenth failure, a queued one that never
    * started, a stake whose mint kept failing), resolved once by its ref (its 32 bytes).
@@ -2016,6 +2148,19 @@ export interface _SERVICE {
    * payout's id and where it stands; a pull the ledger refused answers its refusal.
    */
   'swap_from_icp' : ActorMethod<[IcpSwapTerms], Result_14>,
+  /**
+   * Any caller but the anonymous one, refused while halted, while the pool is closed, while the
+   * route's switch is off, short of ckETH, for a sanctioned party, and past five calls a minute
+   * or thirty an hour for that caller (this door, `swap_from_icp` and `stake_icp` together): an
+   * ICP user swaps `amount_in` of ckUSDC or a listed ICP token to USDC on Ethereum through the
+   * ck minter, when the pool cannot carry it. The minter pays the recipient directly.
+   * `network_fee` is at least the route's floor (`payout_settings`), no premium is taken, and
+   * both ckUSDC ledger fees of the way out are the user's: at least `min_usdc` must come of the
+   * sale, or it is refunded. The recipient gets what the sale made less those, at least
+   * `min_out`, or a refund on ICP, all or nothing; a refund after the minter burned keeps the
+   * network fee. Answers like `swap_from_icp`, and `payout(id)` tells where it stands.
+   */
+  'swap_from_icp_ck' : ActorMethod<[CkSwapTerms], Result_14>,
   /**
    * Controller-only, refused while halted. Sends `amount` of the canister's own `asset` on
    * `chain_id` to `to`, signed from the canister's address with the chain's `sweep` gas row

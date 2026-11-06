@@ -299,12 +299,12 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
   const { status, steps } = useActivity(activity.id);
   const nowSec = Math.floor(Date.now() / 1000);
   const route = rv.option.route;
-  const expected = route.icpSwap ? BigInt(route.icpSwap.planned.expectedOut) : BigInt(route.amountOut);
+  const expected = route.icpCkSwap ? BigInt(route.icpCkSwap.expectedOut) : route.icpSwap ? BigInt(route.icpSwap.planned.expectedOut) : BigInt(route.amountOut);
   const delivered = steps?.steps.find((s) => s.step === 'delivered' && s.amount !== null)?.amount ?? null;
   const ended = status && status.outcome !== 'pending';
   const get = ended && status.outcome === 'delivered' ? sideOf(rv.to, delivered !== null ? BigInt(delivered) : expected) : sideOf(rv.to, expected, '~');
   const pay = sideOf(rv.from, rv.amountIn);
-  const gas = rv.option.mode === 'gasless' ? 'None, Swapic paid it' : rv.option.mode === 'icpPull' ? 'None' : gasText(rv.option, rv.native).replace('you pay it', 'you paid it');
+  const gas = rv.option.mode === 'gasless' ? 'None, Swapic paid it' : rv.option.mode === 'icpPull' && !route.icpCkSwap ? 'None' : gasText(rv.option, rv.native).replace('you pay it', 'you paid it');
   const fee = formatUsd(sumFees(route.fees));
   const token = (chain: string | null, address: string | null) => {
     for (const t of [rv.from, rv.to]) if (t.chain === chain && address !== null && t.address.toLowerCase() === address.toLowerCase()) return { symbol: t.symbol, decimals: t.decimals };

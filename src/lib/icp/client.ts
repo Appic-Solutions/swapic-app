@@ -1,7 +1,7 @@
 import type { Agent } from '@icp-sdk/core/agent';
 import type { Principal } from '@icp-sdk/core/principal';
 import type {
-  _SERVICE, EvmWithdrawal, IcpSwapTerms, PayoutView, PoolAccount, StakeIcpArgs, WithdrawIcpArgs,
+  _SERVICE, CkSwapTerms, EvmWithdrawal, IcpSwapTerms, PayoutView, PoolAccount, StakeIcpArgs, WithdrawIcpArgs,
 } from './declarations/swapic.did';
 
 type Ok<K extends keyof _SERVICE> = Extract<Awaited<ReturnType<_SERVICE[K]>>, { Ok: unknown }>['Ok'];
@@ -41,6 +41,8 @@ export interface IcpClient {
   /** icrc2_approve of the Swapic canister's main account for exactly `amount`, expiring in 15 minutes. Answers the block. */
   approve(caller: IcpCaller, ledger: string, amount: bigint): Promise<bigint>;
   swapFromIcp(caller: IcpCaller, terms: IcpSwapTerms): Promise<SwapFromIcpOk>;
+  /** The ck minter's route: a door of its own, its answer `swap_from_icp`'s. */
+  swapFromIcpCk(caller: IcpCaller, terms: CkSwapTerms): Promise<SwapFromIcpOk>;
   stakeIcp(caller: IcpCaller, args: StakeIcpArgs): Promise<StakeIcpOk>;
   withdrawIcp(caller: IcpCaller, args: WithdrawIcpArgs): Promise<WithdrawIcpOk>;
   /** Anonymous call: the 65 byte signature proves the staker (can.did withdraw_evm). */

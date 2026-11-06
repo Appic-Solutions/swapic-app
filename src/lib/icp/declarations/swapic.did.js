@@ -228,6 +228,7 @@ export const idlFactory = ({ IDL }) => {
     'ck_helper' : IDL.Opt(IDL.Text),
   });
   const IcpRouteVia = IDL.Variant({
+    'Hub' : IDL.Record({ 'hub' : IDL.Principal, 'pool' : IDL.Principal }),
     'Icp' : IDL.Principal,
     'Direct' : IDL.Principal,
   });
@@ -326,9 +327,11 @@ export const idlFactory = ({ IDL }) => {
     'Refunding' : IDL.Text,
     'Failed' : IDL.Text,
     'Delivering' : IDL.Null,
+    'CkWithdrawing' : IDL.Null,
     'Paid' : IDL.Null,
     'Pulling' : IDL.Null,
     'Swapping' : IDL.Null,
+    'CkWithdrawn' : IDL.Null,
     'Undone' : IDL.Text,
     'Waiting' : IDL.Null,
     'Signed' : IDL.Nat64,
@@ -350,12 +353,20 @@ export const idlFactory = ({ IDL }) => {
     'terms' : PayoutTerms,
     'kind' : PayoutKind,
     'planned' : IDL.Opt(IDL.Nat),
+    'ck_amount' : IDL.Opt(IDL.Nat),
     'order_id' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'ck_withdrawal_id' : IDL.Opt(IDL.Nat64),
     'tx_hash' : IDL.Opt(IDL.Vec(IDL.Nat8)),
     'amount' : IDL.Opt(IDL.Nat),
     'received' : IDL.Opt(IDL.Nat),
   });
+  const CkSettings = IDL.Record({
+    'open' : IDL.Bool,
+    'min_network_fee' : IDL.Nat,
+    'ck_swap_fee_allowance' : IDL.Nat,
+  });
   const PayoutSettings = IDL.Record({
+    'ck' : IDL.Opt(CkSettings),
     'min_network_fee' : IDL.Nat,
     'order_wait_s' : IDL.Nat64,
     'cctp_payouts' : IDL.Bool,
@@ -488,6 +499,11 @@ export const idlFactory = ({ IDL }) => {
     'max_proposal_fee_bps' : IDL.Nat16,
   });
   const Result_6 = IDL.Variant({ 'Ok' : PayPayoutOk, 'Err' : IDL.Text });
+  const CkResolution = IDL.Variant({
+    'Delivered' : IDL.Record({ 'tx_hash' : IDL.Vec(IDL.Nat8) }),
+    'Retry' : IDL.Null,
+    'Reimbursed' : IDL.Null,
+  });
   const DepositResolution = IDL.Variant({
     'Refund' : IDL.Null,
     'MarkPaid' : IDL.Record({ 'block' : IDL.Nat64 }),
@@ -501,6 +517,7 @@ export const idlFactory = ({ IDL }) => {
   const PayoutResolution = IDL.Variant({
     'Refund' : IDL.Null,
     'MarkPaid' : IDL.Null,
+    'Retry' : IDL.Null,
   });
   const StakeResolution = IDL.Variant({
     'NotPulled' : IDL.Null,
@@ -667,6 +684,19 @@ export const idlFactory = ({ IDL }) => {
     'status' : PayoutStatus,
   });
   const Result_14 = IDL.Variant({ 'Ok' : SwapFromIcpOk, 'Err' : PoolError });
+  const CkSwapTerms = IDL.Record({
+    'token_in' : IDL.Principal,
+    'dst_chain' : IDL.Nat64,
+    'min_out' : IDL.Nat,
+    'recipient' : IDL.Text,
+    'min_usdc' : IDL.Nat,
+    'from_subaccount' : IDL.Opt(IDL.Vec(IDL.Nat8)),
+    'refund_to' : IDL.Opt(IcpAccount),
+    'deadline_ns' : IDL.Nat64,
+    'amount_in' : IDL.Nat,
+    'token_out' : IDL.Text,
+    'network_fee' : IDL.Nat,
+  });
   const EvmSweepAsset = IDL.Variant({
     'FeeUsdc' : IDL.Null,
     'Native' : IDL.Null,
@@ -814,6 +844,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'rescue_eco_intent' : IDL.Func([IDL.Vec(IDL.Nat8)], [Result_6], []),
+    'resolve_ck_withdrawal' : IDL.Func(
+        [IDL.Nat64, CkResolution],
+        [Result_5],
+        [],
+      ),
     'resolve_deposit' : IDL.Func(
         [IDL.Vec(IDL.Nat8), DepositResolution],
         [Result_5],
@@ -856,6 +891,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'stake_icp' : IDL.Func([StakeIcpArgs], [Result_13], []),
     'swap_from_icp' : IDL.Func([IcpSwapTerms], [Result_14], []),
+    'swap_from_icp_ck' : IDL.Func([CkSwapTerms], [Result_14], []),
     'sweep_evm' : IDL.Func([SweepEvmArgs], [Result_15], []),
     'sweep_icp' : IDL.Func([SweepIcpArgs], [Result_16], []),
     'version' : IDL.Func([], [IDL.Text], ['query']),

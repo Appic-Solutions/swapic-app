@@ -71,6 +71,19 @@ export interface IcpSwapAnswer {
   planned: IcpSwapPlanned;
 }
 
+/** answer/mod.rs IcpCkSwapTermsAnswer: swap_from_icp_ck's argument, sent as is */
+export interface IcpCkSwapTermsAnswer {
+  tokenIn: string; amountIn: string; fromSubaccount: string | null; refundTo: string | null; deadlineNs: string;
+  dstChain: number; recipient: string; tokenOut: string; minOut: string; minUsdc: string; networkFee: string;
+}
+/** answer/mod.rs IcpCkSwapAnswer: the ck minter's route out of ICP. `expectedSale` and `expectedOut` are shown only. */
+export interface IcpCkSwapAnswer {
+  canister: string | null;
+  approve: { ledger: string; spender: string | null; amount: string };
+  terms: IcpCkSwapTermsAnswer;
+  expectedSale: string; expectedOut: string; ledgerFees: string;
+}
+
 /** The Swapic Order as JSON, its memo last (canister golden interface.json `order.value`). `memo` is `0x` on every order but a
  *  pool deposit's; a quoter older than the memo leaves it out, which reads as `0x`. */
 export interface OrderJson {
@@ -108,7 +121,7 @@ export interface Route {
   etaSource: 'measured' | 'quoted' | 'estimate'; warnings: Warning[];
   amountOut: string; amountOutMin: string; amountOutText: string; fees: Fees; userGasUsd?: string;
   executable: boolean;
-  pool?: PoolTerms; shares?: { expected: string; label: string }; icpSwap?: IcpSwapAnswer;
+  pool?: PoolTerms; shares?: { expected: string; label: string }; icpSwap?: IcpSwapAnswer; icpCkSwap?: IcpCkSwapAnswer;
   reason?: string; reasonDetail?: string;
   order?: OrderJson; orderId?: string; envelope?: EnvelopeJson; contracts?: Contracts;
   sign?: SignRequest; tx?: TxRequest; approval?: ApprovalRequest;

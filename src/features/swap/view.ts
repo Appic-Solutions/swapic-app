@@ -19,9 +19,13 @@ export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin):
   return native.held === false ? `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway` : `Just sign, no ${native.symbol} needed`;
 }
 
+/** The ck minter's route takes a network fee out of the swap: at least the canister's floor, in dollars, never a free card. */
+export const networkFeeText = (p: PickedOption): string => `${formatUsd(BigInt(p.route.icpCkSwap?.terms.networkFee ?? '0'))} network fee`;
+
 /** The design's gas row: the user's gas in the source chain's coin. The quote gives it in dollars (`userGasUsd`,
  *  answer/mod.rs:440-443); it is turned into the coin at the coin's price: wei = microUsd * 10^(decimals + 12) / priceE18. */
 export function gasText(p: PickedOption, native: NativeCoin): string {
+  if (p.route.icpCkSwap) return networkFeeText(p);
   if (p.mode === 'icpPull') return 'None';
   if (p.mode === 'gasless') return 'None, Swapic pays it';
   const usd = p.route.userGasUsd;
@@ -62,7 +66,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
   return {
     key: p.key,
     tags: p.tags,
-    gasless: p.mode !== 'userPays',
+    gasless: p.mode !== 'userPays' && !p.route.icpCkSwap,
     durationText: etaText(r.etaSeconds),
     amountOutText: formatAmount(amountOut, ctx.to.decimals),
     minOutText: `${formatAmount(BigInt(r.amountOutMin), ctx.to.decimals)} ${ctx.to.symbol}`,

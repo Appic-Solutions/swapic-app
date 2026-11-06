@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
 import type { UiToken } from '@/components/ui/token-types';
 import { pickOptions } from './options';
-import { etaText, routeView, sumFees } from './view';
+import { etaText, gasText, routeView, sumFees } from './view';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, priceUsd: string | null): UiToken => ({
@@ -41,5 +41,13 @@ describe('routeView', () => {
   it('writes times the way the design does', () => {
     expect(etaText(12)).toBe('12 sec');
     expect(etaText(1200)).toBe('20 min');
+  });
+});
+
+describe('the ckETH minter card', () => {
+  const route = { routeId: 'ckMinter', amountOut: '99310000', amountOutMin: '99310000', fees: { network: '690000', bridge: '0', platform: '0' }, etaSeconds: 330, warnings: [], icpCkSwap: { terms: { networkFee: '670000' } } };
+  it('never says gasless or no fee: the network fee is on the card', () => {
+    const option = { key: 'k', tags: [], mode: 'icpPull', route } as unknown as Parameters<typeof gasText>[0];
+    expect(gasText(option, { symbol: null, decimals: 8, priceUsd: null, held: null } as never)).toBe('$0.67 network fee');
   });
 });

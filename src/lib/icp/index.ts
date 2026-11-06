@@ -18,5 +18,5 @@ export * from './client';
 export * from './errors';
 export * from './accounts';
 export type {
-  PoolError, PoolAccount, IcpAccount, IcpSwapTerms, StakeIcpArgs, WithdrawIcpArgs, EvmWithdrawal, PayoutView, PayoutStatus,
+  PoolError, PoolAccount, IcpAccount, IcpSwapTerms, CkSwapTerms, StakeIcpArgs, WithdrawIcpArgs, EvmWithdrawal, PayoutView, PayoutStatus,
 } from './declarations/swapic.did';

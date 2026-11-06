@@ -22,7 +22,7 @@ export function fakeIcpClient(): IcpClient {
     poolState: async () => ({ open: true, totalAssets: 8_420_550_000n, totalShares: 8_346_065_000_000_000_000_000n, tvlCap: 10_000_000_000n }),
     poolAccount: async () => ({ shares: 1_182_254_000_000_000_000_000n, valueUsdc: 1_192_805_102n }),
     payout: async (id) => ({
-      id, kind: { IcpSwap: null }, planned: [], order_id: [], tx_hash: [], amount: [], received: [],
+      id, kind: { IcpSwap: null }, planned: [], ck_amount: [], ck_withdrawal_id: [], order_id: [], tx_hash: [], amount: [], received: [],
       terms: { dst_chain: 8453n, min_out: 601_110_000n, recipient: '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC', deadline_ns: 0n, token_out: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
       status: payoutStatus++ < 2 ? { Signed: 7n } : { Paid: null },
     }),
@@ -31,6 +31,7 @@ export function fakeIcpClient(): IcpClient {
     allowance: async () => 0n,
     approve: async () => 2_184_903n,
     swapFromIcp: async () => ({ id: 41n, status: { Signed: 7n } }),
+    swapFromIcpCk: async () => ({ id: 42n, status: { CkWithdrawn: null } }),
     stakeIcp: async () => ({ shares: 495_000_000_000_000_000_000n }),
     withdrawIcp: async (_c, a) => ({ paid: a.usdc - 10_000n, burned: a.max_shares }),
     withdrawEvm: async () => ({ id: 41n, burned: 594_692_626_966_172_043_394n }),
