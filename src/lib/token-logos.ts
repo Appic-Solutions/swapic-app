@@ -53,6 +53,26 @@ const TOKEN_LOGOS: Record<string, string> = {
   'eip155:130|0xc02fe7317d4eb8753a02c35fe019786854a92001': `${T}/wsteth.svg`,
 };
 
+/** Tokens whose list logo shows badly, ours used even where the list gives one: CoinMarketCap's
+ *  WETH runs its artwork to the edge, so the round crop cuts its ring off. */
+const OWN_FIRST: Record<string, string> = Object.fromEntries(
+  [
+    'eip155:1|0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+    'eip155:8453|0x4200000000000000000000000000000000000006',
+    'eip155:10|0x4200000000000000000000000000000000000006',
+    'eip155:130|0x4200000000000000000000000000000000000006',
+    'eip155:480|0x4200000000000000000000000000000000000006',
+    'eip155:42161|0x82af49447d8a07e3bd95bd0d56f35241523fbab1',
+    'eip155:137|0x7ceb23fd6bc0add59e62ac25578270cff1b9f619',
+    'eip155:9745|0x9895d81bb462a195b4922ed7de0e3acd007c32cb',
+  ].map((key) => [key, `${T}/weth.png`]),
+);
+
+/** The app's own logo where it is preferred over the list's, or undefined. */
+export function ownLogo(chain: string, address: string): string | undefined {
+  return OWN_FIRST[`${chain}|${chain.startsWith('eip155:') ? address.toLowerCase() : address}`];
+}
+
 /** The app's own logo for a token the list gives none, or undefined. */
 export function fallbackLogo(chain: string, address: string): string | undefined {
   if (address === NATIVE || address === 'native') return NATIVE_LOGOS[chain];
@@ -60,4 +80,4 @@ export function fallbackLogo(chain: string, address: string): string | undefined
 }
 
 /** Every file the fallback names (the test checks each exists). */
-export const FALLBACK_FILES: readonly string[] = [...new Set([...Object.values(NATIVE_LOGOS), ...Object.values(TOKEN_LOGOS)])];
+export const FALLBACK_FILES: readonly string[] = [...new Set([...Object.values(NATIVE_LOGOS), ...Object.values(TOKEN_LOGOS), ...Object.values(OWN_FIRST)])];

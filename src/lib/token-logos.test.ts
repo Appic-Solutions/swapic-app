@@ -19,3 +19,12 @@ describe('the token logo fallback', () => {
     expect(FALLBACK_FILES.filter((f) => !existsSync(`public${f}`))).toEqual([]);
   });
 });
+
+describe('WETH', () => {
+  it('uses the app\'s own logo on every chain, over the list\'s, since the list\'s is cut off by the round crop', async () => {
+    const { ownLogo } = await import('./token-logos');
+    expect(ownLogo('eip155:8453', '0x4200000000000000000000000000000000000006')).toBe('/images/tokens/weth.png');
+    expect(ownLogo('eip155:42161', '0x82AF49447D8A07E3BD95BD0D56F35241523FBAB1')).toBe('/images/tokens/weth.png');
+    expect(ownLogo('eip155:8453', '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913')).toBeUndefined();
+  });
+});

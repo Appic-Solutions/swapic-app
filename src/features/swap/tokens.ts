@@ -7,7 +7,7 @@ import { icpClient } from '@/lib/icp';
 import { chainLogo, chainName, chainNumber, isKnownChain } from '@/lib/explorer';
 import { formatListAmount, formatListUsd, usdMicro } from '@/lib/money';
 import { chainPlace } from '@/lib/chains';
-import { fallbackLogo } from '@/lib/token-logos';
+import { fallbackLogo, ownLogo } from '@/lib/token-logos';
 import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
 import { useWallets } from '@/lib/wallets/store';
 import type { UiToken } from '@/components/ui/token-types';
@@ -19,7 +19,7 @@ export function toUiToken(t: TokenAnswer, chain: ChainInfo, balance?: bigint): U
     key: `${chain.chainId}|${address}`, chain: chain.chainId, chainId: chainNumber(chain.chainId),
     chainName: chainName(chain.chainId), chainLogo: chainLogo(chain.chainId), chain_type: icp ? 'ICP' : 'EVM',
     address, ...(icp ? { canisterId: address } : { contractAddress: address }),
-    symbol: t.symbol, name: t.name, logo: t.logo ?? fallbackLogo(chain.chainId, address) ?? '/images/logo/placeholder.png', decimals: t.decimals,
+    symbol: t.symbol, name: t.name, logo: ownLogo(chain.chainId, address) ?? t.logo ?? fallbackLogo(chain.chainId, address) ?? '/images/logo/placeholder.png', decimals: t.decimals,
     priceUsd: t.priceUsd ?? null, verified: t.verified,
   };
   return balance === undefined ? ui : withBalance(ui, balance);
