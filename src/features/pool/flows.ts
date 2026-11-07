@@ -66,7 +66,7 @@ import { captureFailure } from '@/lib/sentry';
 import type { EvmSigner } from '@/lib/wallets';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
 import { isUserRejection } from '@/lib/wallets/rejection';
-import { sendCheckedEvm, type ExecDeps, type ExecOutcome } from '@/features/swap/execute';
+import { sendCheckedEvm, type ExecDeps, type ExecInput, type ExecOutcome } from '@/features/swap/execute';
 import { verifyEvmRoute } from '@/features/swap/guards/evm';
 import { loadGuardContext, type GuardContext } from '@/features/swap/guards/context';
 import type { CheckedEvmRoute } from '@/features/swap/guards/evm';
@@ -151,7 +151,7 @@ export async function executeStakeEvm(
     from: UiToken; amount: bigint; evm: EvmSigner; shownAdded: bigint; onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
     /** Review stake showed an approval step (or not): a fresh route that differs comes back as new terms, never signed. */
     shownApproval?: boolean;
-  },
+  } & Pick<ExecInput, 'onSent' | 'onApproval'>,
   d: ExecDeps & { postStakeQuote: typeof postStakeQuote },
 ): Promise<ExecOutcome> {
   let q: StakeQuote;

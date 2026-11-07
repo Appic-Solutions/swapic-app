@@ -7,6 +7,10 @@ import { clockText, etaLeftText, short, tokenAmountText, tookText } from './form
 export { short, tokenAmountText, tookText, clockText, etaLeftText } from './format';
 export { dayText } from './format';
 
+/** A wallet step whose transaction was sent and is mining: the network is awaited, the wallet asks nothing more. */
+export const APPROVING = 'Approving, waiting for the network';
+export const WAITING_CONFIRMATION = 'Waiting for confirmation';
+
 export function refundLine(r: Refund): string {
   if (r.chain === null) return 'Your stake is back';
   const where = `to ${short(r.receiver)} on ${chainName(r.chain)}`;
@@ -62,10 +66,12 @@ const amountOf = (r: Refund | null) =>
   r && r.amount !== null && r.decimals !== null && r.symbol !== null ? `${tokenAmountText(BigInt(r.amount), r.decimals, r.symbol)} ${r.symbol}` : null;
 
 /** The one sentence that says what happened, from the closed word only (a row's `reasonCode`, contract 5.7, 5.14); an
- *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. `notSent` on a you pay gas swap (Your swap,
- *  an order never seen starting by its deadline) names the token kept: its approval may have cost gas, so "nothing left
- *  your wallet" and "no fee" could be untrue there. */
+ *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. A you pay gas swap that never ran (`notSent`
+ *  on Your swap, an order never seen starting by its deadline; `didntStart` on History and Your swap) names the token kept:
+ *  its approval, or its own transaction that failed, cost gas, so "nothing left your wallet" and "no fee was charged"
+ *  would be untrue there. Swapic's own fee is none. */
 export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null; gasMode?: 'gasless' | 'userPays' | null; paySymbol?: string | null }): string | null {
+  if (e === 'didntStart' && x.gasMode === 'userPays') return `Your ${x.paySymbol ?? 'tokens'} never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.`;
   if (e === 'didntStart') return 'Nothing left your wallet and no fee was charged. Get a new quote to try again.';
   if (e === 'notSent' && x.gasMode === 'userPays') return `Your swap wasn't confirmed on the network in time. Your ${x.paySymbol ?? 'tokens'} never left your wallet.`;
   if (e === 'notSent') return "We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.";

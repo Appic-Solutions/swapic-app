@@ -66,6 +66,9 @@ describe('status words', () => {
     expect(endSentence('refunded', { reasonCode: null, refund: { ...r, chain: null }, toSymbol: null })).toBe('Your stake is back.');
     expect(endSentence('deliveredAsUsdc', { reasonCode: 'deliveredAsUsdc', refund: r, toSymbol: 'WBTC' })).toBe("WBTC couldn't be bought on Polygon, so you got 119.80 USDC instead.");
     expect(endSentence('didntStart', { reasonCode: null, refund: null, toSymbol: null })).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
+    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'gasless', paySymbol: 'USDC' })).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
+    // you pay gas: its gas was spent, only Swapic's fee is none
+    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'userPays', paySymbol: 'USDC' })).toBe('Your USDC never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
     expect(endSentence('notSent', { reasonCode: 'expired', refund: null, toSymbol: null })).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
     // you pay gas: an approval may have cost gas, so it names the token kept instead of "nothing" and "no fee"
     expect(endSentence('notSent', { reasonCode: 'expired', refund: null, toSymbol: 'USDC', gasMode: 'userPays', paySymbol: 'USDT' })).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");

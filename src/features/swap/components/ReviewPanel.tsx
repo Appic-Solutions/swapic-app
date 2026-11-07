@@ -2,7 +2,8 @@
 // Review swap: moved from the design's review-screens.tsx ReviewPanel (approved with its motion, Jeff 2026-10-29), taking
 // reviewData's strings (no Number, no rounding here). Inside the Swap page's in place panel (MorphFrame) its parts fade in,
 // the picked route card glides in from the Swap list (shared layoutId) and later shrinks into the status circle; the
-// button breathes a soft glow while the wallet asks ("Confirm in your wallet"), and the waiting step lights up.
+// button breathes a soft glow while the wallet asks ("Confirm in your wallet"), and the waiting step lights up; once a
+// transaction was sent they say the network is awaited instead ("Approving, waiting for the network", "Confirming").
 import * as React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Avatar } from '@/components/ui/avatar';
@@ -17,6 +18,7 @@ import type { SideView, StepView } from '@/components/orders/types';
 import { ArrowDownIcon } from '@/components/icons';
 import { ConfirmButton, MotionCard, routeLayoutId } from '@/components/motion/parts';
 import { short } from '@/lib/copy/format';
+import { APPROVING } from '@/lib/copy/status';
 import { chainLogo } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
 import { fade, rise } from '@/lib/motion';
@@ -44,6 +46,8 @@ export interface ReviewPanelProps {
   waiting?: boolean;
   /** The wallet sent the swap and the chain is awaited: the waiting step and the button say so instead. */
   confirming?: boolean;
+  /** The wallet sent an approve and its receipt is awaited: the waiting step and the button say the network is awaited. */
+  approving?: boolean;
   /** The person cancelled in the wallet: a short line under the button. */
   cancelled?: boolean;
   /** The route card's element (Your swap shrinks a copy of it into the status circle). */
@@ -56,12 +60,12 @@ export interface ReviewPanelProps {
   onSign: () => void;
 }
 
-export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, confirming, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
+export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, confirming, approving, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
   const [copied, copy] = useCopied();
   const { recipient } = data;
   const steps: StepView[] = data.steps.map((s, i) => {
     const state = states?.[i] ?? 'todo';
-    return { key: String(i), label: s.label, sub: state === 'wait' ? (confirming ? `Confirming on ${pay.chain}` : 'Check your wallet') : s.sub, state };
+    return { key: String(i), label: s.label, sub: state === 'wait' ? (confirming ? `Confirming on ${pay.chain}` : approving ? APPROVING : 'Check your wallet') : s.sub, state };
   });
   return (
     <TwoColumn
@@ -107,7 +111,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           {note && <motion.div variants={fade}>{note}</motion.div>}
         </>
       }
-      action={<ConfirmButton label={button ?? data.button} waiting={waiting} waitingLabel={confirming ? 'Confirming your swap' : undefined} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
+      action={<ConfirmButton label={button ?? data.button} waiting={waiting} waitingLabel={confirming ? 'Confirming your swap' : approving ? APPROVING : undefined} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
     />
   );
 }

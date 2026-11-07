@@ -103,6 +103,18 @@ describe('executeSwap, EVM', () => {
     expect(approved(input)).toEqual([[spender, 0n], [spender, maxUint256]]);
     expect((input.onStep as ReturnType<typeof vi.fn>).mock.calls).toEqual([[0, 'wait'], [0, 'done'], [1, 'wait'], [1, 'done']]);
   });
+  it('an approve says when the wallet asks and when its transaction waits for the network, twice for a token set to 0 first', async () => {
+    const { deps, input, route } = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    route.sign!.approval!.resetFirst = true;
+    const order: string[] = [];
+    input.onApproval = vi.fn((i: number, on: 'wallet' | 'network') => { order.push(`${on}:${i}`); });
+    input.evm = signer({
+      sendTransaction: vi.fn(async () => { order.push('send'); return `0x${'cd'.repeat(32)}` as const; }),
+      waitForReceipt: vi.fn(async () => { order.push('receipt'); return 'success' as const; }),
+    });
+    expect((await executeSwap(input, deps)).kind).toBe('started');
+    expect(order).toEqual(['wallet:0', 'send', 'network:0', 'receipt', 'wallet:0', 'send', 'network:0', 'receipt']);
+  });
   it('a clear that does not land stops there, nothing approved or signed', async () => {
     const { deps, input, route } = setup('pol-wbtc-to-arb-usdc', 'gasless');
     route.sign!.approval!.resetFirst = true;

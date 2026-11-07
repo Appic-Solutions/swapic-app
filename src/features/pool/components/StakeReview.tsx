@@ -4,8 +4,9 @@
 // wallet steps ahead. Every number is the checked one (review.ts). Confirm stake runs the existing flow: from an EVM chain
 // executeStakeEvm (a fresh quote and a fresh check; terms worse than shown, or other wallet steps, come back as a new price
 // and nothing is signed), from ICP executeStakeIcp (approve the ckUSDC, then confirm). While the wallet asks, the button
-// reads "Confirm in your wallet" with the soft glow and the step checks in as the wallet answers; a "no" brings the button
-// back with "You cancelled in your wallet.". Once it has gone in, a short hold, then Your stake.
+// reads "Confirm in your wallet" with the soft glow and the step checks in as the wallet answers; once an EVM transaction
+// was sent it reads what the network is doing instead ("Approving, waiting for the network", "Waiting for confirmation");
+// a "no" brings the button back with "You cancelled in your wallet.". Once it has gone in, a short hold, then Your stake.
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
@@ -21,6 +22,7 @@ import { chainLogo } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { MS, fade } from '@/lib/motion';
 import { useEvmSigner, useIcpCaller } from '@/lib/wallets';
+import { APPROVING, WAITING_CONFIRMATION } from '@/lib/copy/status';
 import type { ExecOutcome } from '@/features/swap/execute';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
@@ -68,6 +70,8 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
   const [approval, setApproval] = React.useState(start.evm?.approval ?? false);
   const [wasAdded, setWasAdded] = React.useState<string | null>(null);
   const [states, setStates] = React.useState<StepView['state'][] | undefined>(undefined);
+  // an EVM transaction was sent and its receipt is awaited: the approve's, or the stake's own
+  const [mining, setMining] = React.useState<'approve' | 'stake' | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [cancelled, setCancelled] = React.useState(false);
   const [blocked, setBlocked] = React.useState(false);
@@ -81,6 +85,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
   const after = (out: ExecOutcome | StakeLanding) => {
     setBusy(false);
     setResume(null);
+    setMining(null);
     if (out.kind === 'started' || out.kind === 'landing') {
       // it has gone in (or is on its way): a short hold for the last check to draw, then Your stake (nothing waits on this)
       setBusy(true);
@@ -134,6 +139,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
     times.current = { signedAt: Date.now(), done: [] };
     const onStep = (i: number, st: 'wait' | 'done' | 'fail') => {
       if (st === 'done') times.current.done[i] = Date.now();
+      if (st !== 'wait') setMining(null);
       setStates((s) => (s ?? review.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x)));
     };
     if (icp) {
@@ -143,12 +149,17 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
     }
     if (!signer) { setBusy(false); return; }
     after(await executeStakeEvm(
-      { from: start.from, amount: start.amount, evm: signer, shownAdded: review.added, shownApproval: approval, onStep },
+      {
+        from: start.from, amount: start.amount, evm: signer, shownAdded: review.added, shownApproval: approval, onStep,
+        onApproval: (_, on) => setMining(on === 'network' ? 'approve' : null),
+        onSent: () => setMining('stake'),
+      },
       { getQuote, getOrders, submitGasless, postStakeQuote, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
     ));
   };
 
-  const steps = walletSteps(review.steps, states);
+  const minedText = mining === 'approve' ? APPROVING : mining === 'stake' ? WAITING_CONFIRMATION : undefined;
+  const steps = walletSteps(review.steps, states, minedText);
   const waiting = busy && !!states?.some((s) => s === 'wait');
   const label = blocked ? 'Confirm stake' : wasAdded ? 'Accept new price' : resume ? 'Try again' : busy && !waiting ? undefined : 'Confirm stake';
   return (
@@ -183,7 +194,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
           </motion.div>
         </>
       }
-      action={<ConfirmButton label={label} waiting={waiting} cancelled={cancelled} disabled={blocked} onClick={() => void sign()} />}
+      action={<ConfirmButton label={label} waiting={waiting} waitingLabel={minedText} cancelled={cancelled} disabled={blocked} onClick={() => void sign()} />}
     />
   );
 }

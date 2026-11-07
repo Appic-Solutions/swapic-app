@@ -90,6 +90,8 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const sentTx = React.useRef<{ tx: string; atMs: number } | null>(null);
   // the wallet sent the swap: the review waits on the chain now ("Confirming"), not on the wallet
   const [confirming, setConfirming] = React.useState(false);
+  // an approve was sent and waits for the network, not for the wallet
+  const [approving, setApproving] = React.useState(false);
   const [glide, setGlide] = React.useState(false);
   const [run, setRun] = React.useState(0);
   // The review's route card: Your swap shrinks a copy of it into the status circle.
@@ -131,6 +133,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     setBusy(false);
     setResume(null);
     setConfirming(false);
+    setApproving(false);
     if (out.kind === 'started') {
       // a short hold for the last check to draw, then Your swap (the swap has started: nothing waits on this)
       setStarted(true);
@@ -232,8 +235,9 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
       {
         query: rv.query, pick: pickOf(rv.option), shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
         evm: signer, icpCaller: caller,
-        onStep: (i, st) => setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))),
+        onStep: (i, st) => { if (st !== 'wait') setApproving(false); setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))); },
         onSent: (_, tx) => { sentTx.current = { tx, atMs: Date.now() }; setConfirming(true); },
+        onApproval: (_, on) => setApproving(on === 'network'),
         onNote: (text) => setNote({ tone: 'blue', text }),
       },
       { getQuote, getOrders, submitGasless, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
@@ -244,6 +248,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const toSwap = (fresh: boolean) => {
     setStates(undefined);
     setConfirming(false);
+    setApproving(false);
     setCancelled(false);
     setNote(null);
     setResume(null);
@@ -288,7 +293,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
         ) : v === 'review' && rv ? (
           <ReviewPanel
             data={rv.data} pay={sideOf(rv.from, rv.amountIn)} get={sideOf(rv.to, rv.data.min)} toToken={{ symbol: rv.to.symbol, logo: rv.to.logo }}
-            states={states} waiting={waiting || (busy && !note)} confirming={confirming} cancelled={cancelled} routeRef={routeRef}
+            states={states} waiting={waiting || (busy && !note)} confirming={confirming} approving={approving} cancelled={cancelled} routeRef={routeRef}
             wasMinText={rv.wasMinText}
             disabled={waitUntil !== null || !rv.named || rv.data.blocked}
             button={waitUntil !== null ? 'Try again in a minute' : rv.wasMinText ? 'Accept new price' : resume ? 'Try again' : undefined}

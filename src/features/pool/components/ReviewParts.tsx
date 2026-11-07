@@ -62,9 +62,10 @@ export function WalletRow({ k, icp, address, logo }: { k: string; icp: boolean; 
   );
 }
 
-/** The wallet steps with their state; the open one says "Check your wallet". */
-export const walletSteps = (steps: WalletStep[], states?: StepView['state'][]): StepView[] =>
-  steps.map((s, i) => { const state = states?.[i] ?? 'todo'; return { key: `w${i}`, label: s.label, sub: state === 'wait' ? 'Check your wallet' : s.sub, state }; });
+/** The wallet steps with their state; the open one says "Check your wallet", or `waiting` once its transaction was sent
+ *  and the network is awaited. */
+export const walletSteps = (steps: WalletStep[], states?: StepView['state'][], waiting?: string): StepView[] =>
+  steps.map((s, i) => { const state = states?.[i] ?? 'todo'; return { key: `w${i}`, label: s.label, sub: state === 'wait' ? waiting ?? 'Check your wallet' : s.sub, state }; });
 
 /** "In your wallet": the steps ahead, numbered; each checks in as the wallet answers. */
 export function WalletStepsCard({ steps }: { steps: StepView[] }) {

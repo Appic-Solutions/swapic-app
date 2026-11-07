@@ -78,7 +78,8 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
       : null,
     refundLine: rf ? refundLine(rf) : null,
     // the closed word only (contract 5.7 `reasonCode`); the backend's own `reason` text may name a rail and is never read
-    reason: endSentence(ending, { reasonCode: r.reasonCode, refund: rf, toSymbol: r.to.symbol }),
+    // who paid gas decides what a swap that never ran cost: a you pay gas one spent gas, never a Swapic fee
+    reason: endSentence(ending, { reasonCode: r.reasonCode, refund: rf, toSymbol: r.to.symbol, gasMode: r.gasMode, paySymbol: r.from.symbol }),
     gas: r.gasMode === 'gasless' ? 'Gasless' : r.gasMode === 'userPays' ? 'You paid gas' : 'No gas',
     feeText: neverRan(ending) ? 'None' : r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
     payer: r.from.wallet, recipient: r.to.wallet, direction: r.direction ?? null, createdAt: r.createdAt, endedAt: r.endedAt,

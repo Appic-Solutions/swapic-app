@@ -90,6 +90,14 @@ describe('endFlags and endText, one reading for the row, the Scanner and the ord
     expect(endFlags(at({ outcome: 'failed', stage: 'failed', refund: null, reasonCode: 'other' })).stopped).toBe(true);
     expect(endText(at({ outcome: 'pending', stage: 'arrived', onHold: true }))).toBe('On hold');
   });
+  it('a swap that never ran says what it cost: a you pay gas one spent gas, so never "no fee was charged"', () => {
+    const failed = { outcome: 'failed', stage: 'failed', refund: null, reasonCode: 'other' };
+    const paid = at({ ...failed, gasMode: 'userPays' });
+    expect(paid.reason).toBe('Your USDT never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
+    expect(paid.reason).not.toMatch(/no fee was charged/);
+    expect(paid.feeText).toBe('None');
+    expect(at({ ...failed, gasMode: 'gasless' }).reason).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
+  });
   it('a moving order reads its stage', () => {
     const v = orderView(c('orders-page.json').orders[0], 1_793_397_300, logo);
     expect(endFlags(v).live).toBe(true);

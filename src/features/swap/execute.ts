@@ -53,6 +53,9 @@ export interface ExecInput {
   onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
   /** The wallet sent the step's transaction (its hash): from here the chain is awaited, not the wallet. */
   onSent?(index: number, hash: Hex): void;
+  /** An approve step's own moments: the wallet asks for it ('wallet'), or it was sent and its receipt is awaited
+   *  ('network'). A token that is set to 0 first goes through both twice. */
+  onApproval?(index: number, on: 'wallet' | 'network'): void;
   onNote?(text: string): void;
 }
 
@@ -153,7 +156,7 @@ const covered = (made: CheckedEvmRoute['approval'], wanted: NonNullable<CheckedE
  * and a minute, it never ran.
  */
 export async function sendCheckedEvm(
-  first: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep' | 'onSent'>,
+  first: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep' | 'onSent' | 'onApproval'>,
   refresh?: () => Promise<Refreshed | ExecOutcome>,
 ): Promise<ExecOutcome> {
   let checked = first;
@@ -167,10 +170,12 @@ export async function sendCheckedEvm(
       i.onStep(step, 'wait');
       // a token that refuses an approve over a live allowance has it cleared first, each receipt awaited
       for (const amount of a.resetFirst ? [0n, a.amount] : [a.amount]) {
+        i.onApproval?.(step, 'wallet');
         const hash = await evm.sendTransaction({
           chainId, to: a.token, value: 0n,
           data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [a.spender, amount] }),
         });
+        i.onApproval?.(step, 'network');
         if ((await evm.waitForReceipt(chainId, hash)) !== 'success') { i.onStep(step, 'fail'); return failed('The approval did not go through. Try again.'); }
       }
       approved = a;
