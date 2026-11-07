@@ -28,3 +28,26 @@ describe('WETH', () => {
     expect(ownLogo('eip155:8453', '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913')).toBeUndefined();
   });
 });
+
+describe('an order\'s native coin', () => {
+  it('is the chain\'s own coin when the order writes it as 0xEeee…EEeE, as Swapic\'s orders do', () => {
+    expect(fallbackLogo('eip155:137', '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE')).toBe('/images/logo/chains-logos/polygon.svg');
+    expect(fallbackLogo('eip155:143', '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee')).toBe('/images/tokens/mon.svg');
+  });
+});
+
+describe('a logo from the quoter\'s list, by address', () => {
+  it('takes the listed token\'s logo, the native coin\'s for 0xEeee…, and nothing for a token not listed', async () => {
+    const { logoInList } = await import('./token-logos');
+    const answer = {
+      chain: 'eip155:137',
+      tokens: [
+        { address: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', symbol: 'WPOL', name: 'Wrapped POL', decimals: 18, logo: 'https://s2.example/wpol.png', verified: true, class: 'listed' },
+        { address: '0x0000000000000000000000000000000000000000', symbol: 'POL', name: 'POL', decimals: 18, logo: 'https://s2.example/pol.png', verified: true, class: 'native' },
+      ],
+    };
+    expect(logoInList(answer, '0x0D500B1d8E8eF31E21C99d1Db9A6444d3ADf1270')).toBe('https://s2.example/wpol.png');
+    expect(logoInList(answer, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE')).toBe('https://s2.example/pol.png');
+    expect(logoInList(answer, '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913')).toBeNull();
+  });
+});

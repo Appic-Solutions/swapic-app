@@ -5,8 +5,12 @@
 // brand pages (MON, XPL), Unit's site (UBTC, UETH), the Superchain token list (WETH, DAI, wstETH), and the app's own
 // chain logos for ETH, POL and HYPE.
 import { ICP_CHAIN } from '@/config';
+import type { TokensAnswer } from '@/lib/api';
 
 const NATIVE = '0x0000000000000000000000000000000000000000';
+/** How Swapic's orders write a chain's own coin (the token list writes it as the zero address). */
+const ORDER_NATIVE = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const isNative = (address: string) => address === NATIVE || address === 'native' || address.toLowerCase() === ORDER_NATIVE;
 const T = '/images/tokens';
 const CHAIN = '/images/logo/chains-logos';
 
@@ -75,9 +79,15 @@ export function ownLogo(chain: string, address: string): string | undefined {
 
 /** The app's own logo for a token the list gives none, or undefined. */
 export function fallbackLogo(chain: string, address: string): string | undefined {
-  if (address === NATIVE || address === 'native') return NATIVE_LOGOS[chain];
+  if (isNative(address)) return NATIVE_LOGOS[chain];
   return TOKEN_LOGOS[`${chain}|${chain.startsWith('eip155:') ? address.toLowerCase() : address}`];
 }
 
+/** A token's logo in the quoter's list for its chain (GET /v2/tokens?q=<address>): the listed token by its address, the
+ *  chain's own coin for an order's 0xEeee…; null when the list holds it with no logo or not at all. */
+export function logoInList(answer: TokensAnswer, address: string): string | null {
+  const want = isNative(address) ? NATIVE : address.toLowerCase();
+  return answer.tokens.find((t) => t.address.toLowerCase() === want)?.logo ?? null;
+}
 /** Every file the fallback names (the test checks each exists). */
 export const FALLBACK_FILES: readonly string[] = [...new Set([...Object.values(NATIVE_LOGOS), ...Object.values(TOKEN_LOGOS), ...Object.values(OWN_FIRST)])];
