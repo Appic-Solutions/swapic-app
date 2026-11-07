@@ -62,9 +62,12 @@ const amountOf = (r: Refund | null) =>
   r && r.amount !== null && r.decimals !== null && r.symbol !== null ? `${tokenAmountText(BigInt(r.amount), r.decimals, r.symbol)} ${r.symbol}` : null;
 
 /** The one sentence that says what happened, from the closed word only (a row's `reasonCode`, contract 5.7, 5.14); an
- *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. */
-export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null }): string | null {
+ *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. `notSent` on a you pay gas swap (Your swap,
+ *  an order never seen starting by its deadline) names the token kept: its approval may have cost gas, so "nothing left
+ *  your wallet" and "no fee" could be untrue there. */
+export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null; gasMode?: 'gasless' | 'userPays' | null; paySymbol?: string | null }): string | null {
   if (e === 'didntStart') return 'Nothing left your wallet and no fee was charged. Get a new quote to try again.';
+  if (e === 'notSent' && x.gasMode === 'userPays') return `Your swap wasn't confirmed on the network in time. Your ${x.paySymbol ?? 'tokens'} never left your wallet.`;
   if (e === 'notSent') return "We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.";
   if (e === 'onHold') return "Your money is safe. We're checking this swap and will finish or refund it.";
   const r = x.refund;

@@ -44,6 +44,8 @@ export interface EvmCheckInput {
 }
 export interface CheckedEvmRoute {
   chainId: number; orderId: Hex; amountIn: bigint; minOut: bigint; plan: Plan;
+  /** The order's deadline, unix seconds: Swapic refuses to run it after this (Swapic.sol _open). */
+  deadline: bigint;
   /** A pool deposit's terms, read from the order's memo and bound to its ref; null for any other order. */
   terms: MemoTerms | null;
   approval: { token: Hex; spender: Hex; amount: bigint; resetFirst: boolean } | null;
@@ -89,10 +91,10 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
 
   if (i.mode === 'gasless') {
     must(!!r.sign && !r.tx, 'gaslessShape');
-    return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, terms, approval: permit2Approval(i, r), sign: checkSign(i, r, o, id, chainId, swapic), tx: null };
+    return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: permit2Approval(i, r), sign: checkSign(i, r, o, id, chainId, swapic), tx: null };
   }
   must(!!r.tx && !r.sign, 'userPaysShape');
-  return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, terms, approval: swapicApproval(i, r, swapic), sign: null, tx: checkTx(i, r, id, chainId, swapic) };
+  return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: swapicApproval(i, r, swapic), sign: null, tx: checkTx(i, r, id, chainId, swapic) };
 }
 
 /** Whether a quoted route may be a card (lead's call, 2026-10-28: decode, or do not offer). With a wallet, a recipient and the

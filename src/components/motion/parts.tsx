@@ -227,7 +227,7 @@ export function DrawCheck({ size = 20, delay = 0, className, still }: { size?: n
  * wallet asks it shows a spinner and "Confirm in your wallet" and breathes a
  * soft blue glow; after a cancel a short line opens under it.
  */
-export function ConfirmButton({ label, waiting, cancelled, disabled, onClick }: { label?: React.ReactNode; waiting?: boolean; cancelled?: boolean; disabled?: boolean; onClick?: () => void }) {
+export function ConfirmButton({ label, waiting, waitingLabel, cancelled, disabled, onClick }: { label?: React.ReactNode; waiting?: boolean; waitingLabel?: React.ReactNode; cancelled?: boolean; disabled?: boolean; onClick?: () => void }) {
   const reduced = useReducedMotion();
   return (
     <div className="w-full">
@@ -241,7 +241,7 @@ export function ConfirmButton({ label, waiting, cancelled, disabled, onClick }: 
           {waiting ? (
             <span className="inline-flex items-center justify-center gap-x-2">
               <span className="w-5"><Spinner width={16} height={16} className="fill-white text-faint" /></span>
-              Confirm in your wallet
+              {waitingLabel ?? 'Confirm in your wallet'}
             </span>
           ) : label}
         </ActionButton>

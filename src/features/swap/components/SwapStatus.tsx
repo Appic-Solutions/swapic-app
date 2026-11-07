@@ -51,7 +51,8 @@ export interface LiveRingProps {
 }
 
 // The route card shrinks into it, the ring fills as the time runs down, then closes (green, or yellow for a refund). On
-// Delivered a check draws in on its edge and a soft glow appears behind it.
+// Delivered a check draws in on its edge and a soft glow appears behind it. Inside: the source chain's logo (Your swap),
+// drawn round at 80 px so any logo stays within the 84 px the stroke leaves.
 export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badge }: LiveRingProps) {
   const closed = phase !== 'progress';
   const tone = refunding && phase === 'progress' ? RING.refunded : RING[phase];
@@ -115,7 +116,7 @@ export function LiveRing({ phase, logo, progress, fillFor, refunding, from, badg
           alt=""
           width={80}
           height={80}
-          className={cn('relative object-contain', badge && logo === SWAPIC_LOGO && 'rounded-full bg-[#0B0B0B] p-4 ring-1 ring-white/20')}
+          className={cn('relative rounded-full object-contain', badge && logo === SWAPIC_LOGO && 'bg-[#0B0B0B] p-4 ring-1 ring-white/20')}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: T.exit }}
