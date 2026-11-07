@@ -33,7 +33,9 @@ export interface EvmSigner {
   ensureChain(chainId: number): Promise<void>;
   signTypedData(td: SignableTypedData): Promise<`0x${string}`>;
   sendTransaction(tx: { chainId: number; to: `0x${string}`; data: `0x${string}`; value: bigint }): Promise<`0x${string}`>;
-  /** The receipt's status as the chain wrote it. With `timeoutMs`, it stops looking then and throws (the caller's limit). */
+  /** The receipt's status as the chain wrote it; a transaction the wallet replaced with other calls (a cancel) reads as
+   *  reverted, since what was sent never ran, and a speed up (the same calls) as its own. With `timeoutMs`, it stops
+   *  looking then and throws (the caller's limit). */
   waitForReceipt(chainId: number, hash: `0x${string}`, timeoutMs?: number): Promise<'success' | 'reverted'>;
   maxFeePerGas(chainId: number): Promise<bigint>;
 }
@@ -62,8 +64,9 @@ export function wagmiSigner(address: `0x${string}`): EvmSigner {
       // reason), so a revert could not be told from a lost answer; no limit unless the caller sets one, as before
       const client = getPublicClient(wagmiConfig, { chainId: chainId as ChainId });
       if (!client) throw new Error('wrongChain');
-      const r = await client.waitForTransactionReceipt({ hash, timeout: timeoutMs ?? 0 });
-      return r.status;
+      let other = false;
+      const r = await client.waitForTransactionReceipt({ hash, timeout: timeoutMs ?? 0, onReplaced: (x) => { other = x.reason !== 'repriced'; } });
+      return other ? 'reverted' : r.status;
     },
     async maxFeePerGas(chainId) {
       const f = await estimateFeesPerGas(wagmiConfig, { chainId: chainId as ChainId });
