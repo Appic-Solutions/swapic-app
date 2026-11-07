@@ -20,8 +20,9 @@ describe('routeView', () => {
     expect(g.usdOutText).toBe('$6.20');
     // the least the user receives: the quote's amountOutMin (5946 sats) less the cushion (2 sats)
     expect(g.minOutText).toBe('0.00005944 WBTC');
-    // Review swap passes the minimum it keeps on screen
-    expect(routeView(gasless!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth, min: 5_945n }).minOutText).toBe('0.00005945 WBTC');
+    // a stable coin's minimum in its own format, two decimals, as Review swap's line shows it
+    const toUsdc = { ...gasless!, route: { ...gasless!.route, amountOutMin: '106946536' } };
+    expect(routeView(toUsdc, { from: tok('WBTC', 8, '103750'), to: tok('USDC', 6, '1'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth }).minOutText).toBe('106.89 USDC');
     const p = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
     expect(p.gasless).toBe(false);
     // the design's native amount: userGasUsd 0.016821 at $3,920.10 an ETH is 0.00000429 ETH

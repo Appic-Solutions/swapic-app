@@ -196,8 +196,8 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
       const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: cur.query.payer, recipient: cur.query.recipient, guard });
       const out = reviewRefresh(cur.data.min, namedOption(quote, pickOf(cur.option), accept));
       if (out.kind === 'quiet') {
-        // the minimum on screen stays while the fresh route still pays it (a few units under the last quote are no news)
-        const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient, kept: cur.data.min });
+        // the minimum on screen follows the fresh quote, up or down: its cushion stands against the latest quote
+        const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
         // the numbers on screen are what a signature binds (after a new price not yet accepted, the old minimum stays bound)
         setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, named: true, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
         if (!cur.named) setNote(null);

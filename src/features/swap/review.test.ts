@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
-import { pickOptions } from './options';
-import { minOutOf, reviewData, reviewRefresh, shownMin } from './review';
+import { cushioned, pickOptions } from './options';
+import { minOutOf, reviewData, reviewRefresh } from './review';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, chain: string, address: string) => ({ key: '', chain, chainId: Number(chain.split(':')[1]), chainName: '', chainLogo: '', chain_type: 'EVM' as const, address, symbol, name: symbol, logo: '', decimals, priceUsd: null, verified: true });
@@ -53,33 +53,39 @@ describe('reviewData', () => {
 describe('the cushioned minimum (the price moved only below what was shown)', () => {
   const [gasless] = pickOptions(q, { indicative: false });
   const withMin = (min: bigint) => ({ ...gasless!, route: { ...gasless!.route, amountOutMin: min.toString() } });
+  const usdc = tok('USDC', 6, 'eip155:137', '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359');
+  const review = (min: bigint) => reviewData({ option: withMin(min), quote: q, from, to: usdc, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: null }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' } });
   // a 107 USDC payout as measured: the built order's network fee 53,506 against the list's 53,464 micro USDC
   const listMin = 106_946_536n;
-  const builtMin = listMin - (53_506n - 53_464n);
-  const shown = shownMin(withMin(listMin));
-  it('shows 0.05% under the quote\'s own minimum, rounded down, at least 1 unit, never below 0', () => {
+  const shown = review(listMin).min;
+  it('shows 0.05% under the quote\'s own minimum, rounded down; no cushion where 0.05% is under one unit', () => {
     expect(shown).toBe(listMin - 53_473n);
-    expect(shownMin(withMin(1_999n))).toBe(1_998n);
-    expect(shownMin(withMin(4_000n))).toBe(3_998n);
-    expect(shownMin(withMin(1n))).toBe(0n);
-    expect(shownMin(withMin(0n))).toBe(0n);
+    expect(cushioned(4_000n)).toBe(3_998n);
+    expect(cushioned(2_000n)).toBe(1_999n);
+    expect(cushioned(1_999n)).toBe(1_999n);
+    expect(cushioned(1n)).toBe(1n);
+    expect(cushioned(0n)).toBe(0n);
   });
   it('a built order a few dozen units lower is quiet; one under the shown minimum asks again', () => {
-    expect(reviewRefresh(shown, withMin(builtMin)).kind).toBe('quiet');
+    expect(reviewRefresh(shown, withMin(listMin - 42n)).kind).toBe('quiet');
     expect(reviewRefresh(shown, withMin(shown)).kind).toBe('quiet');
     expect(reviewRefresh(shown, withMin(shown - 1n)).kind).toBe('newPrice');
   });
-  it('a quiet refresh keeps the minimum on screen, and raises it only when the fresh route\'s own is higher', () => {
-    expect(shownMin(withMin(builtMin), shown)).toBe(shown);
-    const higher = listMin + 1_000_000n;
-    expect(shownMin(withMin(higher), shown)).toBe(higher - higher / 2000n);
-    // a kept minimum the route no longer pays is never shown
-    expect(shownMin(withMin(shown - 1n), shown)).toBe(shown - 1n - (shown - 1n) / 2000n);
-    const usdc = tok('USDC', 6, 'eip155:137', '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359');
-    const d = reviewData({ option: withMin(builtMin), quote: q, from, to: usdc, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: null }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' }, kept: shown });
-    expect(d.min).toBe(shown);
+  it('a quiet refresh shows the fresh quote\'s own cushioned minimum, up or down, so the cushion stands against it', () => {
+    // a refresh whose least is 7 units above the minimum on screen: quiet, and the screen follows it down
+    const fresh = shown + 7n;
+    expect(reviewRefresh(shown, withMin(fresh)).kind).toBe('quiet');
+    const after = review(fresh).min;
+    expect(after).toBe(fresh - fresh / 2000n);
+    // the order built at confirm, 42 units under that refresh: still quiet against what is on screen now
+    expect(reviewRefresh(after, withMin(fresh - 42n)).kind).toBe('quiet');
+    // a better quote raises it
+    expect(review(listMin + 1_000_000n).min).toBe(listMin + 1_000_000n - (listMin + 1_000_000n) / 2000n);
+  });
+  it('the review shows the minimum once, in one format: its line and the route card\'s row', () => {
+    const d = review(listMin);
     expect(d.minText).toBe('106.89 USDC');
-    expect(d.option.minOutText).toBe('106.893 USDC');
+    expect(d.option.minOutText).toBe(d.minText);
   });
 });
 

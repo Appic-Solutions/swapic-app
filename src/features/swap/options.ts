@@ -7,16 +7,13 @@ export interface PickedOption { key: string; tags: OptionTag[]; mode: 'gasless' 
 export const minOutOf = (o: PickedOption): bigint => (o.route.icpCkSwap ? BigInt(o.route.icpCkSwap.terms.minOut) : o.route.icpSwap ? BigInt(o.route.icpSwap.planned.minOut) : BigInt(o.route.amountOutMin));
 
 /**
- * The "You get at least" on screen (Jeff 2026-11-08): the route's own least less a small cushion, 0.05% of it rounded
- * down and at least 1 unit. The order built when the person confirms can carry a network fee a hair above the list's
- * (53,506 against 53,464 micro USDC, measured), so its least is a few units lower; with the cushion it still pays what
- * the screen promised and goes on quietly. Below 0 it never goes.
+ * The least on screen (Jeff 2026-11-08): the quote's own least less a small cushion, 0.05% of it rounded down. The order
+ * built when the person confirms can carry a network fee a hair above the list's (53,506 against 53,464 micro USDC,
+ * measured), so its least is a few units lower; with the cushion it still pays what the screen promised and goes on
+ * quietly. Where 0.05% is under one unit there is no cushion: the least itself, never "at least 0".
  */
-export function cushioned(min: bigint): bigint {
-  if (min <= 0n) return 0n;
-  const cushion = min / 2000n;
-  return min - (cushion > 0n ? cushion : 1n);
-}
+export const cushioned = (min: bigint): bigint => (min > 0n ? min - min / 2000n : min);
+/** The swap's "You get at least": the route's least, cushioned. Every quote on screen (a refresh too) shows its own. */
 export const shownMinOf = (o: PickedOption): bigint => cushioned(minOutOf(o));
 
 /** Routes priced only: no wallet yet, or (since the quoter builds only a named route) not named. */

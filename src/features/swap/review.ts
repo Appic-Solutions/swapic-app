@@ -23,27 +23,25 @@ export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined)
 }
 
 /**
- * The "You get at least" for a route: its own least less the cushion, or `kept` (the one already on screen) when the route
- * still pays that and its own is not higher. A quiet refresh never lowers the number the person saw.
+ * The review of a route. Its "You get at least" is the route's own least, cushioned (shownMinOf): a quiet refresh shows the
+ * fresh quote's, up or down (at most 0.05% under that quote's least), so the cushion always stands against the latest
+ * quote, and the check at confirm compares against the number on screen at that moment.
  */
-export function shownMin(option: PickedOption, kept?: bigint): bigint {
-  const own = shownMinOf(option);
-  return kept !== undefined && kept > own && kept <= minOutOf(option) ? kept : own;
-}
-
-export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToken; to: UiToken; amountIn: bigint; native: NativeCoin; recipient: { label: string; address: string; chain: string }; kept?: bigint }) {
-  const min = shownMin(i.option, i.kept);
+export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToken; to: UiToken; amountIn: bigint; native: NativeCoin; recipient: { label: string; address: string; chain: string } }) {
+  const min = shownMinOf(i.option);
   const usd = (v: bigint, t: UiToken) => { const m = usdMicro(v, t.decimals, t.priceUsd); return m === null ? null : formatUsd(m); };
   const steps = walletSteps(i.option, i.from, i.amountIn, i.native);
   // the named route can ask an approve the list did not: no coin to pay it, nothing to sign yet
   const blocked = approveState(i.option, i.native) === 'noCoin';
+  const option = routeView(i.option, { from: i.from, to: i.to, amountIn: i.amountIn, sameChainNoUsdc: isSameChainNoUsdc(i.quote, undefined), native: i.native });
   return {
     payText: `${tokenAmountText(i.amountIn, i.from.decimals, i.from.symbol)} ${i.from.symbol}`,
     payUsd: usd(i.amountIn, i.from),
-    minText: `${tokenAmountText(min, i.to.decimals, i.to.symbol)} ${i.to.symbol}`,
+    // one number in one format: the route card's row says the same
+    minText: option.minOutText,
     minUsd: usd(min, i.to),
     min,
-    option: routeView(i.option, { from: i.from, to: i.to, amountIn: i.amountIn, sameChainNoUsdc: isSameChainNoUsdc(i.quote, undefined), native: i.native, min }),
+    option,
     steps,
     recipient: i.recipient,
     refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
