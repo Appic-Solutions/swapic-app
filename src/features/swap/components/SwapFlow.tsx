@@ -123,6 +123,8 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     setStarted(false);
     setStates(undefined);
     setConfirming(false);
+    setApproving(false);
+    sentTx.current = null;
     setCancelled(false);
     setNote(null);
     setResume(null);

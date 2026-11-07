@@ -5,11 +5,13 @@
 // the app did not see either (`deadline` is given only then), never ran: Swapic refuses an order past its deadline. It
 // reads as "Swap didn't start" from then on, the watcher's own failed answer (300 s past the deadline) included, so the
 // words never change under the person.
-// The Steps panel is never empty: while Swapic has not recorded the order yet (no steps answer, an empty one, or no status
-// at all; seen 3 minutes late in a burst) it shows what the app saw of its own send and a row that waits for Swapic.
+// The Steps panel is never empty: while Swapic has not recorded the order yet (no status at all, or one with no stage or
+// only the quote's, and no steps; seen 3 minutes late in a burst) it shows what the app saw of its own send and a row that
+// waits for Swapic. Once the order has any later stage (queued, swapping, ...) only Swapic's own steps are shown.
 import type { OrderStatusAnswer, PayoutAnswer, StepRow, StepsAnswer } from '@/lib/api';
 import type { SideView, StepView } from '@/components/orders/types';
-import { chainLogo, chainName, txLink } from '@/lib/explorer';
+import { ICP_CHAIN } from '@/config';
+import { chainLogo, chainName } from '@/lib/explorer';
 import { formatUsd } from '@/lib/money';
 import { short, tokenAmountText } from '@/lib/copy/format';
 import { clockText, dayText, endingOf, endSentence, endTitle, etaLeftText, neverRan, refundLine, stepViews, tookText, type Ending } from '@/lib/copy/status';
@@ -40,15 +42,19 @@ export const WAITING_FOR_SWAPIC = 'Waiting for Swapic to pick it up';
 /** When it started, over the ring: "Today, 14:05". */
 export const whenText = (ms: number, nowMs: number) => `${dayText(ms, nowMs)}, ${clockText(ms).slice(0, 5)}`;
 
-/** The Steps panel before Swapic has recorded the order: the app's own send, done, then a row that waits for Swapic. */
+/** The Steps panel before Swapic has recorded the order: the app's own send as the row Swapic will write for it (read by
+ *  stepViews like every other row, its words and link the same), done, then a row that waits for Swapic. */
 export function ownSteps(own: OwnSend, gasMode: 'gasless' | 'userPays'): StepView[] {
-  const at = clockText(own.atMs);
-  // a transaction the app sent, or an ICP sale (the canister took the tokens in the app's own call): sent on that chain
-  const sent: StepView = own.tx || own.chain.startsWith('icp:')
-    ? { key: 'own-sent', label: `Sent on ${chainName(own.chain)}`, state: 'done', at, ...(own.tx ? { tx: { text: short(own.tx), href: txLink(own.chain, own.tx) } } : {}) }
-    : { key: 'own-signed', label: gasMode === 'gasless' ? 'Signed, no gas' : 'Signed', state: 'done', at };
-  return [sent, { key: 'own-wait', label: WAITING_FOR_SWAPIC, state: 'wait' }];
+  // a transaction the app sent, or an ICP sale (the canister took the tokens in the app's own call): sent on that chain;
+  // else the signature it handed to Swapic
+  const step = own.tx || own.chain === ICP_CHAIN ? 'sent' : 'signed';
+  const row: StepRow = { step, state: 'done', chain: own.chain, atMs: own.atMs, tx: own.tx, block: null, amount: null, token: null, reason: null };
+  const [sent] = stepViews({ id: '', kind: 'swap', outcome: 'pending', steps: [row] }, { gasMode, refund: null, token: () => null });
+  return [sent!, { key: 'own-wait', label: WAITING_FOR_SWAPIC, state: 'wait' }];
 }
+
+/** Swapic has not recorded the order yet: no stage, or only the quote's (nothing seen sent). Queued or later, it has. */
+const notPickedUp = (stage: string | undefined) => !stage || stage === 'quoted';
 
 export function statusView(i: {
   status: OrderStatusAnswer | PayoutAnswer; steps: StepsAnswer | undefined; pay: SideView; get: SideView; nowSec: number;
@@ -76,8 +82,8 @@ export function statusView(i: {
   const word = rows.find((r) => r.step === 'failed' || r.step === 'refunded')?.reason ?? null;
   const ending = unseen ? 'notSent' : endingOf({ id: i.orderId, outcome: s.outcome, stage: s.stage, reasonCode: word, gasMode, onHold: s.onHold });
   const phase = PHASE[ending];
-  // still moving and nothing recorded yet: the app's own send, never an empty panel
-  const early = phase === 'progress' && tracked.length === 0 && !!i.own;
+  // still moving and not recorded yet: the app's own send, never an empty panel (never once queued or later)
+  const early = phase === 'progress' && tracked.length === 0 && notPickedUp(s.stage) && !!i.own;
   const steps = early ? ownSteps(i.own!, gasMode) : tracked;
   const reason = endSentence(ending, { reasonCode: word, refund, toSymbol: i.get.symbol, gasMode, paySymbol: i.pay.symbol });
   // how long it took, from the chain (tookS, services d5e49ff); before chain times, from the steps' own times

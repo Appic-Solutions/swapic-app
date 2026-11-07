@@ -145,7 +145,8 @@ describe('statusView, before Swapic has recorded the order (the Steps panel is n
     expect(v.phase).toBe('progress');
     expect(v.early).toBe(true);
     expect(v.steps).toEqual([
-      { key: 'own-sent', label: 'Sent on Arbitrum', state: 'done', at: clockText(SENT_AT), tx: { text: short(TX), href: `https://arbiscan.io/tx/${TX}` } },
+      // the row Swapic will write for it, read by stepViews: the same words and link
+      { key: '0-sent', label: 'Sent on Arbitrum', state: 'done', at: clockText(SENT_AT), took: undefined, tx: { text: short(TX), href: `https://arbiscan.io/tx/${TX}` } },
       { key: 'own-wait', label: 'Waiting for Swapic to pick it up', state: 'wait' },
     ]);
     expect(v.when).toBe(whenText(SENT_AT, (Math.floor(SENT_AT / 1000) + 30) * 1000));
@@ -170,5 +171,13 @@ describe('statusView, before Swapic has recorded the order (the Steps panel is n
   it('an order that ended keeps its own steps, and with no send of the app\'s own nothing is made up', () => {
     expect(view({ status: { outcome: 'delivered', stage: 'delivered' } }).early).toBeUndefined();
     expect(view({ own: null }).steps).toEqual([]);
+  });
+  it('only while Swapic has not recorded the order (no stage, or the quote\'s): never once queued or later', () => {
+    expect(view({ status: { stage: undefined } }).early).toBe(true);
+    for (const stage of ['submitted', 'queued', 'swapping', 'bridging', 'minting']) {
+      const v = view({ status: { status: stage, stage } });
+      expect(v.early).toBeUndefined();
+      expect(v.steps.map((x) => x.label)).not.toContain('Waiting for Swapic to pick it up');
+    }
   });
 });
