@@ -16,6 +16,7 @@ import { executeSwap, sendCheckedEvm, walletSteps, type ExecDeps, type ExecInput
 import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, clone, forge, load } from './guards/forge.fixture';
 import { verifyEvmRoute } from './guards/evm';
 import { CKUSDC, ICP_FIXTURE, icpRoute } from './guards/icp.fixture';
+import { cushioned } from './options';
 
 const tok = (q: Quote, side: 'fromToken' | 'toToken', chain: string): UiToken => ({
   key: '', chain, chainId: Number(chain.split(':')[1]), chainName: '', chainLogo: '', chain_type: 'EVM', address: q[side].address.toLowerCase(),
@@ -159,6 +160,21 @@ describe('executeSwap, EVM', () => {
     const { input, deps } = setup('arb-usdc-to-pol-wbtc', 'gasless', { input: { shownMin: 999_999n } });
     expect((await executeSwap(input, deps)).kind).toBe('newPrice');
     expect(input.evm!.signTypedData).not.toHaveBeenCalled();
+  });
+  it('a built order a few dozen units under the list quote goes on quietly while it pays the cushioned minimum shown', async () => {
+    // the list quote's least was 42 micro USDC higher: its network fee 53,464 against the built order's 53,506 (measured)
+    const a = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    const built = BigInt(a.route.amountOutMin);
+    a.input.shownMin = cushioned(built + 42n);
+    expect(a.input.shownMin).toBeLessThan(built);
+    expect((await executeSwap(a.input, a.deps)).kind).toBe('started');
+    expect(a.input.evm!.signTypedData).toHaveBeenCalled();
+    // one unit under the minimum on screen asks again, nothing signed
+    const b = setup('pol-wbtc-to-arb-usdc', 'gasless');
+    b.input.shownMin = built + 1n;
+    expect((await executeSwap(b.input, b.deps)).kind).toBe('newPrice');
+    expect(b.input.evm!.signTypedData).not.toHaveBeenCalled();
+    expect(b.input.evm!.sendTransaction).not.toHaveBeenCalled();
   });
   it('a wallet "no" returns rejected; a check that fails at signing time returns the guard sentence', async () => {
     const a = setup('arb-usdc-to-pol-wbtc', 'gasless');

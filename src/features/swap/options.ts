@@ -6,6 +6,19 @@ export interface PickedOption { key: string; tags: OptionTag[]; mode: 'gasless' 
 /** The least the route pays: what the canister's door takes on a route out of ICP, else the quote's. */
 export const minOutOf = (o: PickedOption): bigint => (o.route.icpCkSwap ? BigInt(o.route.icpCkSwap.terms.minOut) : o.route.icpSwap ? BigInt(o.route.icpSwap.planned.minOut) : BigInt(o.route.amountOutMin));
 
+/**
+ * The "You get at least" on screen (Jeff 2026-11-08): the route's own least less a small cushion, 0.05% of it rounded
+ * down and at least 1 unit. The order built when the person confirms can carry a network fee a hair above the list's
+ * (53,506 against 53,464 micro USDC, measured), so its least is a few units lower; with the cushion it still pays what
+ * the screen promised and goes on quietly. Below 0 it never goes.
+ */
+export function cushioned(min: bigint): bigint {
+  if (min <= 0n) return 0n;
+  const cushion = min / 2000n;
+  return min - (cushion > 0n ? cushion : 1n);
+}
+export const shownMinOf = (o: PickedOption): bigint => cushioned(minOutOf(o));
+
 /** Routes priced only: no wallet yet, or (since the quoter builds only a named route) not named. */
 const WAITS_FOR_WALLET = new Set(['payerNotGiven', 'recipientNotGiven', 'routeNotNamed']);
 const usable = (indicative: boolean) => (r: Route) => r.executable || (indicative && !!r.reason && WAITS_FOR_WALLET.has(r.reason));

@@ -2,7 +2,7 @@ import type { Fees, Quote } from '@/lib/api';
 import type { RouteOptionView } from '@/components/design/RouteOption';
 import type { UiToken } from '@/components/ui/token-types';
 import { dollarsToMicro, formatAmount, formatUsd, parseDecimal, usdMicro } from '@/lib/money';
-import type { PickedOption } from './options';
+import { shownMinOf, type PickedOption } from './options';
 
 export interface NativeCoin {
   symbol: string;
@@ -65,7 +65,8 @@ function impactWarning(p: PickedOption, ctx: { from: UiToken; to: UiToken; amoun
   return `You get about ${formatUsd(usdIn - usdOut)} less than you pay`;
 }
 
-export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; amountIn: bigint; sameChainNoUsdc: boolean; native: NativeCoin }): RouteOptionView {
+/** `min`: the "at least" already on screen (Review swap keeps it), else the route's own (shownMinOf). */
+export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; amountIn: bigint; sameChainNoUsdc: boolean; native: NativeCoin; min?: bigint }): RouteOptionView {
   const r = p.route;
   const amountOut = BigInt(r.amountOut);
   const usdOut = usdMicro(amountOut, ctx.to.decimals, ctx.to.priceUsd);
@@ -76,7 +77,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     gasless: p.mode !== 'userPays' && !p.route.icpCkSwap,
     durationText: etaText(r.etaSeconds),
     amountOutText: formatAmount(amountOut, ctx.to.decimals),
-    minOutText: `${formatAmount(BigInt(r.amountOutMin), ctx.to.decimals)} ${ctx.to.symbol}`,
+    minOutText: `${formatAmount(ctx.min ?? shownMinOf(p), ctx.to.decimals)} ${ctx.to.symbol}`,
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
     totalFeeText: formatUsd(fee),
     gasText: gasText(p, ctx.native),

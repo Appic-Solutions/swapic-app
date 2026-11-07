@@ -35,7 +35,7 @@ export interface RouteOptionView {
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
   totalFeeText: string;
-  /** The least the user receives (the quote's amountOutMin) with the token's symbol: the details' first row. */
+  /** The least the user receives (the route's least less the small cushion, shownMinOf) with the token's symbol: the details' first row. */
   minOutText: string;
   /** What the gas costs: the You pay gas box. */
   gasText: string;

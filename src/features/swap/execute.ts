@@ -100,6 +100,7 @@ async function freshRoute(i: ExecInput, d: ExecDeps): Promise<Fresh | ExecOutcom
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
   const option = namedOption(quote, i.pick, accept);
   if (!option) return failed('No route found for this amount');
+  // the screen's minimum sits a small cushion under the quote's (shownMinOf): a built order a few units lower is no news
   if (minOutOf(option) < i.shownMin) return { kind: 'newPrice', quote, option };
   return { quote, option, guard };
 }
@@ -147,7 +148,7 @@ const covered = (made: CheckedEvmRoute['approval'], wanted: NonNullable<CheckedE
 /**
  * Signs and sends a route that passed verifyEvmRoute in this run (the swap's and the stake's, plan 3 Task 4). Right before
  * the swap an order with under 90 s left is never sent as it is: `refresh` (the swap's) asks the same named route again and
- * checks it the same way, sent quietly when it gives as much out, a new price otherwise; without it (the stake) an order
+ * checks it the same way, sent quietly when its least is at or above the screen's, a new price otherwise; without it (the stake) an order
  * under 30 s is refused. A sent transaction is the swap only once its receipt says so: reverted, or none by the deadline
  * and a minute, it never ran.
  */

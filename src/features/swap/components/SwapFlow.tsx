@@ -8,13 +8,13 @@
 // a money action: a click acts at once, the animation is decoration.
 // Quote timer on Review swap (approved 2026-10-31, the countdown label Jeff picked): the label on the route card counts
 // 20 s down from when the price on screen was fetched; at zero the same query is asked again in place ("Updating price")
-// and the option with the same tag replaces the review: the same or more out quietly, less out as a new price
-// (reviewRefresh). While the wallet asks to sign (or the steps run) the label is hidden and no fresh quote loads, so the
+// and the option with the same tag replaces the review: a least out at or above the "at least" on screen quietly (that
+// one sits 0.05% under the quote's own least, shownMinOf), below it as a new price (reviewRefresh). While the wallet asks to sign (or the steps run) the label is hidden and no fresh quote loads, so the
 // price never changes under a signature; after a cancel it comes back. Quotes stay valid 45 s.
 // The executable quote (services 679b88e: the quoter builds and stores only the route a request names): the Swap panel's
 // cards are priced only, with no wallet named; Review swap asks at once for the picked route alone, by its id and mode,
 // for this payer and recipient, and every refresh and the signing ask the same. The review's numbers and wallet steps come
-// from that answer (the same rule as a refresh: as much out or more quietly, less out as a new price); signing stays off
+// from that answer (the same rule as a refresh: at or above the screen's minimum quietly, below it a new price); signing stays off
 // until it has come, and a route no longer offered says so and is never signed.
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
@@ -163,7 +163,8 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     }
   };
 
-  /** Less out than on screen: the struck through minimum, the yellow note and "Accept new price"; nothing signed. */
+  /** Less out than on screen (or an approve the review did not show): the struck through minimum, the yellow note and
+   *  "Accept new price"; nothing signed. */
   const newPrice = (cur: Review, quote: Quote, option: PickedOption) => {
     const data = reviewData({ option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
     setRv({ ...cur, option, quote, data, wasMinText: cur.data.minText, named: true });
@@ -185,7 +186,8 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
       const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: cur.query.payer, recipient: cur.query.recipient, guard });
       const out = reviewRefresh(cur.data.min, namedOption(quote, pickOf(cur.option), accept));
       if (out.kind === 'quiet') {
-        const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
+        // the minimum on screen stays while the fresh route still pays it (a few units under the last quote are no news)
+        const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient, kept: cur.data.min });
         // the numbers on screen are what a signature binds (after a new price not yet accepted, the old minimum stays bound)
         setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, named: true, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
         if (!cur.named) setNote(null);
