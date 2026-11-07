@@ -186,7 +186,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
             <motion.div variants={fade} className="flex flex-col items-center gap-2">
               <motion.p key={d.title} variants={fade} className="mt-1 text-lg font-semibold text-white">{d.title}</motion.p>
               <motion.p key={d.text} variants={fade} className="text-sm font-medium text-secondary">{d.text}</motion.p>
-              {d.steps.length > 0 && <div className="mt-2"><Stepper totalSteps={d.steps.length} currentStep={d.phase === 'progress' ? done + 1 : d.steps.length} /></div>}
+              {d.steps.length > 0 && !d.early && <div className="mt-2"><Stepper totalSteps={d.steps.length} currentStep={d.phase === 'progress' ? done + 1 : d.steps.length} /></div>}
             </motion.div>
           </div>
           <motion.div variants={fade} className="flex w-full flex-col gap-4">

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { NOT_SEEN_GRACE_S, statusView } from './status-view';
+import { clockText, short } from '@/lib/copy/status';
+import { NOT_SEEN_GRACE_S, ownSteps, statusView, whenText } from './status-view';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const side = { symbol: 'ckBTC', logo: '', chain: 'ICP', chainLogo: '', amountText: '0.002403', usdText: '$249.31' };
@@ -125,5 +126,49 @@ describe('statusView, an order never seen starting by its deadline', () => {
     expect(view({ nowSec: DEADLINE }).ringLogo).toBe('/images/logo/chains-logos/ethereum.svg');
     const d = statusView({ status: c('order-status-delivered.json'), steps: c('steps-delivered.json'), pay: usdt, get: side, nowSec: 1793407940, feeText: '', gasText: '', gasMode: 'gasless', toWallet: '', orderId: '', token });
     expect(d.ringLogo).toBe('/images/logo/chains-logos/ethereum.svg');
+  });
+});
+
+describe('statusView, before Swapic has recorded the order (the Steps panel is never empty)', () => {
+  // the watcher has the order as quoted at most: pending, no source, its steps door 404s or answers none
+  const quoted = { ...c('order-status-delivered.json'), status: 'quoted', srcTx: null, dstTx: null, outcome: 'pending', stage: 'quoted', etaAt: null, refund: null, startedAt: undefined, tookS: undefined };
+  const SENT_AT = 1793407924100;
+  const TX = '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a';
+  const view = (o: { steps?: object; own?: { chain: string; tx: string | null; atMs: number } | null; gasMode?: 'gasless' | 'userPays'; status?: object } = {}) => statusView({
+    status: { ...quoted, ...o.status } as never, steps: o.steps as never, pay: side, get: side, nowSec: Math.floor(SENT_AT / 1000) + 30,
+    feeText: '$0.18', gasText: '~$0.42, you paid it', gasMode: o.gasMode ?? 'userPays', toWallet: '', orderId: '0xabc', token,
+    own: o.own === undefined ? { chain: 'eip155:42161', tx: TX, atMs: SENT_AT } : o.own,
+  });
+
+  it('you pay gas, no steps answer yet: the swap sent on its chain with its link and time, then a row waiting for Swapic', () => {
+    const v = view();
+    expect(v.phase).toBe('progress');
+    expect(v.early).toBe(true);
+    expect(v.steps).toEqual([
+      { key: 'own-sent', label: 'Sent on Arbitrum', state: 'done', at: clockText(SENT_AT), tx: { text: short(TX), href: `https://arbiscan.io/tx/${TX}` } },
+      { key: 'own-wait', label: 'Waiting for Swapic to pick it up', state: 'wait' },
+    ]);
+    expect(v.when).toBe(whenText(SENT_AT, (Math.floor(SENT_AT / 1000) + 30) * 1000));
+  });
+  it('an answer with no steps reads the same', () => {
+    const steps = { ...c('steps-delivered.json'), outcome: 'pending', steps: [] };
+    expect(view({ steps }).steps.map((s) => [s.label, s.state])).toEqual([['Sent on Arbitrum', 'done'], ['Waiting for Swapic to pick it up', 'wait']]);
+  });
+  it('gasless: the signature handed to Swapic, no transaction; an ICP sale: sent on ICP, no link', () => {
+    const g = view({ gasMode: 'gasless', own: { chain: 'eip155:42161', tx: null, atMs: SENT_AT } });
+    expect(g.steps.map((s) => [s.label, s.state, s.tx])).toEqual([['Signed, no gas', 'done', undefined], ['Waiting for Swapic to pick it up', 'wait', undefined]]);
+    expect(ownSteps({ chain: 'icp:737ba355e855bd4b61279056603e0550', tx: null, atMs: SENT_AT }, 'gasless').map((s) => [s.label, s.tx])).toEqual([['Sent on ICP', undefined], ['Waiting for Swapic to pick it up', undefined]]);
+  });
+  it('Swapic\'s own steps replace them as soon as they come', () => {
+    const d = c('steps-delivered.json');
+    const steps = { ...d, outcome: 'pending', steps: d.steps.map((x: object, k: number) => (k < 2 ? x : { ...x, state: k === 2 ? 'wait' : 'todo', atMs: null })) };
+    const v = view({ steps });
+    expect(v.early).toBeUndefined();
+    expect(v.steps.map((s) => s.label)).not.toContain('Waiting for Swapic to pick it up');
+    expect(v.steps[1]!.label).toBe('Sent on Arbitrum');
+  });
+  it('an order that ended keeps its own steps, and with no send of the app\'s own nothing is made up', () => {
+    expect(view({ status: { outcome: 'delivered', stage: 'delivered' } }).early).toBeUndefined();
+    expect(view({ own: null }).steps).toEqual([]);
   });
 });

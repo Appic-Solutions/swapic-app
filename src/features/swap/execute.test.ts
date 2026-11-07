@@ -261,7 +261,7 @@ describe('executeSwap, you pay gas: the swap is sent fresh and counts once the c
     expect(s.deps.getQuote).toHaveBeenCalledTimes(1);
     expect(s.swaps()[0]!.data).toBe(s.route.tx!.data);
     expect(s.input.evm!.waitForReceipt).toHaveBeenLastCalledWith(42161, SWAP_HASH, expect.any(Number));
-    expect(s.input.onSent).toHaveBeenCalledWith(1);
+    expect(s.input.onSent).toHaveBeenCalledWith(1, SWAP_HASH);
     expect((s.input.onStep as ReturnType<typeof vi.fn>).mock.calls).toEqual([[0, 'wait'], [0, 'done'], [1, 'wait'], [1, 'done']]);
   });
   it('under 90 s left after the approval: asks the same named route again and sends the fresh order quietly when it gives more', async () => {

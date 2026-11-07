@@ -39,7 +39,7 @@ import { namedOption, pickOf, type PickedOption } from '../options';
 import { namedQueryOf, useGuardContext } from '../quote';
 import { reviewData, reviewRefresh } from '../review';
 import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label';
-import { NOT_SEEN_GRACE_S, statusView, type StatusData } from '../status-view';
+import { NOT_SEEN_GRACE_S, ownSteps, statusView, whenText, type OwnSend, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
 import { reviewMarks } from './ConfirmPick';
@@ -52,6 +52,9 @@ export type FlowView = 'swap' | 'review' | 'status';
 const RING_MOVING = 0.85;
 const TOO_MANY = new Set(['Too many tries, wait a minute', 'Too many requests. Wait a minute and try again.']);
 const GONE = 'This option is not available right now. Go back to pick another.';
+
+/** The started swap Your swap follows: its id, when it started, its deadline while unseen, and the app's own send. */
+interface Activity { id: string; startedSec: number; deadline: number | null; own: OwnSend | null }
 
 interface Review extends ReviewStart {
   from: UiToken; to: UiToken; recipient: string; recipientLabel: string; shownMin: bigint;
@@ -82,7 +85,9 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const [note, setNote] = React.useState<{ tone: 'yellow' | 'blue'; text: string; clock?: boolean } | null>(null);
   const [resume, setResume] = React.useState<(() => Promise<ExecOutcome>) | null>(null);
   const [waitUntil, setWaitUntil] = React.useState<number | null>(null);
-  const [activity, setActivity] = React.useState<{ id: string; startedSec: number; deadline: number | null } | null>(null);
+  const [activity, setActivity] = React.useState<Activity | null>(null);
+  // the swap's own transaction as the wallet sent it (you pay gas): Your swap shows it until Swapic records the order
+  const sentTx = React.useRef<{ tx: string; atMs: number } | null>(null);
   // the wallet sent the swap: the review waits on the chain now ("Confirming"), not on the wallet
   const [confirming, setConfirming] = React.useState(false);
   const [glide, setGlide] = React.useState(false);
@@ -131,8 +136,10 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
       setStarted(true);
       const id = out.activityId;
       const deadline = out.deadline ?? null;
+      // what the app saw of its own send: the transaction it sent, else the moment the signature or the ICP call went through
+      const own: OwnSend | null = rv ? { chain: rv.from.chain, tx: sentTx.current?.tx ?? null, atMs: sentTx.current?.atMs ?? Date.now() } : null;
       setTimeout(() => {
-        setActivity({ id, startedSec: Math.floor(Date.now() / 1000), deadline });
+        setActivity({ id, startedSec: Math.floor(Date.now() / 1000), deadline, own });
         setGlide(true);
         setRun((r) => r + 1);
         setView('status');
@@ -216,6 +223,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     signing.current = true;
     setBusy(true);
     if (resume) { handle(await resume()); return; }
+    sentTx.current = null;
     // a new price accepted: the minimum on screen is the new one
     const shownMin = rv.wasMinText ? rv.data.min : rv.shownMin;
     if (rv.wasMinText) setRv({ ...rv, shownMin, wasMinText: undefined });
@@ -225,7 +233,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
         query: rv.query, pick: pickOf(rv.option), shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
         evm: signer, icpCaller: caller,
         onStep: (i, st) => setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))),
-        onSent: () => setConfirming(true),
+        onSent: (_, tx) => { sentTx.current = { tx, atMs: Date.now() }; setConfirming(true); },
         onNote: (text) => setNote({ tone: 'blue', text }),
       },
       { getQuote, getOrders, submitGasless, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
@@ -302,7 +310,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
 
 /** Your swap, from the real tracking. */
 function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
-  rv: Review; activity: { id: string; startedSec: number; deadline: number | null }; logo: ReturnType<typeof useLogoFor>;
+  rv: Review; activity: Activity; logo: ReturnType<typeof useLogoFor>;
   routeRef?: React.RefObject<HTMLDivElement | null>; onNew: () => void; onHistory: () => void;
 }) {
   const { status, steps } = useActivity(activity.id);
@@ -328,17 +336,22 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
     for (const t of [rv.from, rv.to]) if (t.chain === chain && address !== null && t.address.toLowerCase() === address.toLowerCase()) return { symbol: t.symbol, decimals: t.decimals };
     return null;
   };
+  const gasMode = rv.option.mode === 'userPays' ? 'userPays' : 'gasless';
+  const own = activity.own;
+  // no status yet (Swapic has not recorded the order): the app's own send and a row that waits for Swapic, never empty
   const data: StatusData = status
-    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode: rv.option.mode === 'userPays' ? 'userPays' : 'gasless', toWallet: rv.recipient, orderId: activity.id, token, logo, deadline: activity.deadline })
+    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode, toWallet: rv.recipient, orderId: activity.id, token, logo, deadline: activity.deadline, own })
     : {
-        phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: [], when: '', title: 'On its way', text: 'Updating live',
+        phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: own ? ownSteps(own, gasMode) : [], early: !!own,
+        when: own ? whenText(own.atMs, nowSec * 1000) : '', title: 'On its way', text: 'Updating live',
         ringLogo: chainLogo(rv.from.chain), to: rv.recipient, fee, gas, orderId: activity.id, totalText: 'Updating live',
       };
   // the ring fills toward the real ETA, linear, and closes only when the status says the swap ended
   const etaAt = status ? ('etaAt' in status ? (status as OrderStatusAnswer).etaAt : (status as PayoutAnswer).queue?.etaAt ?? null) : null;
   const fillFor = React.useMemo(() => (etaAt ? Math.max(1, etaAt - Math.floor(Date.now() / 1000)) : 2.5), [etaAt]);
   const done = data.steps.filter((s) => s.state === 'done').length;
-  const progress = etaAt ? RING_MOVING : data.steps.length ? 0.25 + ((RING_MOVING - 0.25) * done) / data.steps.length : 0.25;
+  // the app's own steps are not Swapic's: the ring waits at its start until the real ones come
+  const progress = etaAt ? RING_MOVING : data.steps.length && !data.early ? 0.25 + ((RING_MOVING - 0.25) * done) / data.steps.length : 0.25;
   const refunding = data.steps.some((s) => s.state === 'fail') || status?.stage === 'refunding';
   return <SwapStatus data={data} ring={{ progress, fillFor, refunding, from: routeRef }} onNew={onNew} onHistory={onHistory} />;
 }

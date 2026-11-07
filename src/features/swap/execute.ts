@@ -51,8 +51,8 @@ export interface ExecInput {
   from: UiToken; to: UiToken; recipient: string;
   evm: EvmSigner | null; icpCaller: IcpCaller | null;
   onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
-  /** The wallet sent the step's transaction: from here the chain is awaited, not the wallet. */
-  onSent?(index: number): void;
+  /** The wallet sent the step's transaction (its hash): from here the chain is awaited, not the wallet. */
+  onSent?(index: number, hash: Hex): void;
   onNote?(text: string): void;
 }
 
@@ -204,7 +204,7 @@ export async function sendCheckedEvm(
       return await submit(i, d, body, step, deadline);
     }
     const hash = await evm.sendTransaction({ chainId, to: checked.tx!.to, data: checked.tx!.data, value: checked.tx!.value });
-    i.onSent?.(step);
+    i.onSent?.(step, hash);
     const seen = await receiptBy(evm, d, chainId, hash, (deadline + RECEIPT_GRACE_S) * 1000);
     if (seen === 'success') { i.onStep(step, 'done'); return { kind: 'started', activityId: checked.orderId }; }
     // the chain could not be read at the end: the tracking decides, as for a gasless order

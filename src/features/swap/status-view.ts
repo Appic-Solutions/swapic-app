@@ -5,9 +5,11 @@
 // the app did not see either (`deadline` is given only then), never ran: Swapic refuses an order past its deadline. It
 // reads as "Swap didn't start" from then on, the watcher's own failed answer (300 s past the deadline) included, so the
 // words never change under the person.
+// The Steps panel is never empty: while Swapic has not recorded the order yet (no steps answer, an empty one, or no status
+// at all; seen 3 minutes late in a burst) it shows what the app saw of its own send and a row that waits for Swapic.
 import type { OrderStatusAnswer, PayoutAnswer, StepRow, StepsAnswer } from '@/lib/api';
 import type { SideView, StepView } from '@/components/orders/types';
-import { chainLogo, chainName } from '@/lib/explorer';
+import { chainLogo, chainName, txLink } from '@/lib/explorer';
 import { formatUsd } from '@/lib/money';
 import { short, tokenAmountText } from '@/lib/copy/format';
 import { clockText, dayText, endingOf, endSentence, endTitle, etaLeftText, neverRan, refundLine, stepViews, tookText, type Ending } from '@/lib/copy/status';
@@ -25,6 +27,27 @@ export interface StatusData {
   /** Where the refund went, drawn as a side (a refund with a chain; an undone withdrawal has none). */
   refund: (SideView & { toText: string }) | null;
   steps: StepView[]; when: string; title: string; text: string; ringLogo: string; to: string; fee: string; gas: string; orderId: string; totalText: string;
+  /** The steps are the app's own (ownSteps) until Swapic records the order: the ring and the stepper do not count them. */
+  early?: boolean;
+}
+
+/** What the app saw of its own send: the swap's transaction on the source chain (you pay gas), or the moment it handed the
+ *  signature to Swapic (gasless) or the canister took the tokens (an ICP sale), with no transaction of its own. */
+export interface OwnSend { chain: string; tx: string | null; atMs: number }
+
+export const WAITING_FOR_SWAPIC = 'Waiting for Swapic to pick it up';
+
+/** When it started, over the ring: "Today, 14:05". */
+export const whenText = (ms: number, nowMs: number) => `${dayText(ms, nowMs)}, ${clockText(ms).slice(0, 5)}`;
+
+/** The Steps panel before Swapic has recorded the order: the app's own send, done, then a row that waits for Swapic. */
+export function ownSteps(own: OwnSend, gasMode: 'gasless' | 'userPays'): StepView[] {
+  const at = clockText(own.atMs);
+  // a transaction the app sent, or an ICP sale (the canister took the tokens in the app's own call): sent on that chain
+  const sent: StepView = own.tx || own.chain.startsWith('icp:')
+    ? { key: 'own-sent', label: `Sent on ${chainName(own.chain)}`, state: 'done', at, ...(own.tx ? { tx: { text: short(own.tx), href: txLink(own.chain, own.tx) } } : {}) }
+    : { key: 'own-signed', label: gasMode === 'gasless' ? 'Signed, no gas' : 'Signed', state: 'done', at };
+  return [sent, { key: 'own-wait', label: WAITING_FOR_SWAPIC, state: 'wait' }];
 }
 
 export function statusView(i: {
@@ -36,6 +59,8 @@ export function statusView(i: {
   logo?: (chain: string | null, token: string | null, symbol: string | null) => string;
   /** The order's deadline (unix seconds), given only while the app has not seen it start on chain (ExecOutcome started). */
   deadline?: number | null;
+  /** The app's own send: the steps while Swapic has none for this order yet. */
+  own?: OwnSend | null;
 }): StatusData {
   const s = i.status;
   const refund = s.refund ?? null;
@@ -43,7 +68,7 @@ export function statusView(i: {
   const unseen = neverStarted(s, i.steps, i.deadline ?? null, i.nowSec);
   // never ran: the steps it reached (signed, for a gasless order), then its end, as the watcher's failed answer has them
   const answer = unseen ? { ...(i.steps ?? { id: i.orderId, kind: 'swap' as const }), outcome: 'failed' as const, steps: [...(i.steps?.steps ?? []).filter((r) => r.state === 'done'), NEVER_RAN] } : i.steps;
-  const steps = answer ? stepViews(answer, { gasMode, refund, token: i.token, stage: s.stage }) : [];
+  const tracked = answer ? stepViews(answer, { gasMode, refund, token: i.token, stage: s.stage }) : [];
   const rows = answer?.steps ?? [];
   const current = rows.findIndex((r) => r.state === 'wait');
   const at = rows.filter((r) => r.atMs !== null).map((r) => r.atMs!);
@@ -51,12 +76,15 @@ export function statusView(i: {
   const word = rows.find((r) => r.step === 'failed' || r.step === 'refunded')?.reason ?? null;
   const ending = unseen ? 'notSent' : endingOf({ id: i.orderId, outcome: s.outcome, stage: s.stage, reasonCode: word, gasMode, onHold: s.onHold });
   const phase = PHASE[ending];
+  // still moving and nothing recorded yet: the app's own send, never an empty panel
+  const early = phase === 'progress' && tracked.length === 0 && !!i.own;
+  const steps = early ? ownSteps(i.own!, gasMode) : tracked;
   const reason = endSentence(ending, { reasonCode: word, refund, toSymbol: i.get.symbol, gasMode, paySymbol: i.pay.symbol });
   // how long it took, from the chain (tookS, services d5e49ff); before chain times, from the steps' own times
   const chainTook = 'tookS' in s && typeof s.tookS === 'number' ? s.tookS : null;
   const total = chainTook !== null ? tookText(Math.max(chainTook, 0) * 1000) : at.length > 1 ? tookText(at[at.length - 1]! - at[0]!) : '';
   // when it started, by the chain when known
-  const startedMs = 'startedAt' in s && typeof s.startedAt === 'number' ? s.startedAt * 1000 : at[0] ?? null;
+  const startedMs = 'startedAt' in s && typeof s.startedAt === 'number' ? s.startedAt * 1000 : at[0] ?? i.own?.atMs ?? null;
   return {
     phase, ending, pay: i.pay, get: i.get,
     refundText: refund ? refundLine(refund) : null,
@@ -71,7 +99,7 @@ export function statusView(i: {
       : null,
     reason,
     steps,
-    when: startedMs ? `${dayText(startedMs, i.nowSec * 1000)}, ${clockText(startedMs).slice(0, 5)}` : '',
+    when: startedMs ? whenText(startedMs, i.nowSec * 1000) : '',
     title: phase === 'progress' ? steps[current]?.label ?? 'On its way' : endTitle(ending) ?? '',
     // under the ring: how long it took, where a refund went, or (held, never ran) what happened
     text: phase === 'delivered' ? `Arrived in ${total}` : phase === 'refunded' ? (refund ? refundLine(refund) : reason ?? '')
@@ -81,6 +109,7 @@ export function statusView(i: {
     // a you pay gas swap that never ran spent no gas on the swap itself
     to: i.toWallet, fee: neverRan(ending) ? 'None' : i.feeText, gas: unseen && gasMode === 'userPays' ? 'None' : i.gasText, orderId: i.orderId,
     totalText: phase === 'delivered' || phase === 'refunded' ? (total ? `${total} total` : '') : phase === 'progress' ? 'Updating live' : '',
+    ...(early ? { early } : {}),
   };
 }
 
