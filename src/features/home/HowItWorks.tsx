@@ -20,7 +20,7 @@ const STEPS = [
 export function HowItWorks() {
   const stats = useQuery({ queryKey: ['scanner-stats'], queryFn: getScannerStats, refetchInterval: 60_000, refetchIntervalInBackground: false });
   const n = homeStats(stats.data);
-  const tiles: [string | undefined, string][] = [[n?.swaps, 'swaps in 24 hours'], [n?.median, 'median swap time'], [n?.delivered, 'delivered in full']];
+  const tiles: [string | undefined, string][] = [[n?.swaps, 'swaps so far'], [n?.median, 'median swap time'], [n?.delivered, 'delivered in full']];
   return (
     <section id="how" className={section}>
       <Title title="How Swapic works" sub="One swap between any two chains. No bridges to pick and no extra steps." />

@@ -5,7 +5,7 @@ import { SkeletonText } from '@/components/ui/skeleton';
 const tile = 'flex min-w-0 flex-1 flex-col justify-between gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-h-24 md:p-5';
 const label = 'text-xs font-medium text-secondary md:text-sm';
 // the tiles before the stats: a sub line that never changes stays (it can wrap on phones), one that does waits
-const LOADING: [string, string | null][] = [['Swaps, 24H', null], ['Volume, 24H', 'all chains'], ['Median time', 'signature to delivery'], ['Delivered', null]];
+const LOADING: [string, string | null][] = [['Swaps, all time', 'since launch'], ['Volume, all time', 'all chains'], ['Median time', 'signature to delivery'], ['Delivered', null]];
 
 export function Tiles({ tiles }: { tiles: [string, string, string][] | null }) {
   return (

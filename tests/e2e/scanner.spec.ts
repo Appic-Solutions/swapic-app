@@ -14,7 +14,7 @@ const PLACEHOLDER = 'Search address, principal, order ID or tx hash';
 test.describe('Scanner', () => {
   test('numbers, the live feed, a wallet chip', async ({ page }) => {
     await open(page);
-    await expect(page.getByText('Swaps, 24H')).toBeVisible();
+    await expect(page.getByText('Swaps, all time')).toBeVisible();
     await expect(page.getByText('1,284')).toBeVisible();
     await expect(page.getByText('Latest transactions')).toBeVisible();
     const box = page.getByPlaceholder(PLACEHOLDER);

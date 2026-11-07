@@ -10,7 +10,7 @@ export function medianText(ms: number): string {
 export function homeStats(s: ScannerStats | undefined) {
   if (!s) return null;
   return {
-    swaps: formatUnits(BigInt(s.swaps), 0),
+    swaps: formatUnits(BigInt(s.swapsAll ?? s.swaps), 0),
     median: s.medianMs === null ? 'none yet' : medianText(s.medianMs),
     delivered: s.deliveredBps === null ? 'none yet' : formatBps(s.deliveredBps),
   };
