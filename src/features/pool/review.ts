@@ -24,7 +24,8 @@ export interface WalletStep { label: string; sub: string }
 
 export interface StakeReview {
   kind: 'evm' | 'icp';
-  /** USDC added to the stake (6 decimals): what Confirm stake binds (executeStakeEvm's shownAdded). */
+  /** USDC added to the stake (6 decimals) as the screen shows it: from an EVM chain the checked least, cushioned
+   *  (stakeView's shownAdded); a fresh quote under it is a new price (executeStakeEvm's shownAdded). */
   added: bigint;
   /** Swapic's move fee in it: from ICP, the move_fee stake_icp sends. */
   moveFee: bigint;
@@ -54,7 +55,7 @@ export function evmStakeSteps(checked: CheckedEvmRoute, option: PickedOption, fr
 export function evmStakeReview(i: { option: PickedOption; checked: CheckedEvmRoute; from: UiToken; amount: bigint; native: NativeCoin }): StakeReview {
   const v = stakeView(i.option, i.checked);
   return {
-    kind: 'evm', added: v.added, moveFee: v.moveFee,
+    kind: 'evm', added: v.shownAdded, moveFee: v.moveFee,
     payText: `${tokenAmountText(i.amount, i.from.decimals, i.from.symbol)} ${i.from.symbol}`,
     addedText: v.addedText,
     feeText: v.feeText,

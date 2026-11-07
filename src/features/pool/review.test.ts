@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { hashTypedData, type Hex } from 'viem';
 import type { Quote, Route, WithdrawQuoteAnswer, WithdrawalJson } from '@/lib/api';
 import type { UiToken } from '@/components/ui/token-types';
@@ -6,10 +6,13 @@ import { verifyEvmRoute, type CheckedEvmRoute } from '@/features/swap/guards/evm
 import { CANISTER, GUARD, PAYER, executable, forge, load } from '@/features/swap/guards/forge.fixture';
 import { memoRef } from '@/features/swap/guards/memo';
 import { encodeMemo, poolTerms } from '@/features/swap/guards/memo.fixture';
-import type { PickedOption } from '@/features/swap/options';
+import { cushioned, type PickedOption } from '@/features/swap/options';
+import type { IcpClient } from '@/lib/icp';
+import type { EvmSigner } from '@/lib/wallets';
+import { formatUsd } from '@/lib/money';
 import { tokenAmountText } from '@/lib/copy/format';
 import { evmStakeReview, evmStakeSteps, evmWithdrawReview, icpStakeReview, icpWithdrawReview } from './review';
-import { stakeCheckOf } from './flows';
+import { executeStakeEvm, stakeCheckOf } from './flows';
 import type { StakeQuote } from '@/lib/api';
 import { checkWithdrawQuote, withdrawalTypedData } from './withdraw-sig';
 
@@ -33,13 +36,35 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
   const option: PickedOption = { key: `userPays:${route.routeId}`, tags: ['Fastest'], mode: 'userPays', route };
   const r = evmStakeReview({ option, checked, from: USDC_BASE, amount, native: NATIVE });
 
-  it('adds the checked minimum less the move fee the memo commits, and shows that fee in the one fee line', () => {
-    expect(r.added).toBe(checked.minOut - 35_827n);
+  it('adds the checked minimum less the move fee the memo commits, cushioned on screen, and shows that fee in the one fee line', () => {
+    const least = checked.minOut - 35_827n;
+    // 0.05% under the least added, like a swap's minimum
+    expect(r.added).toBe(least - least / 2000n);
     expect(r.moveFee).toBe(35_827n);
     const f = route.fees;
     expect(r.feeText).toBe(`${tokenAmountText(BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + 35_827n, 6, 'USDC')} USDC`);
-    // this fixture's minimum (a real order's) less 35,827 micro USDC, in whole cents, never rounded up
-    expect(r.addedText).toBe('408,660,260.76');
+    // this fixture's minimum (a real order's) less 35,827 micro USDC and the cushion, in whole cents, never rounded up
+    expect(r.addedText).toBe(formatUsd(r.added).slice(1));
+  });
+  it('a fresh stake quote a few units under the last one goes on; one under the number on screen is a new price', async () => {
+    const stake = { ...stakeQuote, gasless: { ...stakeQuote.gasless, allowed: false, routes: [] }, userPays: { ...stakeQuote.userPays, routes: [route] } } as unknown as StakeQuote;
+    const least = checked.minOut - 35_827n;
+    const run = (shownAdded: bigint) => {
+      const evm: EvmSigner = {
+        address: PAYER, ensureChain: vi.fn(async () => {}), signTypedData: vi.fn(async () => `0x${'ab'.repeat(65)}` as const),
+        sendTransaction: vi.fn(async () => `0x${'cd'.repeat(32)}` as const), waitForReceipt: vi.fn(async () => 'success' as const), maxFeePerGas: vi.fn(async () => 1n),
+      };
+      const icp = { getConfig: async () => GUARD.config, ecoProver: async () => GUARD.ecoProver, ckHelper: async () => GUARD.ckHelper, canisterEvmAddress: async () => GUARD.canisterEvm } as unknown as IcpClient;
+      const deps = { getQuote: vi.fn(), getOrders: vi.fn(), submitGasless: vi.fn(), postStakeQuote: vi.fn(async () => stake), icp, nowMs: () => (q.quotedAt + 3) * 1000, sleep: vi.fn(async () => {}) };
+      return { evm, out: executeStakeEvm({ from: USDC_BASE, amount, evm, shownAdded, onStep: () => {} }, deps) };
+    };
+    // the screen showed a quote whose least added was 42 micro USDC higher: its cushioned number still holds
+    const quiet = run(cushioned(least + 42n));
+    expect((await quiet.out).kind).toBe('started');
+    expect(quiet.evm.sendTransaction).toHaveBeenCalled();
+    const asks = run(least + 1n);
+    expect((await asks.out).kind).toBe('newPrice');
+    expect(asks.evm.sendTransaction).not.toHaveBeenCalled();
   });
   it('a display field the check does not bind changes nothing', () => {
     const shown = evmStakeReview({ option: { ...option, route: { ...route, amountOut: '999999999999' } }, checked, from: USDC_BASE, amount, native: NATIVE });

@@ -71,7 +71,7 @@ import { verifyEvmRoute } from '@/features/swap/guards/evm';
 import { loadGuardContext, type GuardContext } from '@/features/swap/guards/context';
 import type { CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
-import type { PickedOption } from '@/features/swap/options';
+import { cushioned, type PickedOption } from '@/features/swap/options';
 import { etaText } from '@/features/swap/view';
 import { checkWithdrawQuote, normalizeSignature, type CheckedWithdraw } from './withdraw-sig';
 import type { usedNonces } from './used-nonces';
@@ -99,14 +99,17 @@ export function pickStakeOption(q: StakeQuote): PickedOption | undefined {
 /** USDC in words, two decimals: "1.43 USDC". */
 export const usdcText = (micro: bigint) => `${tokenAmountText(micro, 6, 'USDC')} USDC`;
 
-/** A checked stake's numbers: Added to your stake is the least USDC the order delivers less the move fee its memo commits
- *  (shares are minted on the rest); the fee is the route's gas and carriers plus that move fee, one line in USDC. */
-export function stakeView(o: PickedOption, checked: CheckedEvmRoute): { added: bigint; addedText: string; moveFee: bigint; feeText: string; readyText: string } {
+/** A checked stake's numbers: `added` is the least USDC the order delivers less the move fee its memo commits (shares are
+ *  minted on the rest); Added to your stake on screen is that, cushioned like a swap's minimum (`shownAdded`, 0.05% under
+ *  it), so a fresh quote a few units lower still adds what the screen said; the fee is the route's gas and carriers plus
+ *  that move fee, one line in USDC. */
+export function stakeView(o: PickedOption, checked: CheckedEvmRoute): { added: bigint; shownAdded: bigint; addedText: string; moveFee: bigint; feeText: string; readyText: string } {
   const moveFee = checked.terms?.kind === 'stake' ? checked.terms.moveFee : 0n;
   const added = checked.minOut > moveFee ? checked.minOut - moveFee : 0n;
+  const shownAdded = cushioned(added);
   const f = o.route.fees;
   const fee = BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + moveFee;
-  return { added, addedText: formatUsd(added).slice(1), moveFee, feeText: usdcText(fee), readyText: etaText(o.route.etaSeconds) };
+  return { added, shownAdded, addedText: formatUsd(shownAdded).slice(1), moveFee, feeText: usdcText(fee), readyText: etaText(o.route.etaSeconds) };
 }
 
 /** The move fee an ICP stake (one ICP to Base move) or an ICP withdrawal (one Base to ICP move) pays Swapic, micro USDC,
@@ -166,7 +169,7 @@ export async function executeStakeEvm(
     // the canister's anchors, fresh (get_config, Eco's prover, its EVM address); every step read as the canister reads it
     const guard = await loadGuardContext(d.icp);
     const checked = checkStakeRoute({ quote: q, option, from: i.from, amount: i.amount, owner: i.evm.address, guard, nowSec: Math.floor(d.nowMs() / 1000) });
-    // less added than shown, or other wallet steps than shown: new terms, never signed
+    // less added than the screen shows (its cushioned number), or other wallet steps than shown: new terms, never signed
     if (stakeView(option, checked).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
     if (i.shownApproval !== undefined && !!checked.approval !== i.shownApproval) return { kind: 'newPrice', quote: asQuote(q), option };
     return await sendCheckedEvm(checked, i.evm, d, i);
