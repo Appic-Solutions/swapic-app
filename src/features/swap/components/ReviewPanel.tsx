@@ -18,7 +18,7 @@ import type { SideView, StepView } from '@/components/orders/types';
 import { ArrowDownIcon } from '@/components/icons';
 import { ConfirmButton, MotionCard, routeLayoutId } from '@/components/motion/parts';
 import { short } from '@/lib/copy/format';
-import { APPROVING } from '@/lib/copy/status';
+import { APPROVING, CONFIRMING_SWAP, confirmingOn } from '@/lib/copy/status';
 import { chainLogo } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
 import { fade, rise } from '@/lib/motion';
@@ -65,7 +65,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
   const { recipient } = data;
   const steps: StepView[] = data.steps.map((s, i) => {
     const state = states?.[i] ?? 'todo';
-    return { key: String(i), label: s.label, sub: state === 'wait' ? (confirming ? `Confirming on ${pay.chain}` : approving ? APPROVING : 'Check your wallet') : s.sub, state };
+    return { key: String(i), label: s.label, sub: state === 'wait' ? (confirming ? confirmingOn(pay.chain) : approving ? APPROVING : 'Check your wallet') : s.sub, state };
   });
   return (
     <TwoColumn
@@ -111,7 +111,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           {note && <motion.div variants={fade}>{note}</motion.div>}
         </>
       }
-      action={<ConfirmButton label={button ?? data.button} waiting={waiting} waitingLabel={confirming ? 'Confirming your swap' : approving ? APPROVING : undefined} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
+      action={<ConfirmButton label={button ?? data.button} waiting={waiting} waitingLabel={confirming ? CONFIRMING_SWAP : approving ? APPROVING : undefined} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
     />
   );
 }

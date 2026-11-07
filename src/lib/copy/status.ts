@@ -7,9 +7,12 @@ import { clockText, etaLeftText, short, tokenAmountText, tookText } from './form
 export { short, tokenAmountText, tookText, clockText, etaLeftText } from './format';
 export { dayText } from './format';
 
-/** A wallet step whose transaction was sent and is mining: the network is awaited, the wallet asks nothing more. */
+/** A wallet step whose transaction was sent and is mining: the network is awaited, the wallet asks nothing more. The
+ *  approve's (swap and stake), the stake's own, and the swap's own (its button, and its step on the source chain). */
 export const APPROVING = 'Approving, waiting for the network';
 export const WAITING_CONFIRMATION = 'Waiting for confirmation';
+export const CONFIRMING_SWAP = 'Confirming your swap';
+export const confirmingOn = (chain: string) => `Confirming on ${chain}`;
 
 export function refundLine(r: Refund): string {
   if (r.chain === null) return 'Your stake is back';
@@ -67,11 +70,17 @@ const amountOf = (r: Refund | null) =>
 
 /** The one sentence that says what happened, from the closed word only (a row's `reasonCode`, contract 5.7, 5.14); an
  *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. A you pay gas swap that never ran (`notSent`
- *  on Your swap, an order never seen starting by its deadline; `didntStart` on History and Your swap) names the token kept:
- *  its approval, or its own transaction that failed, cost gas, so "nothing left your wallet" and "no fee was charged"
- *  would be untrue there. Swapic's own fee is none. */
-export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null; gasMode?: 'gasless' | 'userPays' | null; paySymbol?: string | null }): string | null {
-  if (e === 'didntStart' && x.gasMode === 'userPays') return `Your ${x.paySymbol ?? 'tokens'} never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.`;
+ *  on Your swap, an order never seen starting by its deadline; `didntStart` on History and Your swap) names the token kept,
+ *  since "nothing left your wallet" and "no fee was charged" could be untrue there; Swapic's own fee is none. Its gas line
+ *  follows `sourceTx` (the person's own transaction is on the chain): that gas is spent; with none (dropped, replaced,
+ *  never sent) the swap spent no gas. */
+export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null; gasMode?: 'gasless' | 'userPays' | null; paySymbol?: string | null; sourceTx?: boolean }): string | null {
+  if (e === 'didntStart' && x.gasMode === 'userPays') {
+    const kept = `Your ${x.paySymbol ?? 'tokens'} never left your wallet`;
+    return x.sourceTx
+      ? `${kept} and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.`
+      : `${kept}, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.`;
+  }
   if (e === 'didntStart') return 'Nothing left your wallet and no fee was charged. Get a new quote to try again.';
   if (e === 'notSent' && x.gasMode === 'userPays') return `Your swap wasn't confirmed on the network in time. Your ${x.paySymbol ?? 'tokens'} never left your wallet.`;
   if (e === 'notSent') return "We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.";

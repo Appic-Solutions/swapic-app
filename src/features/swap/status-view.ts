@@ -85,7 +85,7 @@ export function statusView(i: {
   // still moving and not recorded yet: the app's own send, never an empty panel (never once queued or later)
   const early = phase === 'progress' && tracked.length === 0 && notPickedUp(s.stage) && !!i.own;
   const steps = early ? ownSteps(i.own!, gasMode) : tracked;
-  const reason = endSentence(ending, { reasonCode: word, refund, toSymbol: i.get.symbol, gasMode, paySymbol: i.pay.symbol });
+  const reason = endSentence(ending, { reasonCode: word, refund, toSymbol: i.get.symbol, gasMode, paySymbol: i.pay.symbol, sourceTx: 'srcTx' in s && !!s.srcTx });
   // how long it took, from the chain (tookS, services d5e49ff); before chain times, from the steps' own times
   const chainTook = 'tookS' in s && typeof s.tookS === 'number' ? s.tookS : null;
   const total = chainTook !== null ? tookText(Math.max(chainTook, 0) * 1000) : at.length > 1 ? tookText(at[at.length - 1]! - at[0]!) : '';

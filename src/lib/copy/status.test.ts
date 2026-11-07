@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { problems } from '../../../scripts/check-copy.mjs';
-import { endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepViews, tokenAmountText, tookText, type EndInput } from './status';
+import { APPROVING, CONFIRMING_SWAP, WAITING_CONFIRMATION, confirmingOn, endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepViews, tokenAmountText, tookText, type EndInput } from './status';
 
 const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const META: Record<string, { symbol: string; decimals: number }> = {
@@ -67,8 +67,10 @@ describe('status words', () => {
     expect(endSentence('deliveredAsUsdc', { reasonCode: 'deliveredAsUsdc', refund: r, toSymbol: 'WBTC' })).toBe("WBTC couldn't be bought on Polygon, so you got 119.80 USDC instead.");
     expect(endSentence('didntStart', { reasonCode: null, refund: null, toSymbol: null })).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
     expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'gasless', paySymbol: 'USDC' })).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
-    // you pay gas: its gas was spent, only Swapic's fee is none
-    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'userPays', paySymbol: 'USDC' })).toBe('Your USDC never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
+    // you pay gas: never a Swapic fee; the gas line only when the person's own transaction is on the chain
+    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'userPays', paySymbol: 'USDC', sourceTx: true })).toBe('Your USDC never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
+    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'userPays', paySymbol: 'USDC', sourceTx: false })).toBe('Your USDC never left your wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
+    expect(endSentence('didntStart', { reasonCode: 'other', refund: null, toSymbol: 'WBTC', gasMode: 'userPays', paySymbol: 'USDC' })).toBe('Your USDC never left your wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
     expect(endSentence('notSent', { reasonCode: 'expired', refund: null, toSymbol: null })).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
     // you pay gas: an approval may have cost gas, so it names the token kept instead of "nothing" and "no fee"
     expect(endSentence('notSent', { reasonCode: 'expired', refund: null, toSymbol: 'USDC', gasMode: 'userPays', paySymbol: 'USDT' })).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");
@@ -105,5 +107,12 @@ describe('a swap through the ckETH minter', () => {
     const [other] = stepViews(answer, { ...ctx, stage: 'swapping' });
     expect(other!.sub).toBeUndefined();
     expect(stageText({ kind: 'swap', stage: 'withdrawing', etaAt: null, to: { chain: 'eip155:1' } }, 0)).toBe('The ckETH minter is paying USDC on Ethereum');
+  });
+});
+
+describe('a wallet step whose transaction is mining', () => {
+  it('says the network is awaited, in one place for the swap and the stake, and passes the copy rules', () => {
+    expect([APPROVING, WAITING_CONFIRMATION, CONFIRMING_SWAP, confirmingOn('Arbitrum')]).toEqual(['Approving, waiting for the network', 'Waiting for confirmation', 'Confirming your swap', 'Confirming on Arbitrum']);
+    expect(problems([APPROVING, WAITING_CONFIRMATION, CONFIRMING_SWAP, confirmingOn('Arbitrum')])).toEqual([]);
   });
 });

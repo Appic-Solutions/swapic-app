@@ -50,6 +50,10 @@ describe('statusView, the approved ends', () => {
     expect(v.title).toBe("Didn't start");
     expect(v.fee).toBe('None');
   });
+  it('you pay gas and never ran: the gas line follows whether its own transaction is on the chain', () => {
+    expect(at('failed', 'other', 'userPays', { srcTx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a' }).reason).toBe('Your ckBTC never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
+    expect(at('failed', 'other', 'userPays', { srcTx: null }).reason).toBe('Your ckBTC never left your wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
+  });
   it('money the canister holds: On hold, from the hold flag even while pending', () => {
     const v = at('pending', null, 'userPays', { onHold: true });
     expect(v.phase).toBe('held');
