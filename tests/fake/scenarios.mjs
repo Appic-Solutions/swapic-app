@@ -160,6 +160,14 @@ const stepsPending = () => {
   const steps = d.steps.slice(0, 4).map((x, k) => (k < 2 ? x : k === 2 ? { ...x, state: 'wait', atMs: null, tx: null, block: null } : { ...x, state: 'todo', atMs: null, tx: null, block: null, amount: null }));
   return { status: 200, json: { ...d, outcome: 'pending', steps } };
 };
+// A gasless order the watcher took but never saw start (no relay, no source transaction): its status pending with
+// nothing on chain, its steps signed then waiting, as the watcher answers until 300 s past the deadline; derived, manifest
+const swapNotStarted = () => ({ status: 200, json: { ...C('order-status-delivered.json'), status: 'submitted', srcTx: null, dstTx: null, amountOut: null, token: null, pool: undefined, outcome: 'pending', stage: 'submitted', etaAt: null, refund: null } });
+const stepsNotStarted = () => {
+  const d = C('steps-delivered.json');
+  const steps = d.steps.map((x, k) => (k === 0 ? x : { ...x, state: k === 1 ? 'wait' : 'todo', atMs: null, tx: null, block: null, amount: null, token: null }));
+  return { status: 200, json: { ...d, outcome: 'pending', steps } };
+};
 const swapRefunded = () => ({ status: 200, json: { ...C('order-status-delivered.json'), outcome: 'refunded', stage: 'refunded', refund: ROW_REFUNDED().refund } });
 const stepsRefunded = () => {
   const r = ROW_REFUNDED();
@@ -259,6 +267,8 @@ export const SCENARIOS = {
   }, clockAt: POOL_CLOCK },
   // Your swap still on its way (plan 2 Task 10): derived, manifest
   progress: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsPending, '/v2/orders/*': swapPending }, clockAt: SWAP_CLOCK },
+  // Your swap never started (the deadline passes with nothing seen): no fixed clock, the test installs its own and moves it
+  'not-started': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsNotStarted, '/v2/orders/*': swapNotStarted } },
   // Your swap refunded (plan 2 Task 10): derived, manifest
   refunded: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json'), '/v2/orders/*/steps': stepsRefunded, '/v2/orders/*': swapRefunded }, clockAt: SWAP_CLOCK },
   // too many tries: the watcher's rate limit answer to the submit (contract 1.4 shape); derived, manifest

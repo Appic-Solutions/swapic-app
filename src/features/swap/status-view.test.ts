@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { statusView } from './status-view';
+import { NOT_SEEN_GRACE_S, statusView } from './status-view';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const side = { symbol: 'ckBTC', logo: '', chain: 'ICP', chainLogo: '', amountText: '0.002403', usdText: '$249.31' };
@@ -70,3 +70,60 @@ describe('statusView, chain times (services d5e49ff)', () => {
   });
 });
 
+
+describe('statusView, an order never seen starting by its deadline', () => {
+  const DEADLINE = 1792336203;
+  const past = DEADLINE + NOT_SEEN_GRACE_S + 1;
+  const usdt = { ...side, symbol: 'USDT', chain: 'Ethereum', chainLogo: '/images/logo/chains-logos/ethereum.svg' };
+  // the watcher's answer for a quoted order nothing started: pending, no source, and no steps (its steps door 404s)
+  const quoted = { ...c('order-status-delivered.json'), status: 'quoted', srcTx: null, dstTx: null, outcome: 'pending', stage: 'quoted', etaAt: null, refund: null };
+  const view = (o: { status?: object; steps?: object; nowSec?: number; deadline?: number | null; gasMode?: 'gasless' | 'userPays' } = {}) => statusView({
+    status: { ...quoted, ...o.status } as never, steps: o.steps as never, pay: usdt, get: side, nowSec: o.nowSec ?? past,
+    feeText: '$0.18', gasText: '~$0.42, you paid it', gasMode: o.gasMode ?? 'userPays', toWallet: '', orderId: '0xabc', token,
+    deadline: o.deadline === undefined ? DEADLINE : o.deadline,
+  });
+
+  it('you pay gas, past the deadline and two minutes: Swap didn\'t start, the token kept, no fee or gas, a step that says so', () => {
+    const v = view();
+    expect(v.phase).toBe('stopped');
+    expect(v.title).toBe("Swap didn't start");
+    expect(v.text).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");
+    expect(v.fee).toBe('None');
+    expect(v.gas).toBe('None');
+    expect(v.steps.map((s) => [s.label, s.state])).toEqual([["Didn't start", 'fail']]);
+  });
+  it('before the deadline and two minutes it is still on its way', () => {
+    expect(view({ nowSec: DEADLINE + NOT_SEEN_GRACE_S }).phase).toBe('progress');
+  });
+  it('never when the app saw its receipt (no deadline given), however late', () => {
+    expect(view({ deadline: null, nowSec: DEADLINE + 3_600 }).phase).toBe('progress');
+  });
+  it('never once the tracking has a source transaction, a relay, or a hold', () => {
+    expect(view({ status: { srcTx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a' } }).phase).toBe('progress');
+    expect(view({ status: { signedTxId: 103 } }).phase).toBe('progress');
+    expect(view({ status: { onHold: true } }).phase).toBe('held');
+  });
+  it('the watcher\'s own failed answer later (300 s past the deadline) keeps the same words', () => {
+    const v = view({ status: { status: 'failed', outcome: 'failed', stage: 'failed' } });
+    expect(v.title).toBe("Swap didn't start");
+    expect(v.text).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");
+  });
+  it('a failure with another word stays the watcher\'s', () => {
+    const d = c('steps-delivered.json');
+    const steps = { ...d, outcome: 'failed', steps: [{ step: 'failed', state: 'fail', chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: 'other' }] };
+    expect(view({ status: { outcome: 'failed', stage: 'failed' }, steps }).title).toBe("Didn't start");
+  });
+  it('gasless: signed, then nothing: the approved Swap didn\'t start words, the signed step kept', () => {
+    const d = c('steps-delivered.json');
+    const steps = { ...d, outcome: 'pending', steps: d.steps.map((x: object, k: number) => (k === 0 ? x : { ...x, state: k === 1 ? 'wait' : 'todo', atMs: null, tx: null })) };
+    const v = view({ gasMode: 'gasless', steps });
+    expect(v.phase).toBe('stopped');
+    expect(v.text).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
+    expect(v.steps.map((s) => [s.label, s.state])).toEqual([['Signed, no gas', 'done'], ["Didn't start", 'fail']]);
+  });
+  it('the ring shows the chain the swap leaves from, never Swapic\'s mark', () => {
+    expect(view({ nowSec: DEADLINE }).ringLogo).toBe('/images/logo/chains-logos/ethereum.svg');
+    const d = statusView({ status: c('order-status-delivered.json'), steps: c('steps-delivered.json'), pay: usdt, get: side, nowSec: 1793407940, feeText: '', gasText: '', gasMode: 'gasless', toWallet: '', orderId: '', token });
+    expect(d.ringLogo).toBe('/images/logo/chains-logos/ethereum.svg');
+  });
+});

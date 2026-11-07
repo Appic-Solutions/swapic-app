@@ -39,7 +39,7 @@ import { namedOption, pickOf, type PickedOption } from '../options';
 import { namedQueryOf, useGuardContext } from '../quote';
 import { reviewData, reviewRefresh } from '../review';
 import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label';
-import { statusView, type StatusData } from '../status-view';
+import { NOT_SEEN_GRACE_S, statusView, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
 import { ReviewPanel } from './ReviewPanel';
 import { reviewMarks } from './ConfirmPick';
@@ -82,7 +82,9 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const [note, setNote] = React.useState<{ tone: 'yellow' | 'blue'; text: string; clock?: boolean } | null>(null);
   const [resume, setResume] = React.useState<(() => Promise<ExecOutcome>) | null>(null);
   const [waitUntil, setWaitUntil] = React.useState<number | null>(null);
-  const [activity, setActivity] = React.useState<{ id: string; startedSec: number } | null>(null);
+  const [activity, setActivity] = React.useState<{ id: string; startedSec: number; deadline: number | null } | null>(null);
+  // the wallet sent the swap: the review waits on the chain now ("Confirming"), not on the wallet
+  const [confirming, setConfirming] = React.useState(false);
   const [glide, setGlide] = React.useState(false);
   const [run, setRun] = React.useState(0);
   // The review's route card: Your swap shrinks a copy of it into the status circle.
@@ -113,6 +115,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     setRvAt(s.quotedAt);
     setStarted(false);
     setStates(undefined);
+    setConfirming(false);
     setCancelled(false);
     setNote(null);
     setResume(null);
@@ -122,12 +125,14 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const handle = (out: ExecOutcome) => {
     setBusy(false);
     setResume(null);
+    setConfirming(false);
     if (out.kind === 'started') {
       // a short hold for the last check to draw, then Your swap (the swap has started: nothing waits on this)
       setStarted(true);
       const id = out.activityId;
+      const deadline = out.deadline ?? null;
       setTimeout(() => {
-        setActivity({ id, startedSec: Math.floor(Date.now() / 1000) });
+        setActivity({ id, startedSec: Math.floor(Date.now() / 1000), deadline });
         setGlide(true);
         setRun((r) => r + 1);
         setView('status');
@@ -218,6 +223,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
         query: rv.query, pick: pickOf(rv.option), shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
         evm: signer, icpCaller: caller,
         onStep: (i, st) => setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))),
+        onSent: () => setConfirming(true),
         onNote: (text) => setNote({ tone: 'blue', text }),
       },
       { getQuote, getOrders, submitGasless, icp: icpClient(), nowMs: () => Date.now(), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) },
@@ -227,6 +233,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   // Back to the Swap panel in place. After a swap (fresh) the tokens and amount stay and the first route is picked.
   const toSwap = (fresh: boolean) => {
     setStates(undefined);
+    setConfirming(false);
     setCancelled(false);
     setNote(null);
     setResume(null);
@@ -271,7 +278,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
         ) : v === 'review' && rv ? (
           <ReviewPanel
             data={rv.data} pay={sideOf(rv.from, rv.amountIn)} get={sideOf(rv.to, rv.data.min)} toToken={{ symbol: rv.to.symbol, logo: rv.to.logo }}
-            states={states} waiting={waiting || (busy && !note)} cancelled={cancelled} routeRef={routeRef}
+            states={states} waiting={waiting || (busy && !note)} confirming={confirming} cancelled={cancelled} routeRef={routeRef}
             wasMinText={rv.wasMinText}
             disabled={waitUntil !== null || !rv.named || rv.data.blocked}
             button={waitUntil !== null ? 'Try again in a minute' : rv.wasMinText ? 'Accept new price' : resume ? 'Try again' : undefined}
@@ -293,11 +300,20 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
 
 /** Your swap, from the real tracking. */
 function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
-  rv: Review; activity: { id: string; startedSec: number }; logo: ReturnType<typeof useLogoFor>;
+  rv: Review; activity: { id: string; startedSec: number; deadline: number | null }; logo: ReturnType<typeof useLogoFor>;
   routeRef?: React.RefObject<HTMLDivElement | null>; onNew: () => void; onHistory: () => void;
 }) {
   const { status, steps } = useActivity(activity.id);
   const nowSec = Math.floor(Date.now() / 1000);
+  // the tracking answers the same while nothing moves (no new render): one more render once an order the app did not see
+  // start can read as never started (statusView neverStarted)
+  const [, wake] = React.useReducer((n: number) => n + 1, 0);
+  const notSeenAt = activity.deadline === null ? null : activity.deadline + NOT_SEEN_GRACE_S;
+  React.useEffect(() => {
+    if (notSeenAt === null) return;
+    const t = setTimeout(wake, Math.max(0, notSeenAt * 1000 - Date.now()) + 1_000);
+    return () => clearTimeout(t);
+  }, [notSeenAt]);
   const route = rv.option.route;
   const expected = route.icpCkSwap ? BigInt(route.icpCkSwap.expectedOut) : route.icpSwap ? BigInt(route.icpSwap.planned.expectedOut) : BigInt(route.amountOut);
   const delivered = steps?.steps.find((s) => s.step === 'delivered' && s.amount !== null)?.amount ?? null;
@@ -311,7 +327,7 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
     return null;
   };
   const data: StatusData = status
-    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode: rv.option.mode === 'userPays' ? 'userPays' : 'gasless', toWallet: rv.recipient, orderId: activity.id, token, logo })
+    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode: rv.option.mode === 'userPays' ? 'userPays' : 'gasless', toWallet: rv.recipient, orderId: activity.id, token, logo, deadline: activity.deadline })
     : {
         phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: [], when: '', title: 'On its way', text: 'Updating live',
         ringLogo: chainLogo(rv.from.chain), to: rv.recipient, fee, gas, orderId: activity.id, totalText: 'Updating live',

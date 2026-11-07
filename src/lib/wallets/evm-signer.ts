@@ -6,7 +6,7 @@
 // are contract wallets, which the gasless and ck routes refuse: payerIsContract); a send on the wrong chain; an
 // anonymous ICP principal kept as "connected"; a fake signer in a production build.
 // How the design proves it: every EVM action goes through wagmi actions on the AppKit adapter's config
-// (signTypedData, sendTransaction, switchChain, waitForTransactionReceipt); AppKit is created from
+// (signTypedData, sendTransaction, switchChain, and the receipt read on the config's own public client); AppKit is created from
 // `@reown/appkit/react-core` (basic mode: email, socials, swaps and onramp off whatever the Reown dashboard says) with
 // `features: { email: false, socials: false, analytics: false, swaps: false, onramp: false }` and
 // `coinbasePreference: 'eoaOnly'` (both checked in node_modules/@reown/appkit* 1.8.24 type files).
@@ -17,7 +17,7 @@
 // the store's setIcp drops 2vxsx-fae (tested); the e2e signers are reached only through an inline
 // `process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e'` check.
 import {
-  estimateFeesPerGas, getAccount, sendTransaction, signTypedData, switchChain, waitForTransactionReceipt,
+  estimateFeesPerGas, getAccount, getPublicClient, sendTransaction, signTypedData, switchChain,
 } from 'wagmi/actions';
 import { wagmiConfig } from './evm-config';
 
@@ -33,7 +33,10 @@ export interface EvmSigner {
   ensureChain(chainId: number): Promise<void>;
   signTypedData(td: SignableTypedData): Promise<`0x${string}`>;
   sendTransaction(tx: { chainId: number; to: `0x${string}`; data: `0x${string}`; value: bigint }): Promise<`0x${string}`>;
-  waitForReceipt(chainId: number, hash: `0x${string}`): Promise<'success' | 'reverted'>;
+  /** The receipt's status as the chain wrote it; a transaction the wallet replaced with other calls (a cancel) reads as
+   *  reverted, since what was sent never ran, and a speed up (the same calls) as its own. With `timeoutMs`, it stops
+   *  looking then and throws (the caller's limit). */
+  waitForReceipt(chainId: number, hash: `0x${string}`, timeoutMs?: number): Promise<'success' | 'reverted'>;
   maxFeePerGas(chainId: number): Promise<bigint>;
 }
 
@@ -56,9 +59,14 @@ export function wagmiSigner(address: `0x${string}`): EvmSigner {
       await ensureChain(tx.chainId);
       return sendTransaction(wagmiConfig, { account: address, chainId: tx.chainId as ChainId, to: tx.to, data: tx.data, value: tx.value });
     },
-    async waitForReceipt(chainId, hash) {
-      const r = await waitForTransactionReceipt(wagmiConfig, { chainId: chainId as ChainId, hash });
-      return r.status;
+    async waitForReceipt(chainId, hash, timeoutMs) {
+      // viem's own wait on the config's client: wagmi's action throws on a reverted receipt (it replays the call for a
+      // reason), so a revert could not be told from a lost answer; no limit unless the caller sets one, as before
+      const client = getPublicClient(wagmiConfig, { chainId: chainId as ChainId });
+      if (!client) throw new Error('wrongChain');
+      let other = false;
+      const r = await client.waitForTransactionReceipt({ hash, timeout: timeoutMs ?? 0, onReplaced: (x) => { other = x.reason !== 'repriced'; } });
+      return other ? 'reverted' : r.status;
     },
     async maxFeePerGas(chainId) {
       const f = await estimateFeesPerGas(wagmiConfig, { chainId: chainId as ChainId });

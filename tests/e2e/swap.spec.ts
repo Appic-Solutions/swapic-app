@@ -210,6 +210,40 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'refunded', { timeout: 15_000 });
     await expect(page.getByText('Refunded 119.80 USDC to 0xf00e…89ac on Polygon').first()).toBeVisible();
   });
+  test('Your swap: the ring shows the chain the swap leaves from, inside the circle', async ({ page }) => {
+    await open(page, 'progress');
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    const ring = page.getByTestId('status-ring');
+    await expect(ring).toHaveAttribute('data-phase', 'progress', { timeout: 15_000 });
+    const logo = ring.locator('img');
+    await expect(logo).toHaveAttribute('src', '/images/logo/chains-logos/arbitrum.svg');
+    await expect(logo).toHaveCSS('opacity', '1');
+    const r = (await ring.boundingBox())!;
+    const l = (await logo.boundingBox())!;
+    // centred, and within the circle the stroke leaves (90 px, a 3 px stroke)
+    expect(Math.abs(l.x + l.width / 2 - (r.x + r.width / 2))).toBeLessThanOrEqual(1);
+    expect(Math.abs(l.y + l.height / 2 - (r.y + r.height / 2))).toBeLessThanOrEqual(1);
+    expect(l.width).toBeLessThanOrEqual(r.width - 6);
+    expect(l.height).toBeLessThanOrEqual(r.height - 6);
+  });
+  test('an order never seen starting by its deadline: Swap didn\'t start, nothing taken, Try again', async ({ page }) => {
+    // the recorded quote's own time; its order ends 133 s later
+    await page.clock.install({ time: new Date(1792336073 * 1000) });
+    await open(page, 'not-started');
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+    await button(page, 'Sign and swap').click();
+    const ring = page.getByTestId('status-ring');
+    await expect(ring).toHaveAttribute('data-phase', 'progress', { timeout: 15_000 });
+    // past the deadline and the two minutes the tracking gets to see a start
+    await page.clock.fastForward('05:00');
+    await expect(ring).toHaveAttribute('data-phase', 'stopped', { timeout: 15_000 });
+    await expect(page.getByText("Swap didn't start", { exact: true })).toBeVisible();
+    await expect(page.getByText("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.")).toBeVisible();
+    await expect(button(page, 'Try again')).toBeVisible();
+  });
   test('reduce motion: exactly one view after each change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await open(page, 'default');

@@ -42,6 +42,8 @@ export interface ReviewPanelProps {
   wasMinText?: string;
   /** The wallet asks: the button says "Confirm in your wallet" with a spinner and breathes softly. */
   waiting?: boolean;
+  /** The wallet sent the swap and the chain is awaited: the waiting step and the button say so instead. */
+  confirming?: boolean;
   /** The person cancelled in the wallet: a short line under the button. */
   cancelled?: boolean;
   /** The route card's element (Your swap shrinks a copy of it into the status circle). */
@@ -54,12 +56,12 @@ export interface ReviewPanelProps {
   onSign: () => void;
 }
 
-export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
+export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, confirming, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
   const [copied, copy] = useCopied();
   const { recipient } = data;
   const steps: StepView[] = data.steps.map((s, i) => {
     const state = states?.[i] ?? 'todo';
-    return { key: String(i), label: s.label, sub: state === 'wait' ? 'Check your wallet' : s.sub, state };
+    return { key: String(i), label: s.label, sub: state === 'wait' ? (confirming ? `Confirming on ${pay.chain}` : 'Check your wallet') : s.sub, state };
   });
   return (
     <TwoColumn
@@ -105,7 +107,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           {note && <motion.div variants={fade}>{note}</motion.div>}
         </>
       }
-      action={<ConfirmButton label={button ?? data.button} waiting={waiting} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
+      action={<ConfirmButton label={button ?? data.button} waiting={waiting} waitingLabel={confirming ? 'Confirming your swap' : undefined} cancelled={cancelled} disabled={disabled} onClick={onSign} />}
     />
   );
 }

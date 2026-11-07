@@ -12,8 +12,9 @@ import { PoolErrorFailure } from '@/lib/icp';
 import type { EvmSigner } from '@/lib/wallets';
 import type { SignableTypedData } from '@/lib/wallets';
 import type { UiToken } from '@/components/ui/token-types';
-import { executeSwap, walletSteps, type ExecDeps, type ExecInput } from './execute';
-import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, load } from './guards/forge.fixture';
+import { executeSwap, sendCheckedEvm, walletSteps, type ExecDeps, type ExecInput } from './execute';
+import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, clone, forge, load } from './guards/forge.fixture';
+import { verifyEvmRoute } from './guards/evm';
 import { CKUSDC, ICP_FIXTURE, icpRoute } from './guards/icp.fixture';
 
 const tok = (q: Quote, side: 'fromToken' | 'toToken', chain: string): UiToken => ({
@@ -58,7 +59,8 @@ describe('executeSwap, EVM', () => {
   it('gasless 3009: signs the rebuilt typed data and posts the exact submit body', async () => {
     const { route, deps, input, q } = setup('arb-usdc-to-pol-wbtc', 'gasless');
     const r = await executeSwap(input, deps);
-    expect(r).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase() });
+    // a gasless order is not seen starting on chain here: Your swap gets its deadline
+    expect(r).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase(), deadline: Number(route.order!.deadline) });
     expect(input.evm!.ensureChain).toHaveBeenCalledWith(42161);
     expect(deps.submitGasless).toHaveBeenCalledWith({
       orderId: route.orderId!.toLowerCase(),
@@ -135,7 +137,7 @@ describe('executeSwap, EVM', () => {
     const key = privateKeyToAccount(generatePrivateKey());
     const signed: { td: SignableTypedData; sig: Hex }[] = [];
     input.evm = signer({ signTypedData: vi.fn(async (td: SignableTypedData) => { const sig = await key.signTypedData(td as never); signed.push({ td, sig }); return sig; }) });
-    expect(await executeSwap(input, deps)).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase() });
+    expect(await executeSwap(input, deps)).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase(), deadline: Number(o.deadline) });
     expect(input.evm.sendTransaction).not.toHaveBeenCalled();
     expect(signed.map((s) => s.td.primaryType)).toEqual(['Permit', 'QuoteAcceptance']);
     for (const { td, sig } of signed) expect(await recoverTypedDataAddress({ ...td, signature: sig } as never)).toBe(key.address);
@@ -186,6 +188,142 @@ describe('executeSwap, EVM', () => {
     deps.submitGasless = vi.fn().mockRejectedValueOnce(TransportError.fromCode(new HttpFetchErrorCode(new TypeError('fetch failed'))));
     expect((await executeSwap(input, deps)).kind).toBe('unknown');
     expect(input.evm!.signTypedData).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('executeSwap, you pay gas: the swap is sent fresh and counts once the chain has it', () => {
+  const SWAP_HASH = `0x${'5a'.repeat(32)}` as const;
+  const APPROVE_HASH = `0x${'a1'.repeat(32)}` as const;
+  /** The you pay gas run with a clock the approval's receipt moves (an approve mined slowly on Ethereum). */
+  function slow(approvedAt: ((deadline: number) => number) | null, over: { swapReceipt?: EvmSigner['waitForReceipt'] } = {}) {
+    const s = setup('arb-usdc-to-pol-wbtc', 'userPays');
+    const deadline = Number(s.route.order!.deadline);
+    let t = (s.q.quotedAt + 3) * 1000;
+    s.deps.nowMs = () => t;
+    // virtual timers: each turn the earliest sleep ends and the clock moves to it, so a receipt already there always wins
+    // the race against a sleep, and a sleep left behind by a race never moves the clock past one still awaited
+    const timers: { at: number; done: () => void }[] = [];
+    s.deps.sleep = vi.fn((ms: number) => new Promise<void>((done) => {
+      timers.push({ at: t + ms, done });
+      setTimeout(() => {
+        timers.sort((a, b) => a.at - b.at);
+        const next = timers.shift();
+        if (next) { t = Math.max(t, next.at); next.done(); }
+      }, 0);
+    }));
+    const sent: { to: string; data: string }[] = [];
+    s.input.evm = signer({
+      sendTransaction: vi.fn(async (tx) => { sent.push(tx); return tx.to.toLowerCase() === SWAPIC ? SWAP_HASH : APPROVE_HASH; }),
+      waitForReceipt: vi.fn(async (_c: number, hash: `0x${string}`, ms?: number) => {
+        if (hash === APPROVE_HASH) { if (approvedAt) t = approvedAt(deadline) * 1000; return 'success' as const; }
+        return over.swapReceipt ? over.swapReceipt(_c, hash, ms) : 'success' as const;
+      }),
+    });
+    s.input.onSent = vi.fn();
+    return { ...s, sent, deadline, swaps: () => sent.filter((x) => x.to.toLowerCase() === SWAPIC) };
+  }
+  /** The quoter's next answer: the same route built again with a later deadline (as a fresh named quote is), its least out changed by `minDelta`. */
+  function nextQuote(q: Quote, route: Route, minDelta = 0n): { q: Quote; route: Route } {
+    const fresh = forge(q, route, (o) => ({ ...o, deadline: o.deadline + 120n }), route.contracts!.source.swapic as `0x${string}`);
+    fresh.amountOutMin = (BigInt(route.amountOutMin) + minDelta).toString();
+    const q2 = clone(q);
+    q2.quotedAt = q.quotedAt + 120;
+    q2.userPays.routes = q2.userPays.routes.map((r) => (r.routeId === route.routeId ? fresh : r));
+    return { q: q2, route: fresh };
+  }
+
+  it('the forged next quote is one the guard accepts (the test\'s own premise)', () => {
+    const { q, route } = setup('arb-usdc-to-pol-wbtc', 'userPays');
+    const n = nextQuote(q, route);
+    const c = verifyEvmRoute({ quote: n.q, route: n.route, mode: 'userPays', payer: PAYER, recipient: PAYER, fromToken: q.fromToken.address, toToken: q.toToken.address, amountIn: BigInt(q.amountIn), guard: GUARD, nowSec: q.quotedAt + 120 });
+    expect(c.deadline).toBe(BigInt(route.order!.deadline) + 120n);
+  });
+  it('time to spare: sends the reviewed order, waits for its receipt, and only then has it started', async () => {
+    const s = slow(null);
+    const r = await executeSwap(s.input, s.deps);
+    expect(r).toEqual({ kind: 'started', activityId: s.route.orderId!.toLowerCase() });
+    expect(s.deps.getQuote).toHaveBeenCalledTimes(1);
+    expect(s.swaps()[0]!.data).toBe(s.route.tx!.data);
+    expect(s.input.evm!.waitForReceipt).toHaveBeenLastCalledWith(42161, SWAP_HASH, expect.any(Number));
+    expect(s.input.onSent).toHaveBeenCalledWith(1);
+    expect((s.input.onStep as ReturnType<typeof vi.fn>).mock.calls).toEqual([[0, 'wait'], [0, 'done'], [1, 'wait'], [1, 'done']]);
+  });
+  it('under 90 s left after the approval: asks the same named route again and sends the fresh order quietly when it gives more', async () => {
+    // the approve mined 60 s before the order's deadline
+    const s = slow((deadline) => deadline - 60);
+    s.input.shownMin = BigInt(s.route.amountOutMin) - 1n;
+    const n = nextQuote(s.q, s.route);
+    s.deps.getQuote = vi.fn().mockResolvedValueOnce(s.q).mockResolvedValueOnce(n.q);
+    const r = await executeSwap(s.input, s.deps);
+    expect(r).toEqual({ kind: 'started', activityId: n.route.orderId!.toLowerCase() });
+    // the same ask both times: the review's named query
+    expect((s.deps.getQuote as ReturnType<typeof vi.fn>).mock.calls).toEqual([[s.input.query], [s.input.query]]);
+    // one approval (never asked again for the fresh order), then the fresh order's run
+    expect(s.sent).toHaveLength(2);
+    expect(s.swaps()).toHaveLength(1);
+    expect(s.swaps()[0]!.data).toBe(n.route.tx!.data);
+    expect(s.swaps()[0]!.data).not.toBe(s.route.tx!.data);
+  });
+  it('the same least out as reviewed is sent quietly too', async () => {
+    const s = slow((deadline) => deadline - 60);
+    const n = nextQuote(s.q, s.route);
+    s.deps.getQuote = vi.fn().mockResolvedValueOnce(s.q).mockResolvedValueOnce(n.q);
+    expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+    expect(s.swaps()[0]!.data).toBe(n.route.tx!.data);
+  });
+  it('under 90 s left and the fresh order gives less: back to Review with the new price, nothing sent', async () => {
+    const s = slow((deadline) => deadline - 60);
+    const n = nextQuote(s.q, s.route, -1n);
+    s.deps.getQuote = vi.fn().mockResolvedValueOnce(s.q).mockResolvedValueOnce(n.q);
+    const r = await executeSwap(s.input, s.deps);
+    expect(r.kind).toBe('newPrice');
+    expect((r as { option: { route: Route } }).option.route.orderId).toBe(n.route.orderId);
+    expect(s.swaps()).toHaveLength(0);
+    expect(s.input.onSent).not.toHaveBeenCalled();
+  });
+  it('the deadline already passed: an expired order is never sent; a fresh one is', async () => {
+    // the quoter answers the same, now expired, order: refused by the same guard, only the approval went out
+    const a = slow((deadline) => deadline + 5);
+    expect(await executeSwap(a.input, a.deps)).toEqual({ kind: 'failed', message: 'This quote could not be checked. Get a new quote and try again.' });
+    expect(a.swaps()).toHaveLength(0);
+    // a fresh order with time left goes out instead
+    const b = slow((deadline) => deadline + 5);
+    const n = nextQuote(b.q, b.route);
+    b.deps.getQuote = vi.fn().mockResolvedValueOnce(b.q).mockResolvedValueOnce(n.q);
+    expect((await executeSwap(b.input, b.deps)).kind).toBe('started');
+    expect(b.swaps().map((x) => x.data)).toEqual([n.route.tx!.data]);
+  });
+  it('a reverted swap: the step fails and the note says nothing was swapped', async () => {
+    const s = slow(null, { swapReceipt: async () => 'reverted' });
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'failed', message: 'The transaction failed on the network. Your tokens stayed in your wallet. Try again.' });
+    expect((s.input.onStep as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([1, 'fail']);
+  });
+  it('a hash with no receipt by the deadline and a minute (a smart transaction that never landed): never sent', async () => {
+    const s = slow(null, { swapReceipt: () => new Promise(() => {}) });
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'failed', message: 'The transaction was not confirmed in time. Your tokens stayed in your wallet. Try again.' });
+    // looked for until the order's deadline plus 60 s, by this clock
+    expect(s.deps.nowMs()).toBe((s.deadline + 60) * 1000);
+    expect((s.input.onStep as ReturnType<typeof vi.fn>).mock.calls.at(-1)).toEqual([1, 'fail']);
+  });
+  it('the receipt read keeps failing to the end: the tracking decides, with the order\'s deadline', async () => {
+    const s = slow(null, { swapReceipt: async () => { throw new Error('rpc down'); } });
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'started', activityId: s.route.orderId!.toLowerCase(), deadline: s.deadline });
+  });
+  it('a failed read, then the receipt: started as usual', async () => {
+    let n = 0;
+    const s = slow(null, { swapReceipt: async () => { if (n++ === 0) throw new Error('rpc blip'); return 'success'; } });
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'started', activityId: s.route.orderId!.toLowerCase() });
+  });
+  it('the stake (no fresh ask): under 30 s left it refuses and sends nothing; 30 s or more it sends', async () => {
+    const s = slow(null);
+    const checked = verifyEvmRoute({ quote: s.q, route: s.route, mode: 'userPays', payer: PAYER, recipient: PAYER, fromToken: s.q.fromToken.address, toToken: s.q.toToken.address, amountIn: BigInt(s.q.amountIn), guard: GUARD, nowSec: s.q.quotedAt });
+    s.deps.nowMs = () => (s.deadline - 29) * 1000;
+    expect(await sendCheckedEvm(checked, s.input.evm!, s.deps, s.input)).toEqual({ kind: 'failed', message: 'This quote expired. Get a new one.' });
+    expect(s.swaps()).toHaveLength(0);
+    const late = slow(null);
+    late.deps.nowMs = () => (late.deadline - 31) * 1000;
+    expect((await sendCheckedEvm(checked, late.input.evm!, late.deps, late.input)).kind).toBe('started');
+    expect(late.swaps()).toHaveLength(1);
   });
 });
 

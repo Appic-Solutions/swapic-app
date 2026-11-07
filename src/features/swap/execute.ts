@@ -36,7 +36,9 @@ import { minOutOf, namedOption, type PickedOption, type RoutePick } from './opti
 import { settleLost } from './lost';
 
 export type ExecOutcome =
-  | { kind: 'started'; activityId: string }
+  /** `deadline`: the sent order's deadline (unix seconds), given only while the app has not seen the order start on chain
+   *  (a gasless submit, a receipt it could not read): past it with nothing seen, Your swap reads it as never started. */
+  | { kind: 'started'; activityId: string; deadline?: number }
   | { kind: 'newPrice'; quote: Quote; option: PickedOption }
   | { kind: 'rejected' }
   | { kind: 'failed'; message: string }
@@ -49,6 +51,8 @@ export interface ExecInput {
   from: UiToken; to: UiToken; recipient: string;
   evm: EvmSigner | null; icpCaller: IcpCaller | null;
   onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
+  /** The wallet sent the step's transaction: from here the chain is awaited, not the wallet. */
+  onSent?(index: number): void;
   onNote?(text: string): void;
 }
 
@@ -64,11 +68,31 @@ const guardFailure = (e: unknown): ExecOutcome => {
   return failed(userMessage(e));
 };
 
-export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcome> {
+type Fresh = { quote: Quote; option: PickedOption; guard: GuardContext | undefined };
+/** Before sending with little time left: a fresh route checked in full (with what the review needs if it comes back). */
+type Refreshed = { checked: CheckedEvmRoute; quote: Quote; option: PickedOption };
+
+/** Ask again, before the swap, an order with less than this left (the wallet's confirm and the block still to come). */
+const FRESH_BELOW_S = 90;
+/** With no fresh ask possible, the least life an order is sent with (the guard's own rule, verifyEvmRoute MIN_LIFE_S). */
+const MIN_SEND_S = 30;
+/** How long past its deadline the swap's receipt is looked for: none by then means it never ran (Swapic refuses an order
+ *  past its deadline, so one that lands later only reverts). */
+const RECEIPT_GRACE_S = 60;
+const LOOK_AGAIN_MS = 4_000;
+/** Shared by the swap and the stake (sendCheckedEvm), so neither names one. */
+const TX_REVERTED = 'The transaction failed on the network. Your tokens stayed in your wallet. Try again.';
+const TX_NOT_CONFIRMED = 'The transaction was not confirmed in time. Your tokens stayed in your wallet. Try again.';
+/** The API's own sentence for an expired quote (lib/api/errors.ts `expired`). */
+const EXPIRED = 'This quote expired. Get a new one.';
+
+/** The picked route asked by name (the only route the quoter builds and stores) and the canister's anchors, both fresh;
+ *  that route picked again among the ones routeOffered allows; less out than the review showed is a new price. */
+async function freshRoute(i: ExecInput, d: ExecDeps): Promise<Fresh | ExecOutcome> {
   let quote: Quote;
   let guard: GuardContext | undefined;
   try {
-    // the quote and the canister's anchors, both fresh; anchors that cannot be read leave the check to refuse
+    // anchors that cannot be read leave the check to refuse
     [quote, guard] = await Promise.all([d.getQuote(i.query), loadGuardContext(d.icp).catch(() => undefined)]);
   } catch (e) {
     return failed(userMessage(e));
@@ -76,30 +100,65 @@ export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcom
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
   const option = namedOption(quote, i.pick, accept);
   if (!option) return failed('No route found for this amount');
-  const min = minOutOf(option);
-  if (min < i.shownMin) return { kind: 'newPrice', quote, option };
-  return option.mode === 'icpPull' ? runIcp(i, d, quote, option, guard) : runEvm(i, d, quote, option, guard);
+  if (minOutOf(option) < i.shownMin) return { kind: 'newPrice', quote, option };
+  return { quote, option, guard };
 }
 
-async function runEvm(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOption, guard: GuardContext | undefined): Promise<ExecOutcome> {
+export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcome> {
+  const f = await freshRoute(i, d);
+  if ('kind' in f) return f;
+  return f.option.mode === 'icpPull' ? runIcp(i, d, f.quote, f.option, f.guard) : runEvm(i, d, f);
+}
+
+/** Task 1 at the real clock: only what this returns reaches the wallet. */
+function checkEvm(i: ExecInput, d: ExecDeps, f: Fresh, evm: EvmSigner): CheckedEvmRoute {
+  return verifyEvmRoute({
+    quote: f.quote, route: f.option.route, mode: f.option.mode as 'gasless' | 'userPays', payer: evm.address, recipient: i.recipient,
+    fromToken: i.from.address, toToken: i.to.address, amountIn: i.amountIn, guard: f.guard, nowSec: Math.floor(d.nowMs() / 1000),
+  });
+}
+
+async function runEvm(i: ExecInput, d: ExecDeps, f: Fresh): Promise<ExecOutcome> {
   const evm = i.evm;
   if (!evm) return failed('Connect wallet');
   let checked: CheckedEvmRoute;
   try {
-    checked = verifyEvmRoute({
-      quote, route: option.route, mode: option.mode as 'gasless' | 'userPays', payer: evm.address, recipient: i.recipient,
-      fromToken: i.from.address, toToken: i.to.address, amountIn: i.amountIn, guard, nowSec: Math.floor(d.nowMs() / 1000),
-    });
+    checked = checkEvm(i, d, f, evm);
   } catch (e) {
     return guardFailure(e);
   }
-  return sendCheckedEvm(checked, evm, d, i);
+  // the same ask and the same checks again, for an order that ran short of time before its swap
+  const refresh = async (): Promise<Refreshed | ExecOutcome> => {
+    const g = await freshRoute(i, d);
+    if ('kind' in g) return g;
+    try {
+      return { checked: checkEvm(i, d, g, evm), quote: g.quote, option: g.option };
+    } catch (e) {
+      return guardFailure(e);
+    }
+  };
+  return sendCheckedEvm(checked, evm, d, i, refresh);
 }
 
-/** Signs and sends a route that passed verifyEvmRoute in this run (the swap's and the stake's, plan 3 Task 4). */
-export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep'>): Promise<ExecOutcome> {
+/** A fresh route's approval this run already made: the same token and spender, for as much or more. */
+const covered = (made: CheckedEvmRoute['approval'], wanted: NonNullable<CheckedEvmRoute['approval']>) =>
+  !!made && sameAddress(made.token, wanted.token) && sameAddress(made.spender, wanted.spender) && made.amount >= wanted.amount;
+
+/**
+ * Signs and sends a route that passed verifyEvmRoute in this run (the swap's and the stake's, plan 3 Task 4). Right before
+ * the swap an order with under 90 s left is never sent as it is: `refresh` (the swap's) asks the same named route again and
+ * checks it the same way, sent quietly when it gives as much out, a new price otherwise; without it (the stake) an order
+ * under 30 s is refused. A sent transaction is the swap only once its receipt says so: reverted, or none by the deadline
+ * and a minute, it never ran.
+ */
+export async function sendCheckedEvm(
+  first: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep' | 'onSent'>,
+  refresh?: () => Promise<Refreshed | ExecOutcome>,
+): Promise<ExecOutcome> {
+  let checked = first;
   const chainId = checked.chainId;
   let step = 0;
+  let approved: CheckedEvmRoute['approval'] = null;
   try {
     await evm.ensureChain(chainId);
     if (checked.approval) {
@@ -113,9 +172,25 @@ export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d
         });
         if ((await evm.waitForReceipt(chainId, hash)) !== 'success') { i.onStep(step, 'fail'); return failed('The approval did not go through. Try again.'); }
       }
+      approved = a;
       i.onStep(step++, 'done');
     }
     i.onStep(step, 'wait');
+    const nowSec = Math.floor(d.nowMs() / 1000);
+    if (checked.deadline < BigInt(nowSec + FRESH_BELOW_S)) {
+      if (!refresh && checked.deadline < BigInt(nowSec + MIN_SEND_S)) { i.onStep(step, 'fail'); return failed(EXPIRED); }
+      if (refresh) {
+        const fresh = await refresh();
+        if ('kind' in fresh) {
+          if (fresh.kind !== 'newPrice') i.onStep(step, 'fail');
+          return fresh;
+        }
+        // an approval this run did not make is a wallet step the review never showed: back to it, nothing sent
+        if (fresh.checked.approval && !covered(approved, fresh.checked.approval)) return { kind: 'newPrice', quote: fresh.quote, option: fresh.option };
+        checked = fresh.checked;
+      }
+    }
+    const deadline = Number(checked.deadline);
     if (checked.sign) {
       const sigs: Hex[] = [];
       for (const td of checked.sign.typedData) sigs.push(await evm.signTypedData(td));
@@ -125,11 +200,16 @@ export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d
         auth: { door: a.door, validAfter: a.validAfter, validBefore: a.validBefore, nonce: a.nonce, deadline: a.deadline, signature: sigs[0]!, acceptance: checked.sign.door === 'permit2612' ? sigs[1]! : '0x' },
         signedAt: d.nowMs(),
       };
-      return await submit(i, d, body, step);
+      return await submit(i, d, body, step, deadline);
     }
-    await evm.sendTransaction({ chainId, to: checked.tx!.to, data: checked.tx!.data, value: checked.tx!.value });
-    i.onStep(step, 'done');
-    return { kind: 'started', activityId: checked.orderId };
+    const hash = await evm.sendTransaction({ chainId, to: checked.tx!.to, data: checked.tx!.data, value: checked.tx!.value });
+    i.onSent?.(step);
+    const seen = await receiptBy(evm, d, chainId, hash, (deadline + RECEIPT_GRACE_S) * 1000);
+    if (seen === 'success') { i.onStep(step, 'done'); return { kind: 'started', activityId: checked.orderId }; }
+    // the chain could not be read at the end: the tracking decides, as for a gasless order
+    if (seen === 'unknown') return { kind: 'started', activityId: checked.orderId, deadline };
+    i.onStep(step, 'fail');
+    return failed(seen === 'reverted' ? TX_REVERTED : TX_NOT_CONFIRMED);
   } catch (e) {
     if (isUserRejection(e)) return { kind: 'rejected' };
     i.onStep(step, 'fail');
@@ -137,14 +217,31 @@ export async function sendCheckedEvm(checked: CheckedEvmRoute, evm: EvmSigner, d
   }
 }
 
-async function submit(i: Pick<ExecInput, 'onStep'>, d: ExecDeps, body: GaslessSubmit, step: number): Promise<ExecOutcome> {
+/** The receipt, looked for until `untilMs`: `none` when the chain showed none by then, `unknown` when the last look
+ *  failed. The signer's own limit is a little later, so this clock decides. */
+async function receiptBy(evm: EvmSigner, d: ExecDeps, chainId: number, hash: Hex, untilMs: number): Promise<'success' | 'reverted' | 'none' | 'unknown'> {
+  let lost = false;
+  for (;;) {
+    const left = untilMs - d.nowMs();
+    if (left <= 0) return lost ? 'unknown' : 'none';
+    try {
+      const seen = await Promise.race([evm.waitForReceipt(chainId, hash, left + 5_000), d.sleep(left).then(() => null)]);
+      return seen ?? 'none';
+    } catch {
+      lost = true;
+      await d.sleep(Math.min(LOOK_AGAIN_MS, Math.max(0, untilMs - d.nowMs())));
+    }
+  }
+}
+
+async function submit(i: Pick<ExecInput, 'onStep'>, d: ExecDeps, body: GaslessSubmit, step: number, deadline: number): Promise<ExecOutcome> {
   try {
     await d.submitGasless(body);
     i.onStep(step, 'done');
-    return { kind: 'started', activityId: body.orderId };
+    return { kind: 'started', activityId: body.orderId, deadline };
   } catch (e) {
     if (lostAnswer(e)) {
-      return { kind: 'unknown', message: 'We could not reach Swapic. Try again: your signature is sent as it is.', resume: () => submit(i, d, body, step) };
+      return { kind: 'unknown', message: 'We could not reach Swapic. Try again: your signature is sent as it is.', resume: () => submit(i, d, body, step, deadline) };
     }
     i.onStep(step, 'fail');
     return failed(userMessage(e));
