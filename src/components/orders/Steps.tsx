@@ -2,7 +2,9 @@
 // Moved from the design's orders-ui.tsx (sha 61b00a56d513): mock data became props (types.tsx).
 // Motion (approved 2026-10-29, Swap only for now): animated, a step that is done draws its check in and fills the line to
 // the next step; the waiting step lights up; labels and times fade in as they change (rows keep their place, keyed by
-// position). Not animated, the list is the static one.
+// position). Not animated, the list is the static one. Numbered (the steps ahead, before anything is signed), a line too long
+// wraps instead of being cut, since it says what the wallet will ask; the circle stays at the row's top and its line reaches
+// the next circle whatever the row's height.
 import * as React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import Spinner from '@/components/ui/spinner';
@@ -75,7 +77,8 @@ function LiveSteps({ steps, gap, line, numbered }: { steps: StepView[]; gap: str
             <div className="relative flex min-w-0 items-center gap-x-4 md:gap-x-5">
               <div
                 className={cn(
-                  'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors',
+                  numbered ? 'self-start' : 'relative',
                   tw.panel,
                   s.state === 'wait' ? 'bg-blue-500/15' : done ? 'bg-success/15 text-success' : s.state === 'fail' ? 'bg-fail/15 text-fail' : 'bg-white/10',
                 )}
@@ -85,7 +88,7 @@ function LiveSteps({ steps, gap, line, numbered }: { steps: StepView[]; gap: str
                 </motion.span>
                 {/* The line to the next step: the grey part shrinks down as the green part fills from the top. */}
                 {i < steps.length - 1 && (
-                  <span className={cn('absolute top-full w-[2px]', LINE_H[line] ?? 'h-[16px]')}>
+                  <span className={cn('absolute w-[2px]', numbered ? 'top-9 -bottom-4' : cn('top-full', LINE_H[line] ?? 'h-[16px]'))}>
                     <motion.span className="absolute inset-0 origin-bottom bg-white/10" initial={false} animate={{ scaleY: done ? 0 : 1 }} transition={{ ...T.draw, delay: done ? DUR.draw * 0.5 : 0 }} />
                     <motion.span className="absolute inset-0 origin-top bg-success/15" initial={false} animate={{ scaleY: done ? 1 : 0 }} transition={{ ...T.draw, delay: done ? DUR.draw * 0.5 : 0 }} />
                   </span>
@@ -95,7 +98,7 @@ function LiveSteps({ steps, gap, line, numbered }: { steps: StepView[]; gap: str
                 <motion.p key={s.label} className={cn('break-words', s.state === 'todo' && !numbered ? 'text-secondary' : s.state === 'fail' ? 'text-fail' : 'text-white')} initial={appear} animate={{ opacity: 1 }} transition={T.enter}>
                   {s.label}
                 </motion.p>
-                {s.sub && <motion.p key={s.sub} className="truncate text-xs font-normal text-secondary" initial={appear} animate={{ opacity: 1 }} transition={T.enter}>{s.sub}</motion.p>}
+                {s.sub && <motion.p key={s.sub} className={cn('text-xs font-normal text-secondary', !numbered && 'truncate')} initial={appear} animate={{ opacity: 1 }} transition={T.enter}>{s.sub}</motion.p>}
               </div>
             </div>
             <div className="relative flex shrink-0 flex-col items-end text-xs font-normal">

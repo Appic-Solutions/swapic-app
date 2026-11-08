@@ -461,7 +461,10 @@ test.describe('Swap, you pay gas through Permit2', () => {
   test('a token cleared first says the wallet asks twice, and sends 0 then the maximum', async ({ page }) => {
     await open(page, 'permit2-pay-reset');
     await toReview(page);
-    await expect(page.getByText('Your wallet asks twice: first it sets your USDC approval to 0.')).toBeVisible();
+    const twice = page.getByText('Your wallet asks twice: first it sets your USDC approval to 0.');
+    await expect(twice).toBeVisible();
+    // readable in full, never cut off at the end of the line
+    expect(await twice.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
     await button(page, 'Approve and swap').click();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
     const txs = await sent(page);
