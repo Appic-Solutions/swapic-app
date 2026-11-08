@@ -16,6 +16,12 @@ const ICRC25_ACTION_ABORTED = 3001;
 const ICRC25_NETWORK_ERROR = 4000;
 const ICRC25_CHANNEL_CLOSED = 4001;
 
+/** EIP-1193 4200 (unsupported method), JSON-RPC -32601 (method not found) and -32004 (method not supported). */
+const NO_SUCH_METHOD = new Set([4200, -32601, -32004]);
+/** The same in words: WalletConnect's refusal of a method its session lacks (sign-client: "request() method: ..."), and a
+ *  wallet or device naming the method, typed data or EIP-712 beside saying it has none. */
+const NO_SUCH_METHOD_TEXT = /request\(\) method: *eth_signTypedData|(method|sign_?typed_?data|typed data|eip-?712)[^.]*\b(not supported|unsupported|not implemented|not available|does not exist|not found)\b|\b(unsupported|not supported|does not support|doesn't support)\b[^.]*(method|sign_?typed_?data|typed data|eip-?712)/i;
+
 const causeOf = (e: unknown): unknown => (e && typeof e === 'object' ? (e as { cause?: unknown }).cause : undefined);
 /** An ICP signer's no: ICRC-25 3001, or Plug's 3000 "User rejected". */
 const signerSaidNo = (e: SignerError) => e.code === ICRC25_ACTION_ABORTED || (e.code === ICRC25_GENERIC && /^user rejected\.?$/i.test(e.message.trim()));
@@ -41,4 +47,16 @@ export function isLostSignerAnswer(e: unknown): boolean {
   if (e instanceof SignerError) return e.code === ICRC25_CHANNEL_CLOSED || e.code === ICRC25_NETWORK_ERROR;
   const inner = causeOf(e);
   return inner ? isLostSignerAnswer(inner) : false;
+}
+
+/** A wallet that has no way to sign typed data, told apart from a person's no (which always wins, and is never this). The
+ *  caller asks it of a typed data request alone, so a chain the wallet lacks never reads as this. */
+export function isUnsupportedSign(e: unknown): boolean {
+  if (isUserRejection(e)) return false;
+  const any = e as { code?: unknown; message?: unknown } | null;
+  if (!any) return false;
+  if (typeof any.code === 'number' && NO_SUCH_METHOD.has(any.code)) return true;
+  if (typeof any.message === 'string' && NO_SUCH_METHOD_TEXT.test(any.message)) return true;
+  const inner = causeOf(e);
+  return inner ? isUnsupportedSign(inner) : false;
 }

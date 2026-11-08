@@ -17,9 +17,10 @@
 // the store's setIcp drops 2vxsx-fae (tested); the e2e signers are reached only through an inline
 // `process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e'` check.
 import {
-  estimateFeesPerGas, getAccount, getPublicClient, sendTransaction, signTypedData, switchChain,
+  estimateFeesPerGas, getAccount, getBytecode, getPublicClient, sendTransaction, signTypedData, switchChain,
 } from 'wagmi/actions';
 import { wagmiConfig } from './evm-config';
+import { holdsNoCode, signedByKey } from './guard';
 
 export type SignableTypedData = {
   domain: Record<string, unknown>;
@@ -38,11 +39,17 @@ export interface EvmSigner {
    *  looking then and throws (the caller's limit). */
   waitForReceipt(chainId: number, hash: `0x${string}`, timeoutMs?: number): Promise<'success' | 'reverted'>;
   maxFeePerGas(chainId: number): Promise<bigint>;
+  /** May this wallet pay through Permit2 on that chain (guard.ts): not a known smart wallet, and no code at all at its
+   *  address there. A read that failed is a no. Never throws. */
+  plainKeyOn(chainId: number): Promise<boolean>;
+  /** Is this signature over `td` the address's own key's, as Permit2 will ask (guard.ts)? */
+  signedByKey(td: SignableTypedData, signature: `0x${string}`): Promise<boolean>;
 }
 
 type ChainId = (typeof wagmiConfig)['chains'][number]['id'];
 
-export function wagmiSigner(address: `0x${string}`): EvmSigner {
+/** `smartWallet`: the store's flag for this wallet (guard.ts judgeEvmWallet), read on the connected chain. */
+export function wagmiSigner(address: `0x${string}`, smartWallet?: boolean | null): EvmSigner {
   const ensureChain = async (chainId: number) => {
     if (getAccount(wagmiConfig).chainId !== chainId) await switchChain(wagmiConfig, { chainId: chainId as ChainId });
     if (getAccount(wagmiConfig).chainId !== chainId) throw new Error('wrongChain');
@@ -72,6 +79,15 @@ export function wagmiSigner(address: `0x${string}`): EvmSigner {
       const f = await estimateFeesPerGas(wagmiConfig, { chainId: chainId as ChainId });
       return f.maxFeePerGas ?? 0n;
     },
+    async plainKeyOn(chainId) {
+      if (smartWallet !== false) return false;
+      try {
+        return holdsNoCode((await getBytecode(wagmiConfig, { address, chainId: chainId as ChainId })) ?? '0x');
+      } catch {
+        return false;
+      }
+    },
+    signedByKey: (td, signature) => signedByKey(address, td, signature),
   };
 }
 
