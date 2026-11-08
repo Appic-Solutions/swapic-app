@@ -34,8 +34,8 @@ export default function Header() {
     </button>
   );
   return (
-    <header className="mb-4 flex w-full items-center justify-between md:mb-5 xl:h-[54px]">
-      <Link href="/" className="relative h-[34px] w-[42px] md:h-[42px] md:w-[52px]">
+    <header className="mb-4 flex w-full items-center justify-between md:mb-5 xl:h-[54px] md:short:mb-4 md:tiny:mb-3 lg:short:h-[46px] xl:short:h-[46px]">
+      <Link href="/" className="relative h-[34px] w-[42px] md:h-[42px] md:w-[52px] md:short:h-[34px] md:short:w-[42px]">
         <img src="/images/landing/logo/swapic-logo.svg" alt="Swapic" className="absolute inset-0 h-full w-full" />
       </Link>
       <WalletMenuButton trigger={pill} />

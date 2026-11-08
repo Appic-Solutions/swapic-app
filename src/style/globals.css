@@ -4,6 +4,33 @@
 @tailwind utilities;
 
 @layer base {
+  /* The page frame around a panel (Shell, Header, Nav): --frame-top is what the header row and its gap take above a
+     panel, --frame-bottom what stays free under it (the page's bottom padding, and the bottom nav where it sits there).
+     A panel sized to the window takes calc(100dvh - var(--frame-top) - var(--frame-bottom)). Short windows (a laptop at
+     125%) get the compact frame: from 1024 px wide the nav joins the header row, as on wide screens; from 768 to 1023 px
+     the header row has no room for it beside the wallet button, so it stays at the bottom. */
+  :root {
+    --frame-top: 70px; /* phones: 14 padding, the 40 header, 16 gap */
+    --frame-bottom: 110px; /* 96 kept for the bottom nav, 14 padding */
+  }
+  @media (min-width: 768px) {
+    :root { --frame-top: 94px; --frame-bottom: 128px; } /* 32 + 42 + 20; 96 for the bottom nav + 32 */
+  }
+  @media (min-width: 1280px) {
+    :root { --frame-top: 106px; --frame-bottom: 32px; } /* 32 + 54 + 20; the nav sits in the header row */
+  }
+  @media (min-width: 768px) and (max-height: 780px) {
+    :root { --frame-top: 72px; --frame-bottom: 112px; } /* 16 + 40 + 16; 96 for the bottom nav + 16 */
+  }
+  @media (min-width: 768px) and (max-height: 560px) {
+    :root { --frame-top: 64px; --frame-bottom: 108px; } /* 12 + 40 + 12; 96 + 12 */
+  }
+  @media (min-width: 1024px) and (max-height: 780px) {
+    :root { --frame-top: 78px; --frame-bottom: 16px; } /* 16 + 46 + 16; the nav in the header row */
+  }
+  @media (min-width: 1024px) and (max-height: 560px) {
+    :root { --frame-top: 70px; --frame-bottom: 12px; } /* 12 + 46 + 12 */
+  }
   html {
     scroll-behavior: smooth;
     /* the page keeps its width when its scrollbar comes and goes (Swap's long page to the short Review swap) */
