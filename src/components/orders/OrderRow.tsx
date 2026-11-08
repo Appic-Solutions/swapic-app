@@ -129,15 +129,15 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
             <>
               <p>Refunded on {o.refund.chain}</p>
               <p className="text-xl leading-7 text-warn">{o.refund.amountText} {o.refund.symbol}</p>
-              {/* the why is on the order page; the list shows the outcome only */}
-              <p className="font-normal">{o.refund.usdText}</p>
+              {/* the why is on the order page; the list shows the outcome only (and its dollars for a stable coin) */}
+              {o.refund.usdText && <p className="font-normal">{o.refund.usdText}</p>}
             </>
           ) : refund && o.refundLine ? (
             // an undone withdrawal: its stake came back to the pool (contract 5.10), nothing was paid out
             <>
               <p>{o.refundLine}</p>
               <p className="text-xl leading-7 text-warn">{o.from.amountText}</p>
-              <p className="font-normal">{o.from.usdText}</p>
+              {o.from.usdText && <p className="font-normal">{o.from.usdText}</p>}
             </>
           ) : (
             <>
