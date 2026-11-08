@@ -21,7 +21,7 @@ import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative
 import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
 import { swapButton, swapHint } from '../button';
-import { Hint } from '@/components/design/Hint';
+import { Hint, HintButton } from '@/components/design/Hint';
 import { HINTS } from '@/lib/copy/hints';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
@@ -172,10 +172,14 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
 
   const actions = (cls: string, fades: boolean) => (
     <motion.div variants={fades ? fade : undefined} className={'relative w-full ' + cls}>
-      <div className={cn('w-full', tw.quick, button.enabled && tw.press)}>
-        <ActionButton isDisabled={!button.enabled} onClick={button.enabled ? onButton : undefined}>
-          {button.text}
-        </ActionButton>
+      {/* a tiny window: the "?" beside the button instead of the line under it */}
+      <div className="flex w-full items-center gap-x-2">
+        <div className={cn('w-full min-w-0', tw.quick, button.enabled && tw.press)}>
+          <ActionButton isDisabled={!button.enabled} onClick={button.enabled ? onButton : undefined}>
+            {button.text}
+          </ActionButton>
+        </div>
+        <HintButton text={hint} />
       </div>
       <Hint text={hint} />
     </motion.div>

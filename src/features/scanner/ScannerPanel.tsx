@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
+import { Hint, HintButton } from '@/components/design/Hint';
 import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { ScannerIcon } from '@/components/icons';
 import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
@@ -65,9 +66,9 @@ export function ScannerLoading() {
             <ScannerIcon width={24} height={24} />
             <div className="flex items-center gap-x-2">Latest transactions <LiveDot /></div>
           </div>
-          <SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} />
+          <SearchRow><SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} /></SearchRow>
         </div>
-        <Hint />
+        <SearchHint />
         <div className="flex w-full flex-col md:min-h-0"><Results orders={[]} loading onOpen={quiet} /></div>
       </section>
     </PanelBox>
@@ -80,8 +81,19 @@ function Scrolls({ children }: { children: React.ReactNode }) {
   return <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col md:min-h-0 md:overflow-y-auto', edge.fade)}>{children}</div>;
 }
 
-function Hint() {
-  return <p className="-mt-1 text-xs text-secondary md:-mt-2 md:self-end md:w-full md:max-w-[560px] md:short:-mt-1.5 tiny:hidden">{HINT}</p>;
+/** The line under the search (Hint, as on Swap and Pool); a tiny window leaves it out for the "?" beside the field. */
+function SearchHint() {
+  return <Hint text={HINT} hang={false} className="-mt-1 text-left md:-mt-2 md:self-end md:w-full md:max-w-[560px] md:short:-mt-1.5 tiny:hidden" />;
+}
+
+/** The search field and, on a tiny window, the "?" that shows the hint. */
+function SearchRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex w-full items-center gap-x-2 md:max-w-[560px]">
+      {children}
+      <HintButton text={HINT} />
+    </div>
+  );
 }
 
 /**
@@ -189,9 +201,11 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
               </motion.div>
             </AnimatePresence>
           </div>
-          <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={(t) => void onSubmit(t)} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
+          <SearchRow>
+            <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={(t) => void onSubmit(t)} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
+          </SearchRow>
         </div>
-        <Hint />
+        <SearchHint />
         {error && <p className="text-xs text-warn">{error}</p>}
         {/* Results and "Nothing found" cross fade (out 180 ms, then in 250 ms). */}
         <AnimatePresence initial={false} mode="wait">
