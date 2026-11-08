@@ -241,7 +241,7 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await page.clock.fastForward('05:00');
     await expect(ring).toHaveAttribute('data-phase', 'stopped', { timeout: 15_000 });
     await expect(page.getByText("Swap didn't start", { exact: true })).toBeVisible();
-    await expect(page.getByText("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.")).toBeVisible();
+    await expect(page.getByText("Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.")).toBeVisible();
     await expect(button(page, 'Try again')).toBeVisible();
   });
   test('reduce motion: exactly one view after each change', async ({ page }) => {

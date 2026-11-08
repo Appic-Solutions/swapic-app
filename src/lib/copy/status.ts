@@ -15,14 +15,15 @@ export const CONFIRMING_SWAP = 'Confirming your swap';
 export const confirmingOn = (chain: string) => `Confirming on ${chain}`;
 
 export function refundLine(r: Refund): string {
-  if (r.chain === null) return 'Your stake is back';
+  if (r.chain === null) return 'Stake back in the pool';
   const where = `to ${short(r.receiver)} on ${chainName(r.chain)}`;
   if (r.amount === null || r.decimals === null || r.symbol === null) return `Refunded ${where}`;
   return `Refunded ${tokenAmountText(BigInt(r.amount), r.decimals, r.symbol)} ${r.symbol} ${where}`;
 }
 
 /**
- * What an order's end means to the person (the failure messages Jeff approved, 2026-11-01): a refund names its amount and
+ * What an order's end means (the failure messages Jeff approved, 2026-11-01, in neutral words since 2026-11-08: anyone can
+ * open a Scanner link to someone else's order, so nothing here says "you" or "your"): a refund names its amount and
  * chain and says why; an order that never ran "Didn't start" (nothing left the wallet, no fee); a gasless signature the
  * network never got in time "Swap didn't start"; money the canister holds for a person's check "On hold"; an arrival that
  * could not buy the token "Delivered as USDC". Red only where money is at risk, which none of these is.
@@ -69,37 +70,37 @@ const amountOf = (r: Refund | null) =>
   r && r.amount !== null && r.decimals !== null && r.symbol !== null ? `${tokenAmountText(BigInt(r.amount), r.decimals, r.symbol)} ${r.symbol}` : null;
 
 /** The one sentence that says what happened, from the closed word only (a row's `reasonCode`, contract 5.7, 5.14); an
- *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. A you pay gas swap that never ran (`notSent`
- *  on Your swap, an order never seen starting by its deadline; `didntStart` on History and Your swap) names the token kept,
- *  since "nothing left your wallet" and "no fee was charged" could be untrue there; Swapic's own fee is none. Its gas line
- *  follows `sourceTx` (the person's own transaction is on the chain): that gas is spent; with none (dropped, replaced,
- *  never sent) the swap spent no gas. */
+ *  unknown word reads as `other`. `toSymbol`: the token the swap was buying. A swap whose sender pays gas that never ran
+ *  (`notSent` on Your swap, an order never seen starting by its deadline; `didntStart` on History and Your swap) names the
+ *  token kept, since "nothing left the wallet" and "no fee was charged" could be untrue there; Swapic's own fee is none.
+ *  Its gas line follows `sourceTx` (the sender's own transaction is on the chain): that gas is spent; with none (dropped,
+ *  replaced, never sent) the swap spent no gas. */
 export function endSentence(e: Ending, x: { reasonCode: string | null; refund: Refund | null; toSymbol: string | null; gasMode?: 'gasless' | 'userPays' | null; paySymbol?: string | null; sourceTx?: boolean }): string | null {
   if (e === 'didntStart' && x.gasMode === 'userPays') {
-    const kept = `Your ${x.paySymbol ?? 'tokens'} never left your wallet`;
+    const kept = `The ${x.paySymbol ?? 'tokens'} never left the wallet`;
     return x.sourceTx
-      ? `${kept} and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.`
+      ? `${kept} and Swapic charged no fee. The gas paid to the network is not refunded. Get a new quote to try again.`
       : `${kept}, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.`;
   }
-  if (e === 'didntStart') return 'Nothing left your wallet and no fee was charged. Get a new quote to try again.';
-  if (e === 'notSent' && x.gasMode === 'userPays') return `Your swap wasn't confirmed on the network in time. Your ${x.paySymbol ?? 'tokens'} never left your wallet.`;
-  if (e === 'notSent') return "We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.";
-  if (e === 'onHold') return "Your money is safe. We're checking this swap and will finish or refund it.";
+  if (e === 'didntStart') return 'Nothing left the wallet and no fee was charged. Get a new quote to try again.';
+  if (e === 'notSent' && x.gasMode === 'userPays') return `The swap wasn't confirmed on the network in time. The ${x.paySymbol ?? 'tokens'} never left the wallet.`;
+  if (e === 'notSent') return "Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.";
+  if (e === 'onHold') return "The money is safe. We're checking this swap and will finish or refund it.";
   const r = x.refund;
   const amount = amountOf(r);
   const where = r?.chain ? ` on ${chainName(r.chain)}` : '';
-  if (e === 'deliveredAsUsdc') return `${x.toSymbol ?? 'The token'} couldn't be bought${where}, so you got ${amount ?? 'USDC'} instead.`;
+  if (e === 'deliveredAsUsdc') return `${x.toSymbol ?? 'The token'} couldn't be bought${where}, so ${amount ?? 'USDC'} was paid instead.`;
   if (e !== 'refunded') return null;
   // an undone withdrawal: its stake came back to the pool, nothing was paid out
-  if (r && r.chain === null) return 'Your stake is back.';
-  const back = amount ? `${amount} back` : 'your money back';
+  if (r && r.chain === null) return 'The stake is back in the pool.';
+  const back = `${amount ?? 'the money'} was returned`;
   switch (x.reasonCode) {
     case 'expired':
-    case 'timedOut': return `Took too long, so you got ${back}${where}.`;
-    case 'priceMoved': return `The price moved more than you allowed, so you got ${back}${where}.`;
-    case 'notFilled': return `This swap couldn't be filled, so you got ${back}${where}.`;
-    case 'poolShort': return `Swapic couldn't complete this one right now, so you got ${back}.`;
-    default: return `This swap couldn't finish, so you got ${back}${where}.`;
+    case 'timedOut': return `Took too long, so ${back}${where}.`;
+    case 'priceMoved': return `The price moved more than the set limit, so ${back}${where}.`;
+    case 'notFilled': return `This swap couldn't be filled, so ${back}${where}.`;
+    case 'poolShort': return `Swapic couldn't complete this one right now, so ${back}.`;
+    default: return `This swap couldn't finish, so ${back}${where}.`;
   }
 }
 
@@ -108,7 +109,7 @@ function stepReason(code: string | null): string {
   switch (code) {
     case 'expired':
     case 'timedOut': return 'Took too long';
-    case 'priceMoved': return 'The price moved more than you allowed';
+    case 'priceMoved': return 'The price moved more than the set limit';
     case 'notFilled': return "Couldn't be filled";
     case 'poolShort': return "Swapic couldn't complete it right now";
     case 'deliveredAsUsdc': return "The token couldn't be bought";
