@@ -329,13 +329,14 @@ describe('You pay gas through Permit2 (permit2Pay): every field checked before a
     expect(tamper((m) => { m.spender = ATTACKER; })).toBe('typedData');
     expect(tamper((m) => { m.spender = PERMIT2; })).toBe('typedData');
   });
-  it('refuses a deadline or a nonce other than the field\'s, and a deadline other than the order\'s', () => {
+  it('refuses a deadline or a nonce other than the field\'s, and a nonce other than the order id or a deadline other than the order\'s', () => {
     expect(tamper((m) => { m.deadline = '4102444800'; })).toBe('typedData');
     expect(tamper((m) => { m.nonce = '1'; })).toBe('typedData');
     expect(tamper((_m, p) => { p.nonce = '1'; })).toBe('typedData');
     expect(tamper((_m, p) => { p.deadline = '4102444800'; })).toBe('typedData');
-    // both moved together: the signature would outlive the order
+    // both moved together: the signature would outlive the order, or its nonce would not be the order's
     expect(tamper((m, p) => { m.deadline = '4102444800'; p.deadline = '4102444800'; })).toBe('typedData');
+    expect(tamper((m, p) => { m.nonce = '1'; p.nonce = '1'; })).toBe('typedData');
   });
   it('refuses a witness for another order, and any extra field such as an owner', () => {
     expect(tamper((m) => { m.witness.orderId = `0x${'00'.repeat(32)}`; })).toBe('typedData');

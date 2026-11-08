@@ -25,11 +25,12 @@
 // other order carries an empty memo. The memo is inside the EIP-712 struct hash, so the order id recomputed here binds it.
 // Tests: memo.test.ts (the golden memos) and the pool tests in evm.test.ts.
 // You pay gas through Permit2 (Jeff 2026-11-08). Must never happen: a signature over anything but this order's exact input to
-// this chain's Swapic under Permit2's domain on this chain, or one that outlives the order; an approval of Permit2 for
-// another token or below the maximum, the exact approval of Swapic sent on this path or the maximum of Permit2 on the other
-// (two approvals for one swap); the transaction's order differing from the one checked. How the design proves it: the typed data
-// is rebuilt here by the gasless Permit2 door's own builder from the order id, this chain and the anchored Swapic, with the
-// field's nonce and the order's deadline, and must equal the quoter's field by field (an `owner`, or any other extra
+// this chain's Swapic under Permit2's domain on this chain, or one that outlives the order; a Permit2 nonce or deadline not
+// tied to the order (the contract does not tie them); an approval of Permit2 for another token or below the maximum, the
+// exact approval of Swapic sent on this path or the maximum of Permit2 on the other (two approvals for one swap); the
+// transaction's order differing from the one checked. How the design proves it: the typed data is rebuilt here by the
+// gasless Permit2 door's own builder from the order id (its witness and, as a number, its nonce), the order's deadline, this
+// chain and the anchored Swapic, and must equal the quoter's field by field (an `owner`, or any other extra
 // field, is refused; the owner is the order's payer, the witness binds it, and runWithPermit2 takes only msg.sender as the
 // payer); what is signed is the rebuilt one; each path's approval is checked by its own rule and only the chosen path's is
 // returned; run(order) stays checked in `tx`, and the order checked comes back for the calldata (execute.ts encodes it).
@@ -291,8 +292,8 @@ function gaslessApproval(i: EvmCheckInput, r: Route) {
 function checkPermit2Pay(i: EvmCheckInput, p: NonNullable<Route['permit2Pay']>, o: OrderValue, id: Hex, chainId: number, swapic: Hex) {
   const nonce = BigInt(p.nonce);
   const deadline = BigInt(p.deadline);
-  // valid exactly as long as the order it pays
-  must(deadline === o.deadline, 'typedData');
+  // tied to the order it pays, as the contract does not: the order id its nonce, valid exactly as long as the order
+  must(nonce === BigInt(id) && deadline === o.deadline, 'typedData');
   const typedData = doorTypedData.permit2({ chainId, token: getAddress(i.fromToken), swapic, amountIn: i.amountIn, nonce, deadline, orderId: id });
   must(equalTyped(p.typedData, typedData), 'typedData');
   const approval = p.approval ? permit2Approval(i, p.approval) : null;
