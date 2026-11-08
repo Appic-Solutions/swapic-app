@@ -1,9 +1,19 @@
 import type { Config } from 'tailwindcss';
 import scrollbar from 'tailwind-scrollbar';
+import plugin from 'tailwindcss/plugin';
 
 const config: Config = {
   content: ['./src/**/*.{ts,tsx}'],
-  plugins: [scrollbar({ nocompatible: true })],
+  plugins: [
+    scrollbar({ nocompatible: true }),
+    // short windows on a wide screen, as variants (a raw screen would drop every max-* variant): a laptop at 125% scale
+    // (1920x1080 leaves about 1536x730, 1600x900 about 1280x580); tiny: 1366x768 at 125% leaves about 1090x480. They sort
+    // BEFORE md: and lg: rules: to override a property an md:/lg: class sets, stack them (lg:short:max-h-[...] wins)
+    plugin(({ addVariant }) => {
+      addVariant('short', '@media (min-width: 768px) and (max-height: 780px)');
+      addVariant('tiny', '@media (min-width: 768px) and (max-height: 560px)');
+    }),
+  ],
   theme: {
     container: {
       center: true,
@@ -48,10 +58,6 @@ const config: Config = {
       /* Screen Sizes */
       screens: {
         xs: '480px',
-        // short windows on a wide screen: a laptop at 125% (1920x1080 leaves about 1536x730, 1600x900 about 1280x580)
-        short: { raw: '(min-width: 768px) and (max-height: 780px)' },
-        // very short: 1366x768 at 125% leaves about 1090x480
-        tiny: { raw: '(min-width: 768px) and (max-height: 560px)' },
       },
 
       /* Keyframes */
