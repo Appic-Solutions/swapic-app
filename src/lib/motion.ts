@@ -1,6 +1,7 @@
 'use client';
 // Moved as is from the approved design's motion.ts (parts 1 and 2, approved by Jeff 2026-10-29; the lead's frozen
-// snapshot .superpowers/sdd/2026-10-29-lead/motion-part2-approved): every value unchanged.
+// snapshot .superpowers/sdd/2026-10-29-lead/motion-part2-approved). Since the feedback round of 2026-11-08 every duration
+// is about 30% shorter (a tester found the app slow to move); the easings and the rest are unchanged.
 // Swapic motion: every duration, easing, shared variant and motion class in
 // one module, so the live app can copy it as is.
 //
@@ -16,23 +17,23 @@ import type { Transition, Variants } from 'motion/react';
 /** Durations in seconds. */
 export const DUR = {
   /** Hover and press feedback. */
-  hover: 0.15,
+  hover: 0.1,
   /** Cards and panels entering, menus opening, token pages. */
-  panel: 0.25,
+  panel: 0.18,
   /** The big in place change (Swap, Review swap, Your swap), shared glides, the tab highlight. */
-  big: 0.35,
+  big: 0.25,
   /** Anything leaving: a bit faster than entries. */
-  exit: 0.18,
+  exit: 0.12,
   /** Between list items. */
-  stagger: 0.04,
+  stagger: 0.025,
   /** Entering parts wait this long after a change starts, so the exit leads (less double text). */
-  lead: 0.14,
+  lead: 0.1,
   /** A check drawing itself in, a step line filling. */
-  draw: 0.35,
+  draw: 0.25,
   /** One half of the waiting glow (it breathes in, then out). */
-  breathe: 1.6,
+  breathe: 1.1,
   /** The soft glow behind a delivered swap fading in. */
-  glow: 0.6,
+  glow: 0.42,
 };
 
 /** The waiting glow around a button the wallet signs: at rest and at its brightest. */
@@ -94,7 +95,7 @@ export const page: Variants = {
  * A view inside the in place panel (custom: calm). Usually its fading parts
  * come in together, just after the old ones start leaving. Calm (Jeff's pick
  * for the Stake and Withdraw reviews and status pages): the whole old view
- * fades out (180 ms), then the whole new one fades in (250 ms), so both
+ * fades out (120 ms), then the whole new one fades in (180 ms), so both
  * columns change together and the two never show at once; nothing flies.
  */
 export const view: Variants = {
@@ -120,7 +121,7 @@ export const listItem = (i: number) => ({
 
 /**
  * Something new at the top of a list (a History row, a feed card): it opens
- * from nothing, the list below glides down (350 ms), and it fades in. gap: the
+ * from nothing, the list below glides down (250 ms), and it fades in. gap: the
  * list's gap in px, which it also opens.
  */
 export const arriveTop = (gap: number) => ({
@@ -133,12 +134,12 @@ export const arriveTop = (gap: number) => ({
 // these repeat the numbers above; change both together).
 
 export const tw = {
-  /** Hover and press transition: 150 ms, entry easing. */
-  quick: 'transition duration-150 ease-[cubic-bezier(0.22,1,0.36,1)]',
-  /** Panel speed: things that open, rotate or change size (250 ms). */
-  panel: 'duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
-  /** The big change (350 ms), e.g. the Swap panel widening for routes. Reduce motion: instant. */
-  big: 'duration-[350ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+  /** Hover and press transition: 100 ms, entry easing. */
+  quick: 'transition duration-100 ease-[cubic-bezier(0.22,1,0.36,1)]',
+  /** Panel speed: things that open, rotate or change size (180 ms). */
+  panel: 'duration-[180ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
+  /** The big change (250 ms), e.g. the Swap panel widening for routes. Reduce motion: instant. */
+  big: 'duration-[250ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
   /** Buttons sink a little when pressed. */
   press: 'active:scale-[0.97] motion-reduce:active:scale-100',
   /** Wide rows and token cards. */
@@ -182,7 +183,7 @@ export { useReducedMotion };
 export const usePhone = () => React.useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)[0];
 
 // Drawers (vaul) slide with their own CSS animation; these rules give them the
-// panel timings (enter 250 ms, leave 180 ms) for the sheet and its overlay.
+// panel timings (enter 180 ms, leave 120 ms) for the sheet and its overlay.
 const bezier = (e: number[]) => `cubic-bezier(${e.join(',')})`;
 const SHEET_CSS =
   `[data-vaul-drawer][data-state=open],[data-vaul-overlay][data-state=open]{animation-duration:${DUR.panel}s!important;animation-timing-function:${bezier(EASE.enter)}!important}` +
