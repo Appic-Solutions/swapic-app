@@ -51,12 +51,13 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               type="text"
               inputMode="decimal"
               autoComplete="off"
-              placeholder="0"
+              // words in smaller grey type (Jeff 2026-11-08): a big faint 0 read like a typed zero
+              placeholder="Enter amount"
               value={amountText}
               disabled={disabled}
               onKeyDown={(e) => { if (NOT_AMOUNT_KEYS.has(e.key)) e.preventDefault(); }}
               onChange={(e) => { const t = e.target.value.replace(',', '.'); if (t.length <= 15 && isAmountText(t)) onAmountText?.(t); }}
-              className="w-full bg-transparent py-1 text-primary outline-none placeholder:text-faint"
+              className="w-full bg-transparent py-1 text-primary outline-none placeholder:text-base placeholder:font-normal placeholder:text-faint md:placeholder:text-lg"
             />
             {balanceLoading ? (
               <Skeleton className="ml-3 h-6 w-[46px] shrink-0" />
