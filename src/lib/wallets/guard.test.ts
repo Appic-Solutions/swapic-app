@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import type { Hex } from 'viem';
-import { BASE_ACCOUNT_CONNECTOR_ID, holdsNoCode, judgeEvmWallet, normalizedSignature, ownSignature, sessionLacksTypedData, within } from './guard';
+import { BASE_ACCOUNT_CONNECTOR_ID, holdsNoCode, judgeEvmWallet, normalizedSignature, ownSignature, payerReadOf, sessionLacksTypedData, within } from './guard';
 
 const DELEGATE = '63c0c19a282a1b52b07dd5a65b58948a07dae32b';
 
@@ -82,6 +82,19 @@ describe('paying through Permit2: only a key with no code (SignatureVerification
     expect(sessionLacksTypedData(null)).toBe(false);
     expect(sessionLacksTypedData(undefined)).toBe(false);
     expect(sessionLacksTypedData(session(undefined))).toBe(false);
+  });
+  it('payerReadOf tells no code, code and a read that failed apart, an EIP-7702 delegation being code', () => {
+    const noMethod = { session: { namespaces: { eip155: { methods: ['personal_sign'] } } } };
+    expect(payerReadOf(false, null, '0x')).toBe('plain');
+    expect(payerReadOf(false, null, '')).toBe('plain');
+    expect(payerReadOf(false, null, `0xef0100${DELEGATE}`)).toBe('code');
+    expect(payerReadOf(false, null, '0x6080604052')).toBe('code');
+    expect(payerReadOf(false, null, null)).toBe('unread');
+    expect(payerReadOf(false, noMethod, '0x')).toBe('noTypedData');
+    // the store's own flag: smart whatever this chain says (an account not deployed here), and a flag it could not read
+    expect(payerReadOf(true, null, '0x')).toBe('code');
+    expect(payerReadOf(null, null, '0x')).toBe('unread');
+    expect(payerReadOf(undefined, null, '0x')).toBe('unread');
   });
   describe('within', () => {
     afterEach(() => { vi.useRealTimers(); });

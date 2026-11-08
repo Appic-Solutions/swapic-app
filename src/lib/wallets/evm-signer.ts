@@ -21,7 +21,7 @@ import {
 } from 'wagmi/actions';
 import { wagmiConfig } from './evm-config';
 import { erc20Abi } from 'viem';
-import { holdsNoCode, ownSignature, sessionLacksTypedData, within, type PayerRead } from './guard';
+import { ownSignature, payerReadOf, within, type PayerRead } from './guard';
 
 export type SignableTypedData = {
   domain: Record<string, unknown>;
@@ -82,11 +82,12 @@ export function wagmiSigner(address: `0x${string}`, smartWallet?: boolean | null
       return f.maxFeePerGas ?? 0n;
     },
     async payerOn(chainId, limitMs) {
-      if (smartWallet === true) return 'code';
-      if (smartWallet !== false) return 'unread';
-      if (sessionLacksTypedData(await within(limitMs, async () => getAccount(wagmiConfig).connector?.getProvider()))) return 'noTypedData';
-      const code = await within(limitMs, async () => (await getBytecode(wagmiConfig, { address, chainId: chainId as ChainId })) ?? '0x');
-      return code === null ? 'unread' : holdsNoCode(code) ? 'plain' : 'code';
+      // side by side, so the two never take longer than the limit
+      const [provider, code] = await Promise.all([
+        within(limitMs, async () => getAccount(wagmiConfig).connector?.getProvider()),
+        within(limitMs, async () => (await getBytecode(wagmiConfig, { address, chainId: chainId as ChainId })) ?? '0x'),
+      ]);
+      return payerReadOf(smartWallet, provider, code);
     },
     allowanceOf: (chainId, token, spender, limitMs) => within(limitMs, async () => {
       const client = getPublicClient(wagmiConfig, { chainId: chainId as ChainId });

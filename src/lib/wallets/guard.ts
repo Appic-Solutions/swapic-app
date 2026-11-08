@@ -59,6 +59,16 @@ export const sessionLacksTypedData = (provider: unknown): boolean => {
   return Array.isArray(methods) && !methods.includes('eth_signTypedData_v4');
 };
 
+/** The reads put together. `smartWallet`: the store's flag (read on the connected chain, null when it could not be); `provider`: the
+ *  connected wallet's; `code`: at the address on the chain paid from, null when it could not be read. */
+export function payerReadOf(smartWallet: boolean | null | undefined, provider: unknown, code: string | null): PayerRead {
+  if (smartWallet === true) return 'code';
+  if (smartWallet !== false) return 'unread';
+  if (sessionLacksTypedData(provider)) return 'noTypedData';
+  if (code === null) return 'unread';
+  return holdsNoCode(code) ? 'plain' : 'code';
+}
+
 /** A key's 65 bytes with the last one as Permit2's ecrecover takes it (some devices answer 0 or 1 for 27 or 28); null for
  *  anything else (a contract wallet's or an ERC-6492 answer). */
 export function normalizedSignature(signature: Hex): Hex | null {
