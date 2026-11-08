@@ -41,9 +41,10 @@ export function judgeEvmWallet(connectorId: string | undefined, code: string | n
 /** The address holds no code at all: Permit2 reads its signature with ecrecover. Code that could not be read (null) is not this. */
 export const holdsNoCode = (code: string | null): boolean => code === '0x' || code === '';
 
-/** What Permit2 asks of an address with no code: 65 bytes that recover to it, over this very typed data. */
+/** What Permit2 asks of an address with no code: 65 bytes ending in 27 or 28 (its ecrecover takes no 0 or 1, which viem would
+ *  read) that recover to it, over this very typed data. */
 export async function signedByKey(address: string, td: SignableTypedData, signature: Hex): Promise<boolean> {
-  if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return false;
+  if (!/^0x[0-9a-fA-F]{128}(1b|1c)$/i.test(signature)) return false;
   try {
     const { EIP712Domain: _omit, ...types } = td.types;
     const who = await recoverTypedDataAddress({ domain: td.domain, types, primaryType: td.primaryType, message: td.message, signature } as never);

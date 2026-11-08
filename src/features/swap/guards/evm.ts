@@ -4,7 +4,7 @@
 // plan names, a ck deposit into anything but the helper the canister names or for any account but the one shown, an Eco intent a foreign prover can claim or whose refund is locked far away, a swap paying anyone but the
 // Runner); a pool route whose ref commits other terms than the ones on screen; a transaction to anything but the source
 // chain's Swapic as the canister's get_config names it, or an approval to anyone but that Swapic (you pay gas, exactly the
-// amount) or Permit2 (gasless, the maximum, on Permit2's door only); a signature over typed data for another chain, token, verifying contract, payer, amount, spender or
+// amount) or Permit2 (gasless on Permit2's door, or you pay gas through Permit2 below: the maximum); a signature over typed data for another chain, token, verifying contract, payer, amount, spender or
 // order; an order whose payer, input or delivery differs from the screen; an anchor taken from the quoter itself
 // (route.contracts, /v2/chains), or a signature made while get_config, get_flow_settings or evm_address cannot be read.
 // How the design proves it: the order id is recomputed under the anchored Swapic and must equal route.orderId, the ABI

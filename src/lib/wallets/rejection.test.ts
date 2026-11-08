@@ -61,6 +61,7 @@ describe('isUnsupportedSign (a wallet with no way to sign typed data, never a pe
     expect(isUnsupportedSign(new Error('eth_signTypedData_v4 is not supported'))).toBe(true);
     expect(isUnsupportedSign(new Error('This device does not support EIP-712'))).toBe(true);
     expect(isUnsupportedSign(new Error('Method not implemented'))).toBe(true);
+    expect(isUnsupportedSign(new Error('Not supported on this device'))).toBe(true);
   });
   it('a person cancelling is never this, whatever else the text says', () => {
     expect(isUnsupportedSign(Object.assign(new Error('User rejected the request.'), { code: 4001 }))).toBe(false);

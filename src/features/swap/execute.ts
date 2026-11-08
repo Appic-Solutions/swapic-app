@@ -16,10 +16,10 @@
 // (isLostSignerAnswer, ICRC-25 4001 and 4000), which is never a "no" (lead's ruling 2026-10-29). Tests: execute.test.ts.
 // You pay gas through Permit2 (Jeff 2026-11-08). Must never happen: two approvals for one swap (the path's own is the only
 // one verifyEvmRoute returns); gas spent on a signature Permit2 will refuse (a payer with code, a signature that is not its
-// key's: the wallets folder's guard.ts); a wallet step the person was not shown (another path, one more approve than Review swap shows: back to
-// it, nothing sent); a dead end for a wallet that cannot sign (noPermit2: back to Review swap with today's steps, where the
-// person sees the new approve before any wallet asks for it). `permit2` absent or false, no field, or a native input: the
-// code below runs exactly as it did, approve, then run(order).
+// key's: the wallets folder's guard.ts); a wallet step the person was not shown (another path, one more approve than Review
+// swap shows: back to it, nothing sent); a dead end for a wallet that cannot sign (noPermit2: back to Review swap with
+// today's steps, where the person sees the new approve before any wallet asks for it). `permit2` absent or false, no field,
+// or a native input: the code below runs exactly as it did, approve, then run(order).
 import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { ApiError, userMessage, type GaslessSubmit, type Quote, type QuoteQuery, getOrders as getOrdersFn, getQuote as getQuoteFn, submitGasless as submitFn } from '@/lib/api';
 import { config } from '@/config';

@@ -58,5 +58,8 @@ describe('paying through Permit2: only a key with no code (SignatureVerification
     // an ERC-6492 wrapper, longer than a key's 65 bytes
     expect(await signedByKey(key.address, td, `${good}${'64'.repeat(32)}` as Hex)).toBe(false);
     expect(await signedByKey(key.address, td, `0x${'ab'.repeat(65)}`)).toBe(false);
+    // the key's own signature with its last byte 0 or 1: viem reads it, Permit2's ecrecover does not
+    const low = `${good.slice(0, 130)}${good.endsWith('1b') ? '00' : '01'}` as Hex;
+    expect(await signedByKey(key.address, td, low)).toBe(false);
   });
 });

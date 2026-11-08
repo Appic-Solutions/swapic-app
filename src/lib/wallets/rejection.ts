@@ -18,9 +18,9 @@ const ICRC25_CHANNEL_CLOSED = 4001;
 
 /** EIP-1193 4200 (unsupported method), JSON-RPC -32601 (method not found) and -32004 (method not supported). */
 const NO_SUCH_METHOD = new Set([4200, -32601, -32004]);
-/** The same in words: WalletConnect's refusal of a method its session lacks (sign-client: "request() method: ..."), and a
- *  wallet or device naming the method, typed data or EIP-712 beside saying it has none. */
-const NO_SUCH_METHOD_TEXT = /request\(\) method: *eth_signTypedData|(method|sign_?typed_?data|typed data|eip-?712)[^.]*\b(not supported|unsupported|not implemented|not available|does not exist|not found)\b|\b(unsupported|not supported|does not support|doesn't support)\b[^.]*(method|sign_?typed_?data|typed data|eip-?712)/i;
+/** The same in words: WalletConnect's refusal of a method its session lacks (sign-client: "request() method: ..."), a wallet
+ *  or device naming the method, typed data or EIP-712 beside saying it has none, or that this device or wallet has it not. */
+const NO_SUCH_METHOD_TEXT = /request\(\) method: *eth_signTypedData|(method|sign_?typed_?data|typed data|eip-?712)[^.]*\b(not supported|unsupported|not implemented|not available|does not exist|not found)\b|\b(unsupported|not supported|does not support|doesn't support)\b[^.]*(method|sign_?typed_?data|typed data|eip-?712)|not supported (on|by) (this|your) (device|wallet)/i;
 
 const causeOf = (e: unknown): unknown => (e && typeof e === 'object' ? (e as { cause?: unknown }).cause : undefined);
 /** An ICP signer's no: ICRC-25 3001, or Plug's 3000 "User rejected". */

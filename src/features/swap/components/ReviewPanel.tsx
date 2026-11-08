@@ -123,8 +123,14 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
               <p className="text-xl font-semibold text-white">In your wallet</p>
               {!data.pending && <p className="text-sm text-secondary">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>}
             </div>
-            {/* a note in its place says why the steps never came */}
-            {data.pending ? !note && <StepsWaiting /> : <Steps steps={steps} numbered animated />}
+            {/* the steps fade in once the named quote says them; a note in their place says why they never came */}
+            <AnimatePresence mode="wait" initial={false}>
+              {!data.pending ? (
+                <motion.div key="steps" variants={fade} initial="hidden" animate="shown" exit="gone"><Steps steps={steps} numbered animated /></motion.div>
+              ) : !note ? (
+                <motion.div key="waiting" variants={fade} initial="hidden" animate="shown" exit="gone"><StepsWaiting /></motion.div>
+              ) : null}
+            </AnimatePresence>
           </motion.div>
           {note && <motion.div variants={fade}>{note}</motion.div>}
         </>
