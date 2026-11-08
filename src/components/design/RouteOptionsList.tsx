@@ -8,6 +8,7 @@
 // Motion (src/lib/motion.ts): cards that arrive after a quote fade up one after another; in the in place
 // panel the cards not picked fade out on Review swap while the picked one glides there (shared layoutId).
 import * as React from 'react';
+import { preload } from 'react-dom';
 import { motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { Card } from '@/components/ui/card';
@@ -34,7 +35,11 @@ export interface RouteOptionsListProps {
   timer?: React.ReactNode;
 }
 
+/** The no route picture: asked for as soon as a route column shows, so it is there when the empty state comes. */
+const EMPTY_IMAGE = '/images/empty.png';
+
 export default function RouteOptionsList({ options, toToken, state, selectedKey, onSelect, emptyTitle = 'No routes found', emptyText = 'No route can swap this amount right now. Try a smaller amount or another token.', enter, timer }: RouteOptionsListProps) {
+  preload(EMPTY_IMAGE, { as: 'image' });
   const first = options[0]?.key;
   const phone = usePhone();
   // which cards are open: on phones all of them, on desktop the picked one
@@ -71,20 +76,25 @@ export default function RouteOptionsList({ options, toToken, state, selectedKey,
       <motion.div {...(mounted ? listItem(i) : {})}>{child}</motion.div>
     </motion.div>
   );
+  // Below lg one route card shows under the amount: an invisible loading card shares its grid cell, so the column keeps
+  // one height while it loads, shows routes or shows none, and the panel never jumps (the tester's report, 2026-11-08).
+  // From lg the column is as tall as the panel's left side in every state already.
+  const cellAll = 'col-start-1 row-start-1';
   return (
-    <div className="flex w-full flex-col items-start lg:h-full">
+    <div className="grid w-full lg:flex lg:h-full lg:flex-col lg:items-start">
+      <div aria-hidden className={cn(cellAll, 'invisible w-full lg:hidden')}><RouteOptionSkeleton open /></div>
       {state === 'empty' ? (
-        <motion.div variants={fade} className="w-full lg:h-full" {...(mounted ? listItem(0) : {})}>
-          <Card className="cursor-auto flex-col items-center justify-center gap-3 text-center lg:h-full">
+        <motion.div variants={fade} className={cn(cellAll, 'w-full lg:h-full')} {...(mounted ? listItem(0) : {})}>
+          <Card className="h-full cursor-auto flex-col items-center justify-center gap-3 text-center">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/empty.png" alt="" width={80} height={80} />
+            <img src={EMPTY_IMAGE} alt="" width={80} height={80} />
             <p className="text-xl font-semibold">{emptyTitle}</p>
             <p className="text-sm font-normal text-secondary">{emptyText}</p>
           </Card>
         </motion.div>
       ) : (
         // layoutScroll: the picked card's glide to Review swap starts from where the scrolled list shows it
-        <motion.div ref={edge.ref} layoutScroll className={cn('no-scrollbar relative flex w-full flex-col gap-4 lg:h-full lg:overflow-y-auto', edge.fade)}>
+        <motion.div ref={edge.ref} layoutScroll className={cn(cellAll, 'no-scrollbar relative flex w-full flex-col gap-4 lg:h-full lg:overflow-y-auto', edge.fade)}>
           {state === 'loading'
             ? [cell('s1', 0, <RouteOptionSkeleton open />), cell('s2', 1, <RouteOptionSkeleton />, false, true)]
             : options.map((o, i) =>

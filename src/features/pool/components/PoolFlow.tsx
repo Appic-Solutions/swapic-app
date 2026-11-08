@@ -15,6 +15,8 @@ import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
 import { MorphFrame } from '@/components/motion/parts';
+import { COMPACT_VIEW } from '@/components/design/fit';
+import { cn } from '@/lib/cn';
 import { formatUnits } from '@/lib/money';
 import { useQueryOnce } from '@/lib/use-query-once';
 import { useWallets } from '@/lib/wallets';
@@ -27,7 +29,7 @@ import { tiles, useMyStakes, usePool, type MyStake } from '../data';
 import type { StakeReview as StakeReviewData } from '../review';
 import { defaultStakeFrom } from '../stake-from';
 import { CKUSDC_TOKEN, useUsdcTokens } from '../usdc';
-import { PoolLoading, PoolPanel } from './PoolPanel';
+import { POOL_FIT, PoolLoading, PoolPanel } from './PoolPanel';
 import { ReceiveOnPicker } from './ReceiveOnPicker';
 import { StakePanel } from './StakePanel';
 import { StakeReview, type StakeStart, type StakeStarted } from './StakeReview';
@@ -44,8 +46,10 @@ export type PoolView = 'pool' | 'stake' | 'stakeFrom' | 'stakeReview' | 'stakeSt
 const TWO_COLUMN_FRAME = 'h-full md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px] overflow-x-hidden';
 const NARROW_FRAME = 'md:w-full md:max-w-[537px]';
 /** Each view's panel size and layout in the one panel (the design's POOL_LAYOUT; widths and heights glide). */
+// The pool page on a short window (a laptop at 125%): exactly the window's height less the frame (POOL_FIT), the chart
+// taking what its column leaves and the right column scrolling inside (PoolPanel).
 const POOL_LAYOUT: Record<PoolView, { frame: string; view?: string }> = {
-  pool: { frame: 'md:w-full md:max-w-[1204px] lg:max-h-[740px] lg:overflow-y-hidden', view: 'gap-y-6 lg:max-h-[740px] lg:flex-row lg:items-start lg:gap-x-16' },
+  pool: { frame: 'md:w-full md:max-w-[1204px] lg:max-h-[740px] lg:overflow-y-hidden', view: `gap-y-6 lg:max-h-[740px] lg:flex-row lg:items-start lg:gap-x-16 ${POOL_FIT}` },
   stake: { frame: TWO_COLUMN_FRAME },
   stakeFrom: { frame: NARROW_FRAME },
   stakeReview: { frame: TWO_COLUMN_FRAME },
@@ -230,7 +234,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   };
 
   return (
-    <MorphFrame view={shown} calm frameClass={L.frame} viewClass={L.view}>
+    <MorphFrame view={shown} calm frameClass={L.frame} viewClass={cn(L.view, COMPACT_VIEW)}>
       {() => body()}
     </MorphFrame>
   );

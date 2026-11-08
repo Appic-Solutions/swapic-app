@@ -66,10 +66,24 @@ test.describe('Swap', () => {
   test('a bad Send To Wallet address blocks the swap', async ({ page }) => {
     await open(page, 'default');
     await pickTokens(page);
-    // the wallet toggle beside the button: one per layout, the visible one
-    await page.getByLabel('Send to another wallet').filter({ visible: true }).click();
+    // Receive at, on the To card: the menu's Paste an address opens the field
+    await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
+    await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
     await page.getByPlaceholder(/0x0f70e/).fill('0x3A9c2E07b5F81dC4');
     await expect(button(page, 'Enter a valid address')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Receive at: New address', includeHidden: true })).toBeVisible();
+  });
+
+  test('Receive at: a pasted address shows short on the To card, and Your wallet takes the swap back to the wallet', async ({ page }) => {
+    await open(page, 'default');
+    await pickTokens(page);
+    await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
+    await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
+    await page.getByPlaceholder(/0x0f70e/).fill('0x3a9c2e07b5f81dc4be00aa6f6b9d2e45ca1189ac');
+    await page.getByRole('button', { name: 'Receive at: 0x3a9c…89ac', includeHidden: true }).click();
+    await page.getByRole('button', { name: /^Your wallet/, includeHidden: true }).click();
+    await expect(page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true })).toBeVisible();
+    await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
   test('a smart wallet types the address that receives on another chain (plan 2 Smart wallets)', async ({ page }) => {

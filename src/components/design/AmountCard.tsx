@@ -29,13 +29,15 @@ export interface AmountCardProps {
   label?: string;
   /** The amount cannot be typed yet (Withdraw while the stake loads). */
   disabled?: boolean;
+  /** The yellow note's line is kept even while empty, so the card keeps one height when a note comes and goes (Swap). */
+  reserveMessage?: boolean;
 }
 
-export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', disabled }: AmountCardProps) {
+export default function AmountCard({ token, amountText, onAmountText, usdText, balanceText, onMax, balanceLoading, message, label = 'Send', disabled, reserveMessage }: AmountCardProps) {
   return (
     // With a message the card grows to fit it: the design's message sat absolutely under the dollar line, sized for one
     // short line, so a longer one (the cap's) wrapped onto the dollar line (Jeff's screenshot, 2026-10-31).
-    <Card className={'mt-3 cursor-auto flex-col items-start justify-center gap-2 p-4 first:mt-0 md:mt-4 md:p-5 md:first:mt-0' + (message ? '' : ' max-h-[133px] md:max-h-[155px]')}>
+    <Card className={'mt-3 cursor-auto flex-col items-start justify-center gap-2 p-4 first:mt-0 md:mt-4 md:p-5 md:first:mt-0 md:short:mt-3 md:short:py-4 md:tiny:gap-1 md:tiny:py-3 md:short:first:mt-0' + (message || reserveMessage ? '' : ' max-h-[133px] md:max-h-[155px]')}>
       <p className="text-xs font-medium text-secondary md:text-sm">{label}</p>
       <div className="flex w-full items-center gap-3 md:gap-4">
         <div className="relative">
@@ -77,7 +79,9 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               balanceText !== undefined && <p className="text-nowrap text-center text-xs font-normal text-secondary md:text-sm">{balanceText}</p>
             )}
           </div>
-          {message && <p className="mt-1 animate-slide-in-from-top text-xs font-normal text-warn">{message}</p>}
+          {reserveMessage ? (
+            <p className="mt-1 min-h-4 text-xs font-normal leading-4 text-warn">{message && <span key={message} className="block animate-slide-in-from-top">{message}</span>}</p>
+          ) : message && <p className="mt-1 animate-slide-in-from-top text-xs font-normal text-warn">{message}</p>}
         </div>
       </div>
     </Card>

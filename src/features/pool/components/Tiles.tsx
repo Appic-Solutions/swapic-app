@@ -4,7 +4,9 @@ import { SkeletonText } from '@/components/ui/skeleton';
 import type { PoolAnswer } from '@/lib/api';
 import { tiles } from '../data';
 
-const tile = 'flex min-w-0 flex-1 flex-col justify-between gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-h-24 md:p-5';
+// short windows (a laptop at 125%): lower tiles; tiny ones leave out the small line under the number
+const tile = 'flex min-w-0 flex-1 flex-col justify-between gap-y-1 rounded-3xl border border-line bg-input-fields p-4 text-white md:min-h-24 md:p-5 md:short:min-h-0 md:short:py-4 md:tiny:py-3';
+const sub = 'text-xs text-secondary md:tiny:hidden';
 const label = 'text-xs font-medium text-secondary md:text-sm';
 
 /** The tiles while the pool loads: the labels and what never changes stay, the numbers wait. */
@@ -14,17 +16,17 @@ export function TilesLoading() {
       <div className={tile}>
         <p className={label}>APY, 7 days</p>
         <SkeletonText className="w-14 font-semibold md:text-xl" />
-        <SkeletonText className="w-20 text-xs" />
+        <SkeletonText className="w-20 text-xs md:tiny:hidden" />
       </div>
       <div className={tile}>
         <p className={label}>Total staked</p>
         <SkeletonText className="w-20 font-semibold md:text-xl" />
-        <p className="text-xs text-secondary">by all stakers</p>
+        <p className={sub}>by all stakers</p>
       </div>
       <div className={tile}>
         <p className={label}>Earned, 24H</p>
         <SkeletonText className="w-16 font-semibold md:text-xl" />
-        <p className="text-xs text-secondary">paid to stakers from swaps</p>
+        <p className={sub}>paid to stakers from swaps</p>
       </div>
     </div>
   );
@@ -44,7 +46,7 @@ export function Tiles({ pool }: { pool: PoolAnswer }) {
         <div key={l} className={tile}>
           <p className={label}>{l}</p>
           <p className="font-semibold md:text-xl">{v}</p>
-          {s !== null && <p className="text-xs text-secondary">{s}</p>}
+          {s !== null && <p className={sub}>{s}</p>}
         </div>
       ))}
     </div>

@@ -29,8 +29,15 @@ export function Nav({ active: own }: { active: Tab }) {
   const mounted = useMounted();
   const phone = usePhone();
   return (
-    <div data-testid="tab-nav" className="fixed bottom-0 z-[99] w-full bg-gradient-to-t from-[#060607] from-60% to-transparent pb-4 pt-6 xl:absolute xl:top-8 xl:h-max xl:max-w-[640px] xl:bg-none xl:p-0 md:mx-auto">
-      <ul className="mx-auto flex w-full max-w-[calc(100%-48px)] items-center justify-between gap-x-1 rounded-full border border-line bg-[#141416] p-1.5 text-white md:max-w-[640px]">
+    <div
+      data-testid="tab-nav"
+      className={
+        'fixed bottom-0 z-[99] w-full bg-gradient-to-t from-[#060607] from-60% to-transparent pb-4 pt-6 xl:absolute xl:top-8 xl:h-max xl:max-w-[640px] xl:bg-none xl:p-0 md:mx-auto' +
+        // short windows from 1024 px wide: in the header row, a little lower (beside the logo and the wallet button)
+        ' lg:short:absolute lg:short:bottom-auto lg:short:top-4 lg:short:h-max lg:short:max-w-[520px] lg:short:bg-none lg:short:p-0 lg:tiny:top-3 xl:short:top-4 xl:short:max-w-[640px] xl:tiny:top-3'
+      }
+    >
+      <ul className="mx-auto flex w-full max-w-[calc(100%-48px)] items-center justify-between gap-x-1 rounded-full border border-line bg-[#141416] p-1.5 text-white md:max-w-[640px] lg:short:p-1">
         {TABS.map(([label, href, Icon]) => {
           const on = label === active;
           return (
@@ -52,7 +59,7 @@ export function Nav({ active: own }: { active: Tab }) {
                 layoutDependency={active}
                 transition={{ default: T.hover, layout: T.big }}
                 whileTap={press}
-                className="relative flex h-10 items-center justify-center gap-x-1.5 px-3"
+                className="relative flex h-10 items-center justify-center gap-x-1.5 px-3 lg:short:h-9"
               >
                 <Icon width={20} height={20} className="shrink-0" />
                 <motion.span

@@ -25,6 +25,7 @@ import { Footer } from '@/features/home/Footer';
 import { AnimatePresence } from 'motion/react';
 import { Enter } from '@/components/motion/parts';
 import { fade, useFirstRender } from '@/lib/motion';
+import { cn } from '@/lib/cn';
 
 type View = 'swap' | 'from' | 'to' | 'review' | 'status';
 
@@ -127,11 +128,21 @@ export function SwapHome() {
       {tokenPage ?? (
         <Enter key="panel" skip={first} variants={fade} className="flex w-full flex-col items-center">
           {/* The first screen, in every view: the panel stays on one center line while the home sections and the hint come and
-              go (Jeff 2026-11-05: without this it jumped 85 px down on Review swap, then climbed back). 138 and 222: what the
-              header, the page padding and the bottom nav take above and below it. */}
-          <div className="relative flex w-full flex-col items-center justify-center md:min-h-[max(720px,calc(var(--fold,100vh)-222px))] xl:min-h-[max(720px,calc(var(--fold,100vh)-138px))]">
+              go (Jeff 2026-11-05: without this it jumped 85 px down on Review swap, then climbed back). The frame variables
+              (globals.css) are what the header, the page padding and the bottom nav take above and below it. A short window
+              (a laptop at 125%) has no 720 px floor: the first screen is the window, the hint keeps its 48 px at the bottom in the
+              Swap view (--page-reserve, which a panel sized to the window leaves free; Review swap and Your swap take the
+              whole height), and a panel taller than the rest starts at the top instead of running under the header. */}
+          <div
+            className={cn(
+              'relative flex w-full flex-col items-center justify-center md:min-h-[max(720px,calc(var(--fold,100vh)-var(--frame-top)-var(--frame-bottom)))]',
+              'md:short:min-h-[calc(100dvh-var(--frame-top)-var(--frame-bottom))] md:short:[justify-content:safe_center]',
+              flowView === 'swap' && 'md:short:pb-12 md:short:[--page-reserve:48px] md:tiny:pb-0 md:tiny:[--page-reserve:0px]',
+            )}
+          >
             <SwapFlow view={flowView} setView={setView} onPick={(side) => setView(side)} linking={linking} />
-            {flowView === 'swap' && <ScrollHint />}
+            {/* a tiny window has no room for it under the panel */}
+            {flowView === 'swap' && <div className="md:tiny:hidden"><ScrollHint /></div>}
           </div>
           {flowView === 'swap' && (
             <>

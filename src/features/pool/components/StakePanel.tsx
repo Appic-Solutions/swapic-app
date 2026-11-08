@@ -17,6 +17,7 @@ import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
+import { HINTS } from '@/lib/copy/hints';
 import { ConfirmButton } from '@/components/motion/parts';
 import { motion } from 'motion/react';
 import { fade } from '@/lib/motion';
@@ -176,6 +177,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   return (
     <TwoColumn
       inPlace
+      hint={HINTS.stake}
       title="Stake"
       onBack={onBack}
       // inside the in place panel each part fades (TwoColumn: callers fade their own parts)

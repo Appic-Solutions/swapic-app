@@ -19,12 +19,15 @@ export type VolumeChartDataType = { date: string; value: number; fees: number };
 export function VolumeChart({
   chartData,
   setHovered,
+  height = 360,
 }: {
   chartData: VolumeChartDataType[];
   setHovered: Dispatch<SetStateAction<number>>;
+  /** px, or a % of its box (the pool page fills a box sized to the window) */
+  height?: number | `${number}%`;
 }) {
   return (
-    <ResponsiveContainer height={360} width="100%">
+    <ResponsiveContainer height={height} width="100%">
       <BarChart data={chartData} barGap={4}>
         <CartesianGrid vertical={false} className="stroke-white/10" />
         <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
