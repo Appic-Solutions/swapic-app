@@ -29,11 +29,19 @@ const idOf = (r: ActivityRow) => r.id.toLowerCase();
 /** The newer word on one row: an end is final, so a pending answer never replaces an ended row. */
 const later = (fresh: ActivityRow, known: ActivityRow | undefined) => (known && known.outcome !== 'pending' && fresh.outcome === 'pending' ? known : fresh);
 
-/** The pages with `row` in its place (where it is loaded), unless that would turn an ended row back to pending. */
+/** A row read elsewhere laid over the one loaded: its status, outcome, amounts, times and reason win, and a field it lacks
+ *  (a Scanner search row has no `direction`, which only a wallet's own list knows) stays as the list had it. */
+export function mergeRow(known: ActivityRow, fresh: ActivityRow): ActivityRow {
+  const out: Record<string, unknown> = { ...known };
+  for (const [k, v] of Object.entries(fresh)) if (v !== undefined) out[k] = v;
+  return out as unknown as ActivityRow;
+}
+
+/** The pages with `row` laid over its place (where it is loaded, mergeRow), unless that would turn an ended row back. */
 export function replaceRow(old: Pages, row: ActivityRow): Pages {
   const id = idOf(row);
   let hit = false;
-  const pages = old.pages.map((p) => ({ ...p, rows: p.rows.map((r) => (idOf(r) === id ? ((hit = true), later(row, r)) : r)) }));
+  const pages = old.pages.map((p) => ({ ...p, rows: p.rows.map((r) => (idOf(r) === id ? ((hit = true), later(mergeRow(r, row), r)) : r)) }));
   return hit ? { ...old, pages } : old;
 }
 

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ActivityRow } from '@/lib/api';
-import { mergeHead, replaceRow, type Pages } from './live-list';
+import { mergeHead, mergeRow, replaceRow, type Pages } from './live-list';
 
 const base: ActivityRow = JSON.parse(readFileSync('tests/fixtures/contract/scanner-latest.json', 'utf8')).items[0];
 const row = (n: number, o: Partial<ActivityRow> = {}): ActivityRow => ({ ...base, id: `0x${n.toString(16).padStart(64, '0')}`, createdAt: 1_000_000 - n, ...o });
@@ -57,5 +57,17 @@ describe('replaceRow', () => {
     expect(replaceRow(loaded, row(9))).toBe(loaded);
     const ended = replaceRow(loaded, row(2, { outcome: 'delivered' }));
     expect(replaceRow(ended, row(2)).pages[0]!.rows[1]!.outcome).toBe('delivered');
+  });
+
+  it('lays a row read elsewhere over the loaded one: a field it lacks (direction) stays, its outcome, amounts and times win', () => {
+    const received = row(2, { direction: 'received', outcome: 'pending', endedAt: null });
+    const own: Pages = { pages: [{ rows: [row(1), received], nextCursor: null }], pageParams: [undefined] };
+    // a Scanner search row: no wallet relative fields
+    const searched = row(2, { outcome: 'delivered', stage: 'delivered', endedAt: 1_000_100, to: { ...base.to, amount: '74400000' } });
+    delete (searched as Partial<ActivityRow>).direction;
+    const m = replaceRow(own, searched).pages[0]!.rows[1]!;
+    expect(m).toMatchObject({ direction: 'received', outcome: 'delivered', stage: 'delivered', endedAt: 1_000_100 });
+    expect(m.to.amount).toBe('74400000');
+    expect(mergeRow(received, { ...searched, direction: undefined }).direction).toBe('received');
   });
 });
