@@ -7,6 +7,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { fade, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { TokenCard } from '@/components/ui/token-card';
@@ -15,7 +16,7 @@ import WalletAddressInput from '@/components/ui/wallet-address-input';
 import AmountCard from '@/components/design/AmountCard';
 import RouteOptionsList from '@/components/design/RouteOptionsList';
 import { CountdownLabel } from '@/components/ui/countdown-label';
-import { ArrowsUpDownIcon, HistoryIcon, WalletIcon } from '@/components/icons';
+import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
@@ -25,6 +26,7 @@ import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
 import { useBalance, useChains, useTokenList } from '../tokens';
 import { approveState, isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
 import type { PickedOption } from '../options';
+import { ReceiveAt } from './ReceiveAt';
 import type { Quote, QuoteQuery } from '@/lib/api';
 
 const NO_ROUTE = 'No route found for this amount';
@@ -107,6 +109,34 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     }
   }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
+  // Receive at (the To card's menu): the connected wallet that can receive, "Connect a wallet" (once it connects, the swap
+  // pays out to it and the field closes) or "Paste an address" (the field opens, focused)
+  const ownAddress = to ? (to.chain_type === 'ICP' ? icp?.principal ?? null : smartTyped ? null : evm?.address ?? null) : null;
+  const wantOwn = React.useRef(false);
+  React.useEffect(() => {
+    if (!wantOwn.current || !ownRecipient) return;
+    wantOwn.current = false;
+    if (recipient.show) f.set({ recipient: { ...recipient, show: false } });
+  }, [ownRecipient, recipient, f]);
+  const field = React.useRef<HTMLDivElement>(null);
+  // Paste an address: the field takes the focus once it has opened (focus scrolls it into view in a scrolling column)
+  const focusField = React.useRef(false);
+  const focusInput = () => field.current?.querySelector('input')?.focus();
+  const pickOwn = () => f.set({ recipient: { ...recipient, show: false } });
+  const connectTo = () => {
+    wantOwn.current = true;
+    if (to?.chain_type === 'ICP') void openIcp();
+    else void openEvm();
+  };
+  const paste = () => {
+    if (recipient.show) { focusInput(); return; }
+    focusField.current = true;
+    f.set({ recipient: { ...recipient, show: true, error: recipientError(to, recipient.address) } });
+  };
+  // short windows from lg: the cards above the button scroll inside once they are taller than the window allows (the
+  // address field open), so the panel fits and the button always shows; elsewhere this wrapper adds nothing
+  const cards = useScrollFade<HTMLDivElement>();
+
   const fastUpTo = covers !== null ? `Swap ${formatUsd(covers)} or less for the fast route` : undefined;
   const message = state === 'empty' ? fastUpTo ?? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : fastUpTo;
   const button = linkBoth ? { text: undefined, enabled: false } : swapButton({
@@ -142,13 +172,6 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
           {button.text}
         </ActionButton>
       </div>
-      <div
-        onClick={() => f.set({ recipient: { ...recipient, show: !recipient.show, error: recipientError(to, recipient.address) } })}
-        aria-label="Send to another wallet"
-        className={cn('flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center rounded-xl border bg-white/[0.06] hover:bg-white/10', tw.quick, tw.press, recipient.show ? 'border-blue-600' : 'border-line')}
-      >
-        <WalletIcon className="text-white" />
-      </div>
     </motion.div>
   );
 
@@ -167,6 +190,15 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
       </motion.div>
       <div className="flex w-full flex-1 flex-col justify-between gap-x-4 gap-y-6 lg:flex-row">
         <motion.div variants={fade} data-testid="swap-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
+          {/* 156 = 48 padding + 32 title + 16 gap + 12 + 48 button; tiny 140 = 40 + 28 + 12 + 12 + 48 */}
+          <div
+            ref={cards.ref}
+            className={cn(
+              'no-scrollbar contents lg:short:block lg:short:overflow-y-auto',
+              'lg:short:max-h-[calc(100dvh-var(--frame-top)-var(--frame-bottom)-var(--page-reserve,0px)-156px)] lg:tiny:max-h-[calc(100dvh-var(--frame-top)-var(--frame-bottom)-var(--page-reserve,0px)-140px)]',
+              cards.fade,
+            )}
+          >
           <div className={'relative flex w-full ' + (both || linkBoth ? 'flex-row gap-x-3 md:gap-x-4' : 'flex-col gap-y-4 md:short:gap-y-3')}>
             <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, compactCard, card)} />
             <div
@@ -180,7 +212,17 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             >
               <ArrowsUpDownIcon width={20} height={20} />
             </div>
-            <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
+            {/* the To card, and over its top right corner (beside its label) the Receive at control once a To token is picked */}
+            <div className="relative w-full min-w-0">
+              <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
+              {to && (
+                <ReceiveAt
+                  own={ownAddress} pasting={recipient.show} address={recipient.address} valid={!recipient.error}
+                  onOwn={pickOwn} onConnect={connectTo} onPaste={paste}
+                  className="absolute right-3 top-3 z-10 max-w-[calc(100%-56px)] md:right-4 md:top-[18px] md:short:top-[14px] md:tiny:top-[10px]"
+                />
+              )}
+            </div>
           </div>
           {linkBoth && <AmountCard token={{ logo: '', chainLogo: '' }} amountText="" usdText={null} balanceLoading disabled reserveMessage />}
           {both && (
@@ -200,9 +242,16 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             // Send To Wallet: the live card, opened and closed here at panel speed (the card itself stays "shown" so its
             // own slide stays out of the way).
             <motion.div
+              ref={field}
               initial={false}
               animate={{ height: recipient.show ? 'auto' : 0, opacity: recipient.show ? 1 : 0 }}
               transition={openHeight(recipient.show, reduced)}
+              // opened: it comes into view (a short window's cards scroll inside), and after Paste an address it takes the focus
+              onAnimationComplete={() => {
+                if (!recipient.show) return;
+                field.current?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+                if (focusField.current) { focusField.current = false; focusInput(); }
+              }}
               className="overflow-hidden"
             >
               <WalletAddressInput
@@ -222,6 +271,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
               You are using a smart wallet. Type the address that should receive on {to!.chainName}, and make sure it is yours there.
             </p>
           )}
+          </div>
           {actions('mt-3 max-lg:hidden md:mt-4 md:short:mt-3', false)}
         </motion.div>
         {(column || linkColumn) && (
