@@ -157,13 +157,13 @@ const config: Config = {
       /* Animation */
       animation: {
         // Panel
-        'slide-in-from-right': 'slideInFromRight 0.5s ease-in-out',
-        'slide-in-from-left': 'slideInFromLeft 0.5s ease-in-out',
-        'slide-in': 'slide-in 0.3s ease-out 0.1s forwards',
-        'slide-in-from-top': 'slideInFromTop 0.2s ease-out',
-        'slide-in-with-height': 'slideInFromTopWithHeight 0.3s ease-out forwards',
+        'slide-in-from-right': 'slideInFromRight 0.35s ease-in-out',
+        'slide-in-from-left': 'slideInFromLeft 0.35s ease-in-out',
+        'slide-in': 'slide-in 0.2s ease-out 0.07s forwards',
+        'slide-in-from-top': 'slideInFromTop 0.15s ease-out',
+        'slide-in-with-height': 'slideInFromTopWithHeight 0.2s ease-out forwards',
         'border-spin': 'border-spin 2s linear infinite',
-        'fade': 'fadeIn .5s ease-in-out',
+        'fade': 'fadeIn .35s ease-in-out',
 
         // Landing
         'border-rotate': 'border-rotate 5s linear forwards infinite',

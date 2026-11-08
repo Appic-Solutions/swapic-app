@@ -51,7 +51,7 @@ export function Faq() {
               key={t.title}
               onClick={() => { setTopic(i); setOpen(0); }}
               className={cn(
-                'flex flex-1 cursor-pointer items-center justify-between gap-x-4 rounded-3xl border p-5 font-medium text-white transition-colors duration-200 active:scale-[0.98]',
+                'flex flex-1 cursor-pointer items-center justify-between gap-x-4 rounded-3xl border p-5 font-medium text-white transition-colors duration-150 active:scale-[0.98]',
                 topic === i ? 'border-blue-600 bg-highlighted-card' : 'border-line bg-input-fields hover:border-line-strong',
               )}
             >
@@ -67,13 +67,13 @@ export function Faq() {
             key={q}
             onClick={() => setOpen(i)}
             className={cn(
-              'flex cursor-pointer flex-col gap-y-3 overflow-hidden rounded-3xl border bg-input-fields p-5 text-white transition-colors duration-200',
+              'flex cursor-pointer flex-col gap-y-3 overflow-hidden rounded-3xl border bg-input-fields p-5 text-white transition-colors duration-150',
               open === i ? 'border-line-strong' : 'border-line hover:border-line-strong',
             )}
           >
             <div className="flex items-center justify-between gap-x-2 font-medium">
               {q}
-              <ChevronDownIcon className={cn('shrink-0 text-secondary duration-200', open === i ? 'rotate-180' : 'rotate-0')} />
+              <ChevronDownIcon className={cn('shrink-0 text-secondary duration-150', open === i ? 'rotate-180' : 'rotate-0')} />
             </div>
             {open === i && <p className="animate-fade text-sm leading-6 text-secondary">{a}</p>}
           </div>

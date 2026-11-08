@@ -10,7 +10,7 @@ export function Empty({ img, size = 100, title, text, action, onAction }: { img:
       <img src={img} alt="" width={size} height={size} className="object-contain" />
       <p className="text-xl font-semibold">{title}</p>
       <p className="text-sm leading-6 text-secondary">{text}</p>
-      <div className="w-full max-w-[260px] transition-transform duration-150 active:scale-[0.98]"><ActionButton isDisabled={false} onClick={onAction}>{action}</ActionButton></div>
+      <div className="w-full max-w-[260px] transition-transform duration-100 active:scale-[0.98]"><ActionButton isDisabled={false} onClick={onAction}>{action}</ActionButton></div>
     </div>
   );
 }

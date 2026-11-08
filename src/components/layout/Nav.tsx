@@ -41,7 +41,7 @@ export function Nav({ active: own }: { active: Tab }) {
         {TABS.map(([label, href, Icon]) => {
           const on = label === active;
           return (
-            <li key={label} className={'relative flex-1 rounded-full transition-colors duration-150 ' + (on ? '' : 'text-secondary hover:text-white')}>
+            <li key={label} className={'relative flex-1 rounded-full transition-colors duration-100 ' + (on ? '' : 'text-secondary hover:text-white')}>
               {/* The highlight: one element that slides from tab to tab. */}
               {on && (
                 <motion.span

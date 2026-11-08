@@ -24,7 +24,7 @@ const CARD = cn(
   'rounded-3xl border border-line p-5',
   'text-xl font-semibold leading-7 text-white',
   'bg-input-fields bg-cover bg-center bg-no-repeat',
-  'transition-colors duration-200',
+  'transition-colors duration-150',
   'md:p-6 md:text-2xl md:leading-8',
 );
 

@@ -32,7 +32,7 @@ const TokenCard = ({
       )}
     >
       <div
-        className={cn('group flex min-w-0 flex-grow cursor-pointer items-center gap-x-3 duration-200')}
+        className={cn('group flex min-w-0 flex-grow cursor-pointer items-center gap-x-3 duration-150')}
         onClick={onClick}
       >
         <div className="relative shrink-0">
@@ -48,7 +48,7 @@ const TokenCard = ({
             <MarkAfterSymbol mark={mark} symbol={token.symbol} chainName={token.chainName} />
           </p>
           <div className="h-5 overflow-hidden">
-            <div className="flex flex-col transition-transform duration-300 group-hover:-translate-y-5">
+            <div className="flex flex-col transition-transform duration-200 group-hover:-translate-y-5">
               <p className="truncate text-sm font-normal text-secondary">{token.name}</p>
               <p className="flex items-center gap-x-2 truncate text-sm font-normal text-secondary">
                 {token?.contractAddress?.slice(0, 14) || token?.canisterId?.slice(0, 14)}

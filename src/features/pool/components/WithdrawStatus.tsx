@@ -19,7 +19,7 @@ import { cn } from '@/lib/cn';
 import { useActivity } from '@/features/activity/track';
 
 // Back link of the real BoxHeader: fades on hover, sinks a little when pressed.
-const BACK = '[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
+const BACK = '[&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
 
 type Row = ['done' | 'wait' | 'todo', string, string];
 

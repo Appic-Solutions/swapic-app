@@ -51,7 +51,7 @@ const Label = ({ children }: { children: React.ReactNode }) => <p className="px-
 // The live WalletCard row with the wallets it opens named under it and an arrow: the two first choices.
 function Choice({ logo, name, note, onClick }: { logo: string; name: string; note: string; onClick?: () => void }) {
   return (
-    <div onClick={onClick} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-200 hover:bg-white/[0.06]">
+    <div onClick={onClick} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-150 hover:bg-white/[0.06]">
       <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-white">{name}</p>
@@ -65,7 +65,7 @@ function Choice({ logo, name, note, onClick }: { logo: string; name: string; not
 // Plug when its extension is not in this browser (phones included): the same row, opening Plug's site in a new tab.
 function GetPlug({ logo }: { logo: string }) {
   return (
-    <a href={PLUG_INSTALL_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-200 hover:bg-white/[0.06]">
+    <a href={PLUG_INSTALL_URL} target="_blank" rel="noopener noreferrer" className="flex cursor-pointer items-center gap-2 rounded-xl p-2 duration-150 hover:bg-white/[0.06]">
       <Avatar src={logo} className="h-10 w-10" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-white">Plug</p>

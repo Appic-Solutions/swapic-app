@@ -19,7 +19,7 @@ import type { MyStake } from '../data';
 const ICP_WALLET_LOGO = '/images/logo/wallet_logos/icp.svg';
 
 // Back link of the real BoxHeader: fades on hover, sinks a little when pressed.
-const BACK = '[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
+const BACK = '[&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
 
 /** "Base, Arbitrum, Ethereum or Polygon": the chain names joined, the last with "or". */
 export const orList = (names: string[]) => names.join(', ').replace(/, ([^,]*)$/, ' or $1');
@@ -39,7 +39,7 @@ export function WithdrawPick({ stakes, picked, evmChains, onPick, onBack, onCont
             key={st.kind}
             onClick={() => onPick(st.kind)}
             className={cn(
-              'cursor-pointer flex-col items-start gap-3 bg-highlighted-card p-4 transition-colors duration-200 hover:border-line-strong active:scale-[0.99] md:p-5',
+              'cursor-pointer flex-col items-start gap-3 bg-highlighted-card p-4 transition-colors duration-150 hover:border-line-strong active:scale-[0.99] md:p-5',
               picked === st.kind ? 'border-blue-600' : 'border-line',
             )}
           >

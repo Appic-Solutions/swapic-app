@@ -17,7 +17,7 @@ import { endFlags, type OrderView } from '@/features/activity/rows';
 import { useNearEnd } from '@/features/activity/live-list';
 
 const th = 'border-b border-b-line h-11 text-xs font-medium text-secondary';
-const tr = 'text-center text-sm text-white border-b border-b-line last:border-b-0 h-14 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150';
+const tr = 'text-center text-sm text-white border-b border-b-line last:border-b-0 h-14 hover:bg-white/[0.03] cursor-pointer transition-colors duration-100';
 
 function Route({ o }: { o: OrderView }) {
   return (

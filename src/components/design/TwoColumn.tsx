@@ -12,7 +12,7 @@ import { BODY_FIT } from './fit';
 import { Hint } from './Hint';
 
 // Back link of the real BoxHeader: fades on hover, sinks a little when pressed (the approved motion).
-const BACK = '[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
+const BACK = '[&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
 // Short windows (a laptop at 125%): the title one size smaller, Back at the compact panel's padding (MorphFrame's viewClass).
 const COMPACT_HEADER = 'md:short:[&_p]:text-2xl md:short:[&_button]:left-6 md:tiny:[&_button]:left-5';
 
@@ -53,11 +53,11 @@ export function TwoColumn({ title, onBack, left, right, action, inPlace, longTit
       <div className="flex w-full flex-col gap-x-4 gap-y-4 lg:flex-row lg:items-stretch">
         <div data-testid="col-left" className="flex w-full min-w-0 flex-col lg:max-w-[482px] lg:shrink-0">
           {left}
-          <div className="mt-4 w-full transition-transform duration-150 active:scale-[0.98] max-lg:hidden lg:mt-auto lg:pt-4">{action}</div>
+          <div className="mt-4 w-full transition-transform duration-100 active:scale-[0.98] max-lg:hidden lg:mt-auto lg:pt-4">{action}</div>
         </div>
         <div data-testid="col-right" className="flex w-full min-w-0 flex-col gap-y-4">{right}</div>
       </div>
-      <div className="w-full transition-transform duration-150 active:scale-[0.98] lg:hidden">{action}</div>
+      <div className="w-full transition-transform duration-100 active:scale-[0.98] lg:hidden">{action}</div>
     </Box>
   );
 }

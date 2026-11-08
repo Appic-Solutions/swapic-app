@@ -101,7 +101,7 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
           >
             <Icon className="h-5 w-5 text-white md:h-6 md:w-6" width={24} height={24} />
           </div>
-          <div className={cn('flex-1 border-t-[3px] transition-colors duration-500', live ? 'border-dashed border-white/30' : lineTone, refund && 'border-dashed')} />
+          <div className={cn('flex-1 border-t-[3px] transition-colors duration-[350ms]', live ? 'border-dashed border-white/30' : lineTone, refund && 'border-dashed')} />
         </div>
         <TokenAvatar side={(refund || asUsdc) && o.refund ? o.refund : o.to} />
       </div>

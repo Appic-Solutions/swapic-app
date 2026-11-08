@@ -56,7 +56,7 @@ export function OrderDetail({ order: o, steps, loading, onBack }: { order: Order
   // fade; the link copy turns into a check for a second.
   return (
     <PanelBox className="flex h-full flex-col gap-6 overflow-x-hidden md:h-fit md:w-full md:max-w-[537px] lg:max-w-[1060px]">
-      <motion.div variants={fade} className="flex w-full items-center justify-center [&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100">
+      <motion.div variants={fade} className="flex w-full items-center justify-center [&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100">
         <BoxHeader title="Order" onBack={onBack} />
         {o ? <CopyLink id={o.id} copied={copied} onCopy={copy} /> : <Skeleton className="absolute right-0 h-8 w-[92px] rounded-xl md:right-8" />}
       </motion.div>

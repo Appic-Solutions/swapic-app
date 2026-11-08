@@ -25,7 +25,7 @@ export function Steps({ steps, gap = 'gap-y-4', line = 'after:h-[16px]', numbere
           <div className="flex min-w-0 items-center gap-x-4 md:gap-x-5">
             <div
               className={cn(
-                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-500',
+                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors duration-[350ms]',
                 s.state === 'wait' ? 'bg-blue-500/15' : s.state === 'done' ? 'bg-success/15 text-success' : s.state === 'fail' ? 'bg-fail/15 text-fail' : 'bg-white/10',
                 i < steps.length - 1 && cn('after:absolute after:top-full after:w-[2px]', line, s.state === 'done' ? 'after:bg-success/15' : 'after:bg-white/10'),
               )}

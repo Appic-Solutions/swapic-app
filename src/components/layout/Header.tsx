@@ -20,7 +20,7 @@ export default function Header() {
       className={cn(
         'flex h-10 min-w-10 items-center justify-center gap-2 rounded-xl border border-line bg-white/[0.06] px-2.5 text-sm font-medium text-white md:px-4',
         // the approved motion: brighter on hover, sinks a little when pressed
-        'transition duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white/10 active:scale-[0.97] motion-reduce:active:scale-100',
+        'transition duration-100 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white/10 active:scale-[0.97] motion-reduce:active:scale-100',
       )}
     >
       {!evm && !icp && <WalletIcon width={20} height={20} className="md:hidden" />}

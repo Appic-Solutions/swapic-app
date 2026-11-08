@@ -120,7 +120,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
             const isSelected = !!selected && selected.key === t.key;
             const isOpen = confirming === t.key;
             return (
-              <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-150')}>
+              <motion.div key={t.key} {...(mounted ? listItem(Math.min(i, 12)) : {})} className={cn(tw.quick, tw.pressRow, '[&>div]:transition-colors [&>div]:duration-100')}>
                 <TokenListItem
                   token={t}
                   mark={mark}
@@ -162,7 +162,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
 
   const content = (
     <>
-      <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100 md:short:[&_p]:text-2xl md:short:[&_button]:left-6 md:tiny:[&_button]:left-5"><BoxHeader title={title} onBack={onBack} /></div>
+      <div className="[&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100 md:short:[&_p]:text-2xl md:short:[&_button]:left-6 md:tiny:[&_button]:left-5"><BoxHeader title={title} onBack={onBack} /></div>
       <div className="flex w-full items-center gap-3">
         {note ? <div className="min-w-0 flex-1">{note}</div> : search}
         <ChainMenu chains={shown} value={chain} onChange={setChain} />

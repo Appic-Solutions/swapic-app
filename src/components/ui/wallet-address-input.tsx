@@ -64,7 +64,7 @@ const WalletAddressInput = ({
   return (
     <div
       className={cn(
-        'overflow-hidden transition-[max-height] duration-300 ease-in-out',
+        'overflow-hidden transition-[max-height] duration-200 ease-in-out',
         show ? 'mt-4 max-h-[155px]' : 'max-h-0',
       )}
     >
