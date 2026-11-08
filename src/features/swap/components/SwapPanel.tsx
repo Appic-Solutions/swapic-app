@@ -20,9 +20,7 @@ import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
-import { swapButton, swapHint } from '../button';
-import { Hint, HintButton } from '@/components/design/Hint';
-import { HINTS } from '@/lib/copy/hints';
+import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
 import { useBalance, useChains, useTokenList } from '../tokens';
@@ -141,14 +139,11 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
 
   const fastUpTo = covers !== null ? `Swap ${formatUsd(covers)} or less for the fast route` : undefined;
   const message = state === 'empty' ? fastUpTo ?? NO_ROUTE : overBalance && from ? `Not enough ${from.symbol} in your wallet` : state === 'error' || state === 'capped' ? error ?? undefined : fastUpTo;
-  const buttonInput = {
-    from: !!from, to: !!to, amount, amountError, overBalance, quote: settling ? 'loading' as const : state, hasOptions: options.length > 0,
+  const button = linkBoth ? { text: undefined, enabled: false } : swapButton({
+    from: !!from, to: !!to, amount, amountError, overBalance, quote: settling ? 'loading' : state, hasOptions: options.length > 0,
     recipientShown: recipient.show, recipientError: recipient.show ? recipient.error || null : null, fromWallet, recipient: !!query?.recipient, cap,
     needsCoin: picked && approveState(picked, native) === 'noCoin' ? native.symbol : undefined,
-  };
-  const button = linkBoth ? { text: undefined, enabled: false } : swapButton(buttonInput);
-  // the grey line under the button: what can be done now
-  const hint = linkBoth ? HINTS.swapLoading : swapHint(buttonInput);
+  });
 
   const onMax = async () => {
     if (!from || balance === undefined) return;
@@ -171,17 +166,12 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   };
 
   const actions = (cls: string, fades: boolean) => (
-    <motion.div variants={fades ? fade : undefined} className={'relative w-full ' + cls}>
-      {/* a tiny window: the "?" beside the button instead of the line under it */}
-      <div className="flex w-full items-center gap-x-2">
-        <div className={cn('w-full min-w-0', tw.quick, button.enabled && tw.press)}>
-          <ActionButton isDisabled={!button.enabled} onClick={button.enabled ? onButton : undefined}>
-            {button.text}
-          </ActionButton>
-        </div>
-        <HintButton text={hint} />
+    <motion.div variants={fades ? fade : undefined} className={'flex w-full items-center gap-x-2 ' + cls}>
+      <div className={cn('w-full', tw.quick, button.enabled && tw.press)}>
+        <ActionButton isDisabled={!button.enabled} onClick={button.enabled ? onButton : undefined}>
+          {button.text}
+        </ActionButton>
       </div>
-      <Hint text={hint} />
     </motion.div>
   );
 

@@ -18,7 +18,6 @@ import AmountCard from '@/components/design/AmountCard';
 import { ResultCard } from '@/components/design/ResultCard';
 import { Note } from '@/components/design/Note';
 import { TwoColumn } from '@/components/design/TwoColumn';
-import { HINTS } from '@/lib/copy/hints';
 import { ConfirmButton } from '@/components/motion/parts';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { CheckIcon, ClockIcon } from '@/components/icons';
@@ -169,7 +168,6 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
   return (
     <TwoColumn
       inPlace
-      hint={HINTS.withdraw}
       title="Withdraw"
       onBack={onBack}
       // inside the in place panel each part fades (TwoColumn: callers fade their own parts)

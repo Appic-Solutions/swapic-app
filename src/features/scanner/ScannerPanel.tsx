@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
-import { Hint, HintButton } from '@/components/design/Hint';
 import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { ScannerIcon } from '@/components/icons';
 import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
@@ -50,8 +49,6 @@ export const SCANNER_SPACING = 'gap-y-6 md:pb-5 md:short:gap-y-4 md:short:p-6 md
 const SCANNER_BOX = cn(SCANNER_SPACING, 'md:w-full md:max-w-[1204px] md:overflow-y-hidden', FIT_SCANNER);
 // The section under the tiles: on desktop it takes the rest of the panel and its list scrolls inside it.
 const SECTION = 'flex w-full flex-col gap-y-3 md:min-h-0 md:gap-y-4 md:short:gap-y-3 md:tiny:gap-y-2';
-/** The hint under the search: what can be searched (hidden on the smallest windows). */
-const HINT = 'Search by wallet address, ICP principal, order ID or transaction hash.';
 
 const quiet = () => {};
 
@@ -66,9 +63,8 @@ export function ScannerLoading() {
             <ScannerIcon width={24} height={24} />
             <div className="flex items-center gap-x-2">Latest transactions <LiveDot /></div>
           </div>
-          <SearchRow><SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} /></SearchRow>
+          <SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} />
         </div>
-        <SearchHint />
         <div className="flex w-full flex-col md:min-h-0"><Results orders={[]} loading onOpen={quiet} /></div>
       </section>
     </PanelBox>
@@ -81,20 +77,6 @@ function Scrolls({ children }: { children: React.ReactNode }) {
   return <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col md:min-h-0 md:overflow-y-auto', edge.fade)}>{children}</div>;
 }
 
-/** The line under the search (Hint, as on Swap and Pool); a tiny window leaves it out for the "?" beside the field. */
-function SearchHint() {
-  return <Hint text={HINT} hang={false} className="-mt-1 text-left md:-mt-2 md:self-end md:w-full md:max-w-[560px] md:short:-mt-1.5 tiny:hidden" />;
-}
-
-/** The search field and, on a tiny window, the "?" that shows the hint. */
-function SearchRow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex w-full items-center gap-x-2 md:max-w-[560px]">
-      {children}
-      <HintButton text={HINT} />
-    </div>
-  );
-}
 
 /**
  * `onOpen` opens one order (a row, or the one an id or hash search found); `onLink` hears the chips the panel writes into
@@ -201,11 +183,8 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
               </motion.div>
             </AnimatePresence>
           </div>
-          <SearchRow>
-            <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={(t) => void onSubmit(t)} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
-          </SearchRow>
+          <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={(t) => void onSubmit(t)} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
         </div>
-        <SearchHint />
         {error && <p className="text-xs text-warn">{error}</p>}
         {/* Results and "Nothing found" cross fade (out 180 ms, then in 250 ms). */}
         <AnimatePresence initial={false} mode="wait">

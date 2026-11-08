@@ -21,7 +21,6 @@ import { short } from '@/lib/copy/format';
 import { APPROVING, CONFIRMING_SWAP, confirmingOn } from '@/lib/copy/status';
 import { chainLogo } from '@/lib/explorer';
 import { cn } from '@/lib/cn';
-import { HINTS } from '@/lib/copy/hints';
 import { fade, rise } from '@/lib/motion';
 import type { reviewData } from '../review';
 
@@ -71,7 +70,6 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
   return (
     <TwoColumn
       inPlace
-      hint={HINTS.review}
       title="Review swap"
       onBack={onBack}
       left={

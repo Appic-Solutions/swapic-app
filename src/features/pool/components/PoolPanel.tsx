@@ -12,8 +12,6 @@ import { PanelBox } from '@/components/motion/parts';
 import { Avatar } from '@/components/ui/avatar';
 import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import { Note } from '@/components/design/Note';
-import { Hint } from '@/components/design/Hint';
-import { HINTS } from '@/lib/copy/hints';
 import { ShareAvatar } from '@/components/design/ResultCard';
 import { statCard } from '@/components/design/stat-card';
 import { ClockIcon } from '@/components/icons';
@@ -77,6 +75,10 @@ const HowItWorks = ({ apy, paused }: { apy: React.ReactNode; paused: boolean }) 
 );
 
 /** The pool page, part for part, until the pool and the stakes have answered once: what never changes shows as it is, the numbers wait. */
+// the one grey line kept (Jeff 2026-11-08: no hints anywhere else): what the pool page lets one do
+const POOL_HINT = 'Stake USDC from any chain, or withdraw anytime.';
+const POOL_LINE = 'mt-2 text-center text-xs font-normal text-secondary';
+
 export function PoolLoading() {
   const edge = useScrollFade<HTMLDivElement>();
   const wallet = useWallets((s) => !!s.evm || !!s.icp);
@@ -95,7 +97,7 @@ export function PoolLoading() {
             <Skeleton className="h-12 flex-1 rounded-xl" />
             <Skeleton className="h-12 flex-1 rounded-xl" />
           </div>
-          <Hint text={HINTS.pool} hang={false} />
+          <p className={POOL_LINE}>{POOL_HINT}</p>
         </div>
         <HowItWorks paused={false} apy={<div><p className={statLabel}>APY</p><SkeletonText className={cn(statValue, 'w-44')} /></div>} />
         <Activity rows={[]} loading />
@@ -129,7 +131,7 @@ export function PoolPanel({ onStake, onWithdraw, freshPayout }: { onStake: () =>
         <div>
           <Actions canStake={!paused} canWithdraw={mine.has && !paused} onStake={onStake} onWithdraw={onWithdraw} />
           {/* the grey line under the buttons (none while the pool is paused: its note says why) */}
-          <Hint text={paused ? null : HINTS.pool} hang={false} />
+          {!paused && <p className={POOL_LINE}>{POOL_HINT}</p>}
         </div>
         {paused && (
           <Note tone="yellow" icon={<ClockIcon width={16} height={16} />}>{POOL_PAUSED}</Note>

@@ -21,7 +21,6 @@ import { ArrowDownIcon, CheckIcon, ClockIcon, HistoryIcon, WarningIcon } from '@
 import { DrawCheck, MotionCard, shrinkInto, useFrame } from '@/components/motion/parts';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
-import { HINTS } from '@/lib/copy/hints';
 import { QUIET } from '@/components/ui/styles';
 import { DUR, EASE, T, fade, rise, tw, useReducedMotion } from '@/lib/motion';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
@@ -175,8 +174,6 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
   return (
     <TwoColumn
       inPlace
-      // a swap's (the stake's status words come with its own flow)
-      hint={text ? undefined : HINTS.status}
       title={text?.title ?? 'Your swap'}
       left={
         <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-5 lg:flex-1">

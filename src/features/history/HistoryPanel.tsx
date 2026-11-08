@@ -33,10 +33,6 @@ import { counts as countRows, filterRows, useHistory, type Filter } from './data
 import { Empty } from './Empty';
 import { Filters } from './Filters';
 import { WalletChips } from './WalletChips';
-import { Hint, HintButton } from '@/components/design/Hint';
-
-/** The line under the heading once the list shows (a tiny window: the "?" beside the heading shows it instead). */
-const OPEN_HINT = 'Open a swap to see its steps and transactions.';
 
 function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { order: OrderView; raw: ActivityRow; open: boolean; onToggle: () => void; onOpenScanner: () => void; onEnded: (id: string, patch: (row: ActivityRow) => ActivityRow) => void }) {
   const live = order.status === 'pending' || order.status === 'queued';
@@ -135,14 +131,9 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
     <>
       <div className="flex w-full flex-col gap-y-1">
         <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
-          {/* a tiny window: the "?" beside the heading instead of the line under it */}
-          <div className="flex items-center gap-x-2">
-            <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
-            {h.state === 'ready' && <HintButton text={OPEN_HINT} />}
-          </div>
+          <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
           {connected && <WalletChips wallets={h.wallets} />}
         </div>
-        {h.state === 'ready' && <Hint text={OPEN_HINT} hang={false} className="mt-0 text-left tiny:hidden" />}
       </div>
       {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={h.state === 'loading' ? undefined : countRows(h.rows)} />}
       <div ref={boxRef} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>

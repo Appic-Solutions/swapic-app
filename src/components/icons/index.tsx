@@ -2,7 +2,7 @@
 // and the nav (ICON.md, the default), 24 in titles (ICON.lg). Coin and chain logos are images, not icons.
 import type { LucideIcon, LucideProps } from 'lucide-react';
 import {
-  ArrowDown, ArrowLeftRight, ArrowRight, ArrowUpDown, BadgeCheck, BadgePercent, Check, ChevronDown, ChevronLeft, CircleQuestionMark, Clock,
+  ArrowDown, ArrowLeftRight, ArrowRight, ArrowUpDown, BadgeCheck, BadgePercent, Check, ChevronDown, ChevronLeft, Clock,
   Copy, ExternalLink, Fuel, History, Link, Lock, Network, Plus, Receipt, ScanSearch, Sparkles, TrendingUp, TriangleAlert, Wallet,
   Waves, X, Zap,
 } from 'lucide-react';
@@ -30,7 +30,6 @@ export const EarnIcon = outline(TrendingUp, 'EarnIcon');
 export const ExternalLinkIcon = outline(ExternalLink, 'ExternalLinkIcon');
 export const FeeIcon = outline(Receipt, 'FeeIcon');
 export const GasIcon = outline(Fuel, 'GasIcon');
-export const HelpIcon = outline(CircleQuestionMark, 'HelpIcon');
 export const HistoryIcon = outline(History, 'HistoryIcon');
 export const LinkIcon = outline(Link, 'LinkIcon');
 export const LockIcon = outline(Lock, 'LockIcon');

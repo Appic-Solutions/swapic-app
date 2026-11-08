@@ -1,5 +1,4 @@
 import { formatUsdWhole } from '@/lib/money';
-import { HINTS } from '@/lib/copy/hints';
 
 /** `capped`: the amount is over the canister's per swap cap (the quote's 422 aboveSwapCap; `cap` says how much fits). */
 export type QuoteState = 'none' | 'loading' | 'ready' | 'empty' | 'paused' | 'icpPaused' | 'capped' | 'error';
@@ -31,20 +30,4 @@ export function swapButton(i: ButtonInput): { text: string | undefined; enabled:
   if (!i.recipient) return { text: 'Enter a valid address', enabled: false };
   if (i.needsCoin) return { text: `Add ${i.needsCoin} to continue`, enabled: false };
   return { text: 'Review swap', enabled: !i.overBalance };
-}
-
-/** The grey line under the button (lib/copy/hints.ts): what can be done now, read in the button's own order; every state
- *  has one, so the panel never changes height as they change. */
-export function swapHint(i: ButtonInput): string {
-  if (!i.from || !i.to) return HINTS.swapPick;
-  if (i.amount === null || i.amount === 0n || i.amountError) return HINTS.swapAmount;
-  if (i.quote === 'loading') return HINTS.swapLoading;
-  if (i.quote === 'paused' || i.quote === 'icpPaused') return HINTS.swapPaused;
-  if (i.quote === 'capped' || i.quote === 'empty' || i.quote === 'error' || !i.hasOptions) return HINTS.swapNoRoute;
-  if (i.recipientShown && i.recipientError) return HINTS.swapAddress;
-  if (!i.fromWallet) return HINTS.swapConnect;
-  if (!i.recipient) return HINTS.swapAddress;
-  if (i.needsCoin) return HINTS.swapCoin;
-  if (i.overBalance) return HINTS.swapBalance;
-  return HINTS.swapRoutes;
 }

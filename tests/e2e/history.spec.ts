@@ -88,7 +88,6 @@ test.describe('History', () => {
     await expect(page.getByText('Refunded on Polygon')).toBeVisible();
     await expect(page.getByText('119.80 USDC').first()).toBeVisible();
     await expect(page.getByTestId('order-row')).not.toContainText('was returned');
-    await expect(page.getByText('Open a swap to see its steps and transactions.')).toBeVisible();
     await page.getByText('View Details').first().click();
     await page.getByTestId('open-scanner').filter({ visible: true }).first().click();
     await expect(page.getByText("This swap couldn't be filled, so 119.80 USDC was returned on Polygon.")).toBeVisible();

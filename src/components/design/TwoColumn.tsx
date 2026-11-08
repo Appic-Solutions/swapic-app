@@ -9,7 +9,6 @@ import { cn } from '@/lib/cn';
 import { fade, tw } from '@/lib/motion';
 import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { BODY_FIT } from './fit';
-import { Hint, HintButton } from './Hint';
 
 // Back link of the real BoxHeader: fades on hover, sinks a little when pressed (the approved motion).
 const BACK = '[&_button]:transition [&_button]:duration-100 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100';
@@ -24,24 +23,10 @@ const COMPACT_HEADER = 'md:short:[&_p]:text-2xl md:short:[&_button]:left-6 md:ti
 // frame's and its parts fade in place; the back link and the button answer hover and press. Without it the layout is the
 // static one (the Pool's motion is not approved yet).
 // longTitle (Review withdrawal): the title one size smaller on phones, so it clears Back.
-/** The main button (it answers hover and press), the hint line under it, and on a tiny window the "?" beside it instead. */
-function Action({ action, hint }: { action: React.ReactNode; hint?: string | null }) {
-  return (
-    <>
-      <div className="flex w-full items-start gap-x-2">
-        <div className={cn('w-full min-w-0', tw.quick, tw.press)}>{action}</div>
-        {/* 10 px down: centered on the 48 px button */}
-        <HintButton text={hint} className="mt-2.5" />
-      </div>
-      <Hint text={hint} />
-    </>
-  );
-}
-
 // Short windows (inPlace): the body takes at most the window's height (fit.ts BODY_FIT) and scrolls inside, fading at an
 // edge with more behind it: from lg each column on its own (the left one above its button, so the button always shows),
 // below lg the whole body above the button. On a taller window nothing scrolls here and the wrappers add nothing.
-export function TwoColumn({ title, onBack, left, right, action, inPlace, longTitle, hint }: { title: string; onBack?: () => void; left: React.ReactNode; right: React.ReactNode; action: React.ReactNode; inPlace?: boolean; longTitle?: boolean; /** One grey line under the button: what can be done now (Hint). */ hint?: string | null }) {
+export function TwoColumn({ title, onBack, left, right, action, inPlace, longTitle }: { title: string; onBack?: () => void; left: React.ReactNode; right: React.ReactNode; action: React.ReactNode; inPlace?: boolean; longTitle?: boolean }) {
   const body = useScrollFade<HTMLDivElement>();
   const leftFade = useScrollFade<HTMLDivElement>();
   const rightFade = useScrollFade<HTMLDivElement>();
@@ -53,11 +38,11 @@ export function TwoColumn({ title, onBack, left, right, action, inPlace, longTit
           <div data-testid="col-left" className="flex w-full min-w-0 flex-col lg:max-w-[482px] lg:shrink-0 lg:short:min-h-0">
             {/* contents: on a taller window this wrapper is not there for the layout (its cards stay the column's own) */}
             <div ref={leftFade.ref} className={cn('no-scrollbar contents lg:short:flex lg:short:min-h-0 lg:short:flex-1 lg:short:flex-col lg:short:overflow-y-auto lg:short:[&>*]:shrink-0 lg:short:[&>*]:basis-auto', leftFade.fade)}>{left}</div>
-            <motion.div variants={fade} className="relative mt-4 w-full max-lg:hidden lg:mt-auto lg:pt-4 lg:short:shrink-0"><Action action={action} hint={hint} /></motion.div>
+            <motion.div variants={fade} className={cn('relative mt-4 w-full max-lg:hidden lg:mt-auto lg:pt-4 lg:short:shrink-0', tw.quick, tw.press)}>{action}</motion.div>
           </div>
           <div ref={rightFade.ref} data-testid="col-right" className={cn('no-scrollbar flex w-full min-w-0 flex-col gap-y-4 lg:short:min-h-0 lg:short:overflow-y-auto lg:short:[&>*]:shrink-0', rightFade.fade)}>{right}</div>
         </div>
-        <motion.div variants={fade} className="relative w-full lg:hidden"><Action action={action} hint={hint} /></motion.div>
+        <motion.div variants={fade} className={cn('relative w-full lg:hidden', tw.quick, tw.press)}>{action}</motion.div>
       </PanelBox>
     );
   }
