@@ -34,7 +34,7 @@ export interface OrderView {
   from: SideView; to: SideView; refund: (SideView & { toText: string }) | null; refundLine: string | null;
   /** The one sentence that says what happened (a refund's amount, chain and why; Didn't start; On hold). */
   reason: string | null;
-  gas: 'Gasless' | 'You paid gas' | 'No gas'; feeText: string | null; payer: string | null; recipient: string | null;
+  gas: 'Gasless' | 'Sender paid gas' | 'No gas'; feeText: string | null; payer: string | null; recipient: string | null;
   direction: 'sent' | 'received' | 'self' | null; createdAt: number; endedAt: number | null;
   /** When it arrived, by the chain (unix s), or null (pending, or a row written before chain times). */
   deliveredAt: number | null;
@@ -80,7 +80,7 @@ export function orderView(raw: ActivityRow, nowSec: number, logo: LogoFor): Orde
     // the closed word only (contract 5.7 `reasonCode`); the backend's own `reason` text may name a rail and is never read
     // what a swap that never ran cost: never a Swapic fee; gas only when the person's own transaction is on the chain
     reason: endSentence(ending, { reasonCode: r.reasonCode, refund: rf, toSymbol: r.to.symbol, gasMode: r.gasMode, paySymbol: r.from.symbol, sourceTx: !!r.from.tx }),
-    gas: r.gasMode === 'gasless' ? 'Gasless' : r.gasMode === 'userPays' ? 'You paid gas' : 'No gas',
+    gas: r.gasMode === 'gasless' ? 'Gasless' : r.gasMode === 'userPays' ? 'Sender paid gas' : 'No gas',
     feeText: neverRan(ending) ? 'None' : r.feeUsdc === null ? null : formatUsd(BigInt(r.feeUsdc)),
     payer: r.from.wallet, recipient: r.to.wallet, direction: r.direction ?? null, createdAt: r.createdAt, endedAt: r.endedAt,
     deliveredAt: pending ? null : r.deliveredAt ?? null,

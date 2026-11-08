@@ -11,7 +11,7 @@ describe('orderView', () => {
     expect(v.status).toBe('refunded');
     expect(v.from).toMatchObject({ symbol: 'USDT', chain: 'Polygon', amountText: '120.00', usdText: '$120.00' });
     expect(v.refundLine).toBe('Refunded 119.80 USDC to 0xf00e…89ac on Polygon');
-    expect(v.reason).toBe("This swap couldn't be filled, so you got 119.80 USDC back on Polygon."); // its reasonCode, notFilled; the backend's text is never read
+    expect(v.reason).toBe("This swap couldn't be filled, so 119.80 USDC was returned on Polygon."); // its reasonCode, notFilled; the backend's text is never read
     expect(v.gas).toBe('Gasless');
     expect(v.feeText).toBe('$0.69');
     expect(v.took).toBe('4 min');
@@ -97,12 +97,12 @@ describe('endFlags and endText, one reading for the row, the Scanner and the ord
   it('a swap that never ran says what it cost: never "no fee was charged" on a you pay gas one, gas only with its own transaction', () => {
     const failed = { outcome: 'failed', stage: 'failed', refund: null, reasonCode: 'other' };
     const paid = at({ ...failed, gasMode: 'userPays', from: { ...refunded.from, tx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a' } });
-    expect(paid.reason).toBe('Your USDT never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
+    expect(paid.reason).toBe('The USDT never left the wallet and Swapic charged no fee. The gas paid to the network is not refunded. Get a new quote to try again.');
     expect(paid.reason).not.toMatch(/no fee was charged/);
     expect(paid.feeText).toBe('None');
     // its transaction never reached the chain (dropped, replaced, never sent): no gas spent on the swap
-    expect(at({ ...failed, gasMode: 'userPays', from: { ...refunded.from, tx: null } }).reason).toBe('Your USDT never left your wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
-    expect(at({ ...failed, gasMode: 'gasless' }).reason).toBe('Nothing left your wallet and no fee was charged. Get a new quote to try again.');
+    expect(at({ ...failed, gasMode: 'userPays', from: { ...refunded.from, tx: null } }).reason).toBe('The USDT never left the wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
+    expect(at({ ...failed, gasMode: 'gasless' }).reason).toBe('Nothing left the wallet and no fee was charged. Get a new quote to try again.');
   });
   it('a moving order reads its stage', () => {
     const v = orderView(c('orders-page.json').orders[0], 1_793_397_300, logo);

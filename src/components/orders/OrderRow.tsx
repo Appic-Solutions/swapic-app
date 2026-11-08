@@ -1,7 +1,8 @@
 'use client';
 // One History row: moved from the design's orders-ui.tsx OrderRow (the approved static look; its body has no motion part),
 // reading OrderView (src/features/activity/rows.ts): from and to tokens with the status line, amounts, the via pill, the fee,
-// and its steps when opened (given by the caller once fetched; skeletons until then).
+// and its steps when opened (given by the caller once fetched; skeletons until then). The row shows how it ended in a few
+// words; the sentence that says why is on the order page (Open in Scanner).
 import * as React from 'react';
 import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import { motion } from 'motion/react';
@@ -128,14 +129,15 @@ export function OrderRow({ order: o, open, onToggle, onOpenScanner, fresh, steps
             <>
               <p>Refunded on {o.refund.chain}</p>
               <p className="text-xl leading-7 text-warn">{o.refund.amountText} {o.refund.symbol}</p>
-              <p className="font-normal">{o.reason}</p>
+              {/* the why is on the order page; the list shows the outcome only */}
+              <p className="font-normal">{o.refund.usdText}</p>
             </>
           ) : refund && o.refundLine ? (
             // an undone withdrawal: its stake came back to the pool (contract 5.10), nothing was paid out
             <>
               <p>{o.refundLine}</p>
               <p className="text-xl leading-7 text-warn">{o.from.amountText}</p>
-              <p className="font-normal">{o.reason}</p>
+              <p className="font-normal">{o.from.usdText}</p>
             </>
           ) : (
             <>

@@ -12,7 +12,6 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { MorphFrame } from '@/components/motion/parts';
 import { cn } from '@/lib/cn';
-import { QUIET } from '@/components/ui/styles';
 import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { arriveTop, listItem, useMounted } from '@/lib/motion';
 import { useNavReset, useNavTab } from '@/lib/nav-tab';
@@ -22,6 +21,9 @@ import { useActivity } from '@/features/activity/track';
 import { ORDER_FRAME, OrderDetail } from '@/features/scanner/OrderDetail';
 import { OrderRow } from '@/components/orders/OrderRow';
 import { OrderRowSkeleton } from '@/components/orders/OrderRowSkeleton';
+import { LoadingMore } from '@/components/orders/LoadingMore';
+import { FIT_HISTORY } from '@/features/activity/fit';
+import { useNearEnd } from '@/features/activity/live-list';
 import { getSteps, type ActivityRow } from '@/lib/api';
 import { stepViews } from '@/lib/copy/status';
 import { useWalletMenu } from '@/lib/wallets/menu';
@@ -65,8 +67,9 @@ function OrderInPlace({ raw, onBack }: { raw: ActivityRow; onBack: () => void })
 }
 
 // The History panel's size and layout as the in place frame's (motion part 2); the order page's size when a row opens it.
-const HISTORY_FRAME = 'md:h-fit md:max-h-[760px] md:w-full md:max-w-[537px] md:overflow-y-hidden';
-const HISTORY_VIEW = 'justify-start gap-y-6 md:max-h-[760px]';
+// It fits the window (FIT_HISTORY), so its list is the one scroll; short windows get tighter spacing.
+const HISTORY_FRAME = cn('md:h-fit md:w-full md:max-w-[537px] md:overflow-y-hidden', FIT_HISTORY);
+const HISTORY_VIEW = cn('justify-start gap-y-6 md:short:gap-y-4 md:short:p-6 md:tiny:gap-y-3 md:tiny:p-5', FIT_HISTORY);
 
 export function HistoryPanel() {
   const [orderId, setOrderId] = React.useState<string | null>(null);
@@ -93,31 +96,42 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   const mounted = useMounted();
   const list = React.useRef<HTMLDivElement>(null);
   const edge = useScrollFade(list);
+  // the next page comes by itself as the list nears its end (its own scroll on desktop, the page's on phones)
+  const [box, setBox] = React.useState<HTMLDivElement | null>(null);
+  const boxRef = React.useCallback((el: HTMLDivElement | null) => { edge.ref(el); setBox(el); }, [edge.ref]);
+  useNearEnd(box, h.more);
   const shown = filterRows(h.rows, filter);
   const connected = h.state !== 'nowallet';
   const rawOf = new Map(h.raw.map((r) => [r.id, r]));
-  // a row that was not there on the last answer arrives at the top (motion row 56); the first answer marks all as seen
+  // a row that was not there on the last answer arrives at the top (motion row 56); the first answer marks all as seen, and
+  // rows of an older page loaded at the end are not arrivals
   const seen = React.useRef<Set<string> | null>(null);
+  const newest = React.useRef(0);
   const [freshId, setFreshId] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (h.state !== 'ready') return;
-    if (seen.current === null) { seen.current = new Set(h.rows.map((r) => r.id)); return; }
+    if (seen.current === null) { seen.current = new Set(h.rows.map((r) => r.id)); newest.current = h.rows[0]?.createdAt ?? 0; return; }
     const unseen = h.rows.filter((r) => !seen.current!.has(r.id));
     unseen.forEach((r) => seen.current!.add(r.id));
-    if (unseen.length) {
-      setFreshId(unseen[0]!.id);
+    const arrived = unseen.filter((r) => r.createdAt >= newest.current);
+    if (arrived.length) {
+      newest.current = arrived[0]!.createdAt;
+      setFreshId(arrived[0]!.id);
       // fully visible: the list glides back to its top, so the new row never opens clipped at the panel edge
       list.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [h.state, h.rows]);
   return (
     <>
-      <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
-        <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
-        {connected && <WalletChips wallets={h.wallets} />}
+      <div className="flex w-full flex-col gap-y-1">
+        <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
+          <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
+          {connected && <WalletChips wallets={h.wallets} />}
+        </div>
+        {h.state === 'ready' && <p className="text-xs text-secondary tiny:hidden">Open a swap to see its steps and transactions.</p>}
       </div>
       {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={h.state === 'loading' ? undefined : countRows(h.rows)} />}
-      <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>
+      <div ref={boxRef} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>
         {h.state === 'loading' && [0, 1, 2].map((i) => <OrderRowSkeleton key={i} />)}
         {h.state === 'nowallet' && (
           <Empty img="/images/wallet.webp" size={180} title="Connect your wallet to see your history" text="Connect an EVM or ICP wallet, or both. You'll see every swap, stake and withdrawal they made, in one list." action="Connect wallet" onAction={() => openMenu(true)} />
@@ -136,11 +150,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
                 <HistoryRow order={o} raw={rawOf.get(o.id)!} open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onOpenScanner={() => onOpenScanner(o.id)} />
               </motion.div>
             ))}
-            {h.hasMore && (
-              <button onClick={() => void h.more()} disabled={h.loadingMore} className={cn(QUIET, 'mx-auto h-10 shrink-0 px-4 text-sm')}>
-                Show older
-              </button>
-            )}
+            {h.loadingMore && <LoadingMore />}
           </>
         )}
       </div>

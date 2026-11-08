@@ -4,20 +4,24 @@
 // wallet (chips; their rows from ONE GET /v2/orders call for all chips, every 30 s, 10 s while a row is in progress,
 // contract 5.13 and 1.6), by order id or transaction hash (GET
 // /v2/scanner/search, one row opens its order page), and "Nothing found" without any call for a text that is none of the
-// four forms. The URL keeps the chips (`?q=a,b`) so a search can be shared.
+// four forms. The URL keeps the chips (`?q=a,b`) so a search can be shared. Both lists refresh their newest page only and
+// load an older page by themselves as they are scrolled near the end (useLiveList); on desktop the panel fits the window
+// and the list is the one scroll.
 // Motion (approved 2026-10-29, part 2): tiles lift on hover, chips pop in and out, the heading and the results or "Nothing
 // found" cross fade, rows glide and a new one slides into the top; a row opens its order in place (ScannerPage's frame).
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { ScannerIcon } from '@/components/icons';
 import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
-import { T, fade, tw } from '@/lib/motion';
+import { T, fade } from '@/lib/motion';
 import { cn } from '@/lib/cn';
-import { QUIET } from '@/components/ui/styles';
-import { listInterval, mergeRows, orderView } from '@/features/activity/rows';
+import { orderView } from '@/features/activity/rows';
+import { FIT_SCANNER } from '@/features/activity/fit';
+import { useLiveList } from '@/features/activity/live-list';
 import { useLogoFor } from '@/features/activity/logos';
 import { LiveDot } from './LiveDot';
 import { NotFound } from './NotFound';
@@ -40,8 +44,13 @@ export function chipsOf(q: string | null): Chip[] {
   return out;
 }
 
-// The Scanner panel's size and layout outside an in place frame.
-const SCANNER_BOX = 'gap-y-6 md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden md:pb-5';
+// The Scanner panel's size and layout outside an in place frame: it fits the window (FIT_SCANNER), tighter on short windows.
+export const SCANNER_SPACING = 'gap-y-6 md:pb-5 md:short:gap-y-4 md:short:p-6 md:short:pb-4 md:tiny:gap-y-3 md:tiny:p-5 md:tiny:pb-3';
+const SCANNER_BOX = cn(SCANNER_SPACING, 'md:w-full md:max-w-[1204px] md:overflow-y-hidden', FIT_SCANNER);
+// The section under the tiles: on desktop it takes the rest of the panel and its list scrolls inside it.
+const SECTION = 'flex w-full flex-col gap-y-3 md:min-h-0 md:gap-y-4 md:short:gap-y-3 md:tiny:gap-y-2';
+/** The hint under the search: what can be searched (hidden on the smallest windows). */
+const HINT = 'Search by wallet address, ICP principal, order ID or transaction hash.';
 
 const quiet = () => {};
 
@@ -49,8 +58,8 @@ const quiet = () => {};
 export function ScannerLoading() {
   return (
     <PanelBox className={SCANNER_BOX}>
-      <div className="w-full"><Tiles tiles={null} /></div>
-      <section className="flex w-full flex-col gap-y-3 md:gap-y-4">
+      <div className="w-full tiny:hidden"><Tiles tiles={null} /></div>
+      <section className={SECTION}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-x-2 text-lg font-medium text-white md:text-xl">
             <ScannerIcon width={24} height={24} />
@@ -58,10 +67,21 @@ export function ScannerLoading() {
           </div>
           <SearchBox chips={[]} text="" onText={quiet} onSubmit={quiet} onRemove={quiet} />
         </div>
-        <div className="w-full"><Results orders={[]} loading onOpen={quiet} /></div>
+        <Hint />
+        <div className="flex w-full flex-col md:min-h-0"><Results orders={[]} loading onOpen={quiet} /></div>
       </section>
     </PanelBox>
   );
+}
+
+/** "Nothing found" on a short window: it scrolls inside the panel, its edge fading, like the list it stands in for. */
+function Scrolls({ children }: { children: React.ReactNode }) {
+  const edge = useScrollFade<HTMLDivElement>();
+  return <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col md:min-h-0 md:overflow-y-auto', edge.fade)}>{children}</div>;
+}
+
+function Hint() {
+  return <p className="-mt-1 text-xs text-secondary md:-mt-2 md:self-end md:w-full md:max-w-[560px] md:short:-mt-1.5 tiny:hidden">{HINT}</p>;
 }
 
 /**
@@ -80,33 +100,37 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
   const searching = chips.length > 0;
 
   const stats = useQuery({ queryKey: ['scanner-stats'], queryFn: getScannerStats, refetchInterval: () => (visible() ? 10_000 : false) });
-  const feed = useInfiniteQuery({
+  // the feed (240 a minute bucket) and the wallets' rows (20 a minute, shared with History): the newest page every period,
+  // older pages once, as the list nears its end
+  const feed = useLiveList({
     queryKey: ['scanner-latest'],
-    queryFn: ({ pageParam }) => getScannerLatest(pageParam),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (p) => p.nextCursor ?? undefined,
-    refetchInterval: (q) => (visible() ? listInterval((q.state.data?.pages ?? []).flatMap((p) => p.items), 5_000, 10_000) : false),
+    fetchPage: async (cursor) => { const p = await getScannerLatest(cursor); return { rows: p.items, nextCursor: p.nextCursor }; },
     enabled: !searching,
+    live: 5_000,
+    idle: 10_000,
   });
-  const feedRows = mergeRows((feed.data?.pages ?? []).map((p) => p.items));
-  const wallets = useQuery({
-    queryKey: ['scanner-wallets', chips.map((c) => c.value).join(',')],
-    queryFn: () => getOrders(chips.map((c) => c.value)),
+  const walletList = chips.map((c) => c.value);
+  const wallets = useLiveList({
+    queryKey: ['scanner-wallets', walletList.join(',')],
+    fetchPage: async (cursor) => { const p = await getOrders(walletList, cursor); return { rows: p.orders, nextCursor: p.nextCursor }; },
     enabled: searching,
-    refetchInterval: (q) => (visible() ? listInterval(q.state.data?.orders ?? [], 10_000, 30_000) : false),
+    live: 10_000,
+    idle: 30_000,
   });
+  const feedRows = feed.rows;
 
-  // ids not seen before slide in; the first answer marks everything seen
+  // ids not seen before slide in; the first answer marks everything seen (older pages are not new: they never slide)
   const seen = React.useRef<Set<string> | null>(null);
+  const newest = React.useRef(0);
   const [freshId, setFreshId] = React.useState<string | undefined>(undefined);
   React.useEffect(() => {
-    if (!feed.data) return;
-    const items = feedRows;
-    if (seen.current === null) { seen.current = new Set(items.map((r) => r.id)); return; }
-    const unseen = items.filter((r) => !seen.current!.has(r.id));
+    if (!feedRows.length) return;
+    if (seen.current === null) { seen.current = new Set(feedRows.map((r) => r.id)); newest.current = feedRows[0]!.createdAt; return; }
+    const unseen = feedRows.filter((r) => !seen.current!.has(r.id));
     unseen.forEach((r) => seen.current!.add(r.id));
-    if (unseen.length) setFreshId(unseen.sort((a, b) => b.createdAt - a.createdAt)[0]!.id);
-  }, [feed.data]);
+    const top = unseen.filter((r) => r.createdAt >= newest.current).sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (top) { newest.current = top.createdAt; setFreshId(top.id); }
+  }, [feedRows]);
 
   const setChipsAndLink = (next: Chip[]) => {
     setChips(next);
@@ -115,8 +139,8 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
     onLink(q);
     router.replace(q ? `/scanner?q=${q}` : '/scanner');
   };
-  const onSubmit = async () => {
-    const c = classify(text);
+  const onSubmit = async (typed: string = text) => {
+    const c = classify(typed);
     setError(null);
     if (c.kind === 'none') { setNotFound(c.value); return; }
     if (c.kind === 'evm' || c.kind === 'icp') {
@@ -141,13 +165,13 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
   });
 
   const now = Math.floor(Date.now() / 1000);
-  const raw = searching ? mergeRows([wallets.data?.orders ?? []]) : feedRows;
+  const list = searching ? wallets : feed;
+  const raw = list.rows;
   const orders = raw.map((r) => orderView(r, now, logo));
-  const loading = searching ? wallets.isLoading : feed.isLoading;
   return (
     <PanelBox className={SCANNER_BOX}>
-      <motion.div variants={fade} className="w-full"><Tiles tiles={stats.data ? scannerTiles(stats.data) : null} /></motion.div>
-      <motion.section variants={fade} className="flex w-full flex-col gap-y-3 md:gap-y-4">
+      <motion.div variants={fade} className="w-full tiny:hidden"><Tiles tiles={stats.data ? scannerTiles(stats.data) : null} /></motion.div>
+      <motion.section variants={fade} className={SECTION}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-x-2 text-lg font-medium text-white md:text-xl">
             <ScannerIcon width={24} height={24} />
@@ -156,7 +180,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
                 {searching ? (
                   <>
                     Orders for {chips.length === 1 ? '1 wallet' : `${chips.length} wallets`}
-                    <span className="text-sm text-secondary">{orders.length} found</span>
+                    <span className="text-sm text-secondary">{orders.length}{wallets.hasMore ? '+' : ''} found</span>
                     <a onClick={() => setChipsAndLink([])} className="cursor-pointer text-sm text-secondary underline-offset-2 transition-colors hover:text-white hover:underline">Clear</a>
                   </>
                 ) : (
@@ -165,24 +189,33 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
               </motion.div>
             </AnimatePresence>
           </div>
-          <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={() => void onSubmit()} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
+          <SearchBox chips={chips} text={text} onText={(t) => { setText(t); setNotFound(null); setError(null); }} onSubmit={(t) => void onSubmit(t)} onRemove={(c) => setChipsAndLink(chips.filter((x) => x.value !== c.value))} />
         </div>
+        <Hint />
         {error && <p className="text-xs text-warn">{error}</p>}
         {/* Results and "Nothing found" cross fade (out 180 ms, then in 250 ms). */}
         <AnimatePresence initial={false} mode="wait">
-          <motion.div key={notFound !== null ? 'none' : 'results'} className="w-full" initial={{ opacity: 0 }} animate={{ opacity: 1, transition: T.enter }} exit={{ opacity: 0, transition: T.exit }}>
+          <motion.div
+            key={notFound !== null ? 'none' : 'results'}
+            className="flex w-full flex-col md:min-h-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: T.enter }}
+            exit={{ opacity: 0, transition: T.exit }}
+          >
             {notFound !== null ? (
-              <NotFound query={notFound} />
+              <Scrolls><NotFound query={notFound} /></Scrolls>
             ) : (
-              <Results orders={orders} loading={loading} freshId={freshId} onOpen={(o) => { const r = raw.find((x) => x.id === o.id); if (r) onOpen(r); }} />
+              <Results
+                orders={orders}
+                loading={list.loading}
+                loadingMore={list.loadingMore}
+                onNearEnd={list.more}
+                freshId={freshId}
+                onOpen={(o) => { const r = raw.find((x) => x.id === o.id); if (r) onOpen(r); }}
+              />
             )}
           </motion.div>
         </AnimatePresence>
-        {notFound === null && !searching && feed.hasNextPage && (
-          <button onClick={() => void feed.fetchNextPage()} disabled={feed.isFetchingNextPage} className={cn(QUIET, 'mx-auto h-10 shrink-0 px-4 text-sm')}>
-            Show older
-          </button>
-        )}
       </motion.section>
     </PanelBox>
   );

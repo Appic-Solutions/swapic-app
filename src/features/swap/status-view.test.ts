@@ -22,7 +22,7 @@ describe('statusView', () => {
     const v = statusView({ status: { ...c('order-status-delivered.json'), outcome: 'refunded', stage: 'refunded', refund: row.refund, reason: row.reason }, steps, pay: side, get: side, nowSec: 0, feeText: '', gasText: '', gasMode: 'userPays', toWallet: '', orderId: '', token });
     expect(v.phase).toBe('refunded');
     expect(v.text).toBe('Refunded 119.80 USDC to 0xf00e…89ac on Polygon');
-    expect(v.reason).toBe('Took too long, so you got 119.80 USDC back on Polygon.');
+    expect(v.reason).toBe('Took too long, so 119.80 USDC was returned on Polygon.');
   });
 });
 
@@ -38,7 +38,7 @@ describe('statusView, the approved ends', () => {
     const v = at('failed', 'expired', 'gasless');
     expect(v.phase).toBe('stopped');
     expect(v.title).toBe("Swap didn't start");
-    expect(v.text).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
+    expect(v.text).toBe("Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.");
     expect(v.fee).toBe('None');
   });
   it('reads who paid gas from the route\'s mode, never from the words on screen', () => {
@@ -51,8 +51,8 @@ describe('statusView, the approved ends', () => {
     expect(v.fee).toBe('None');
   });
   it('you pay gas and never ran: the gas line follows whether its own transaction is on the chain', () => {
-    expect(at('failed', 'other', 'userPays', { srcTx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a' }).reason).toBe('Your ckBTC never left your wallet and Swapic charged no fee. The gas you paid the network is not refunded. Get a new quote to try again.');
-    expect(at('failed', 'other', 'userPays', { srcTx: null }).reason).toBe('Your ckBTC never left your wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
+    expect(at('failed', 'other', 'userPays', { srcTx: '0x684f95dab7af11295cd6afddac52254d67ef56082e6dba42eb7c5fe4de427f7a' }).reason).toBe('The ckBTC never left the wallet and Swapic charged no fee. The gas paid to the network is not refunded. Get a new quote to try again.');
+    expect(at('failed', 'other', 'userPays', { srcTx: null }).reason).toBe('The ckBTC never left the wallet, Swapic charged no fee, and the swap spent no gas. Get a new quote to try again.');
   });
   it('money the canister holds: On hold, from the hold flag even while pending', () => {
     const v = at('pending', null, 'userPays', { onHold: true });
@@ -92,7 +92,7 @@ describe('statusView, an order never seen starting by its deadline', () => {
     const v = view();
     expect(v.phase).toBe('stopped');
     expect(v.title).toBe("Swap didn't start");
-    expect(v.text).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");
+    expect(v.text).toBe("The swap wasn't confirmed on the network in time. The USDT never left the wallet.");
     expect(v.fee).toBe('None');
     expect(v.gas).toBe('None');
     expect(v.steps.map((s) => [s.label, s.state])).toEqual([["Didn't start", 'fail']]);
@@ -111,7 +111,7 @@ describe('statusView, an order never seen starting by its deadline', () => {
   it('the watcher\'s own failed answer later (300 s past the deadline) keeps the same words', () => {
     const v = view({ status: { status: 'failed', outcome: 'failed', stage: 'failed' } });
     expect(v.title).toBe("Swap didn't start");
-    expect(v.text).toBe("Your swap wasn't confirmed on the network in time. Your USDT never left your wallet.");
+    expect(v.text).toBe("The swap wasn't confirmed on the network in time. The USDT never left the wallet.");
   });
   it('a failure with another word stays the watcher\'s', () => {
     const d = c('steps-delivered.json');
@@ -123,7 +123,7 @@ describe('statusView, an order never seen starting by its deadline', () => {
     const steps = { ...d, outcome: 'pending', steps: d.steps.map((x: object, k: number) => (k === 0 ? x : { ...x, state: k === 1 ? 'wait' : 'todo', atMs: null, tx: null })) };
     const v = view({ gasMode: 'gasless', steps });
     expect(v.phase).toBe('stopped');
-    expect(v.text).toBe("We couldn't send your swap to the network in time. Nothing left your wallet and no fee was charged.");
+    expect(v.text).toBe("Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.");
     expect(v.steps.map((s) => [s.label, s.state])).toEqual([['Signed, no gas', 'done'], ["Didn't start", 'fail']]);
   });
   it('the ring shows the chain the swap leaves from, never Swapic\'s mark', () => {

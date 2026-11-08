@@ -1,5 +1,7 @@
 'use client';
 // Moved from the design's scanner-screens.tsx Route and Results: desktop the live Explore table markup, phones stacked cards.
+// On desktop the rows scroll inside the panel under a header that stays (no scrollbar, the edge fades), from md the cards
+// do the same, on phones the page scrolls; either way the next page loads by itself near the end (onNearEnd).
 import * as React from 'react';
 import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import { motion } from 'motion/react';
@@ -7,9 +9,12 @@ import { T, pressCard, useMounted } from '@/lib/motion';
 import { StatusPill } from '@/components/orders/StatusPill';
 import { TokenAvatar } from '@/components/orders/TokenAvatar';
 import { ViaPill } from '@/components/orders/ViaPill';
+import { LoadingMore } from '@/components/orders/LoadingMore';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
 import { endFlags, type OrderView } from '@/features/activity/rows';
+import { useNearEnd } from '@/features/activity/live-list';
 
 const th = 'border-b border-b-line h-11 text-xs font-medium text-secondary';
 const tr = 'text-center text-sm text-white border-b border-b-line last:border-b-0 h-14 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150';
@@ -29,8 +34,8 @@ function Route({ o }: { o: OrderView }) {
 }
 
 const live = (o: OrderView) => endFlags(o).live;
-/** What came out: the refund when refunded, the USDC when delivered as USDC, the title when nothing came, else the token out
- *  (a pending side already reads `~<least>`). */
+/** What came out, in a few words (the why is on the order page): the refund when refunded, the USDC when delivered as USDC,
+ *  the title when nothing came, else the token out (a pending side already reads `~<least>`). */
 const out = (o: OrderView) => {
   const f = endFlags(o);
   if (f.refund) return o.refund ? `${o.refund.amountText} ${o.refund.symbol} refunded` : 'Refunded';
@@ -38,9 +43,16 @@ const out = (o: OrderView) => {
   if (f.stopped) return o.title ?? '';
   return `${o.to.amountText} ${o.to.symbol}`.trim();
 };
-const outSub = (o: OrderView) => (live(o) ? o.stageText ?? '' : o.reason ?? (o.took ? `in ${o.took}` : ''));
+/** Under it: the stage while it moves, "as USDC" for a delivery as USDC, else how long it took (nothing when it never ran). */
+const outSub = (o: OrderView) => {
+  const f = endFlags(o);
+  if (f.live) return o.stageText ?? '';
+  if (f.stopped) return '';
+  if (f.asUsdc) return o.took ? `as USDC in ${o.took}` : 'as USDC';
+  return o.took ? `in ${o.took}` : '';
+};
 
-// Eight rows reach the table's cap (470 px), so any feed of eight or more fills the same box; phones fill the first screen.
+// Eight rows fill the table on a tall window, so any feed of eight or more fills the same box; phones fill the first screen.
 const TABLE_ROWS = 8;
 const CARD_ROWS = 6;
 /** The Sent and Received cells while the feed loads. */
@@ -51,15 +63,37 @@ const Amount = () => (
   </>
 );
 
+/** The table's columns, the same in its header and its rows (the header stays while the rows scroll). */
+const Cols = () => (
+  <colgroup>
+    <col className="w-28" />
+    {Array.from({ length: 14 }).map((_, i) => <col key={i} />)}
+  </colgroup>
+);
+
+/** One scroll box (the table's rows, or the cards): its edge fades, and it asks for the next page near its end. */
+function useListBox(onNearEnd: () => void) {
+  const [box, setBox] = React.useState<HTMLDivElement | null>(null);
+  const edge = useScrollFade<HTMLDivElement>();
+  const ref = React.useCallback((el: HTMLDivElement | null) => { edge.ref(el); setBox(el); }, [edge.ref]);
+  useNearEnd(box, onNearEnd);
+  return { ref, fade: edge.fade };
+}
+
+const none = () => {};
+
 // Motion (approved 2026-10-29, part 2): rows glide to their new places, a new order slides down into the top, rows sink
 // a little when pressed.
-export function Results({ orders, loading, onOpen, freshId }: { orders: OrderView[]; loading?: boolean; onOpen: (o: OrderView) => void; freshId?: string }) {
+export function Results({ orders, loading, loadingMore, onNearEnd = none, onOpen, freshId }: { orders: OrderView[]; loading?: boolean; loadingMore?: boolean; onNearEnd?: () => void; onOpen: (o: OrderView) => void; freshId?: string }) {
   const mounted = useMounted();
+  const table = useListBox(onNearEnd);
+  const cards = useListBox(onNearEnd);
   const enter = (o: OrderView) => (mounted && freshId === o.id ? { initial: { opacity: 0, y: -12 }, animate: { opacity: 1, y: 0, transition: T.big } } : {});
   return (
     <>
-      <div className="w-full overflow-auto rounded-3xl border border-line bg-input-fields hide-scrollbar max-lg:hidden lg:max-h-[470px]">
-        <table className="w-full min-w-[900px] table-fixed">
+      <div className="flex w-full flex-col overflow-hidden rounded-3xl border border-line bg-input-fields max-lg:hidden lg:min-h-0">
+        <table className="w-full min-w-[900px] shrink-0 table-fixed">
+          <Cols />
           <thead className={th}>
             <tr>
               <th className="w-28">Age</th>
@@ -71,6 +105,10 @@ export function Results({ orders, loading, onOpen, freshId }: { orders: OrderVie
               <th colSpan={2}>Order</th>
             </tr>
           </thead>
+        </table>
+        <div ref={table.ref} className={cn('no-scrollbar w-full lg:min-h-0 lg:overflow-y-auto', table.fade)}>
+        <table className="w-full min-w-[900px] table-fixed">
+          <Cols />
           <tbody>
             {loading
               ? Array.from({ length: TABLE_ROWS }).map((_, i) => (
@@ -119,8 +157,10 @@ export function Results({ orders, loading, onOpen, freshId }: { orders: OrderVie
                 ))}
           </tbody>
         </table>
+        {loadingMore && <LoadingMore className="border-t border-t-line" />}
+        </div>
       </div>
-      <div className="flex w-full flex-col gap-y-2.5 lg:hidden">
+      <div ref={cards.ref} className={cn('no-scrollbar flex w-full flex-col gap-y-2.5 md:min-h-0 md:overflow-y-auto lg:hidden', cards.fade)}>
         {loading
           ? Array.from({ length: CARD_ROWS }).map((_, i) => (
               <div key={i} className="flex items-center justify-between gap-3 rounded-3xl border border-line bg-input-fields p-4 text-sm">
@@ -160,6 +200,7 @@ export function Results({ orders, loading, onOpen, freshId }: { orders: OrderVie
                 </div>
               </motion.div>
             ))}
+        {loadingMore && <LoadingMore />}
       </div>
     </>
   );
