@@ -68,36 +68,29 @@ const WalletAddressInput = ({
         show ? 'mt-4 max-h-[155px]' : 'max-h-0',
       )}
     >
-      <Card
-        className={cn(
-          'max-h-[133px] cursor-auto flex-col items-start justify-center gap-y-2 md:max-h-[155px]',
-        )}
-      >
-        <p className="text-sm font-semibold">Send To Wallet</p>
-        <div className="flex w-full items-center gap-4">
+      {/* the Send card's type and spacing (AmountCard), so the two read as one form */}
+      <Card className="cursor-auto flex-col items-start justify-center gap-2 p-4 md:p-5 md:short:py-4 md:tiny:gap-1 md:tiny:py-3">
+        <p className="text-xs font-medium text-secondary md:text-sm">Send To Wallet</p>
+        <div className="flex w-full items-center gap-3 md:gap-4">
           <div className="relative">
-            <Avatar src={avatar} className="h-12 w-12" />
+            <Avatar src={avatar} className="h-9 w-9 md:h-12 md:w-12" />
           </div>
-          <div className="relative w-full">
+          <div className="relative flex w-full min-w-0 flex-col">
             <input
               type="text"
               maxLength={token?.chain_type === 'ICP' ? 63 : 42}
-              placeholder={token?.chain_type === 'ICP' ? '2vxsx-fae...' : '0x0f70e...65A63'}
+              placeholder={token?.chain_type === 'ICP' ? 'Enter ICP address' : 'Enter EVM address'}
               value={address}
               onChange={handleAddressChange}
               className={cn(
-                'w-full py-2 outline-none',
-                'bg-transparent text-primary',
-                'placeholder:text-faint',
+                'w-full bg-transparent py-1 font-medium text-primary outline-none',
+                'placeholder:text-base placeholder:font-normal placeholder:text-faint md:placeholder:text-lg',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
-                address.length > 30 && 'text-lg',
+                address.length > 45 ? 'text-xs md:text-sm' : 'text-base md:text-lg',
               )}
             />
-            {validationError && (
-              <p className="absolute top-[50px] animate-slide-in-from-top text-xs text-warn">
-                {validationError}
-              </p>
-            )}
+            {/* an empty field is not a mistake yet: the line holds its place so the card never jumps */}
+            <p className="min-h-4 text-xs font-normal leading-4 text-warn">{address ? validationError : ''}</p>
           </div>
         </div>
       </Card>

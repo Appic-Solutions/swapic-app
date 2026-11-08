@@ -69,7 +69,7 @@ test.describe('Swap', () => {
     // Receive at, on the To card: the menu's Paste an address opens the field
     await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
     await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
-    await page.getByPlaceholder(/0x0f70e/).fill('0x3A9c2E07b5F81dC4');
+    await page.getByPlaceholder(/Enter EVM address/).fill('0x3A9c2E07b5F81dC4');
     await expect(button(page, 'Enter a valid address')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Receive at: New address', includeHidden: true })).toBeVisible();
   });
@@ -79,7 +79,7 @@ test.describe('Swap', () => {
     await pickTokens(page);
     await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
     await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
-    await page.getByPlaceholder(/0x0f70e/).fill('0x3a9c2e07b5f81dc4be00aa6f6b9d2e45ca1189ac');
+    await page.getByPlaceholder(/Enter EVM address/).fill('0x3a9c2e07b5f81dc4be00aa6f6b9d2e45ca1189ac');
     await page.getByRole('button', { name: 'Receive at: 0x3a9c…89ac', includeHidden: true }).click();
     await page.getByRole('button', { name: /^Your wallet/, includeHidden: true }).click();
     await expect(page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true })).toBeVisible();
@@ -97,7 +97,7 @@ test.describe('Swap', () => {
     await page.getByText('USDC', { exact: true }).first().click();
     await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
     await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
-    await expect(page.getByPlaceholder(/0x0f70e/)).toBeVisible();
+    await expect(page.getByPlaceholder(/Enter EVM address/)).toBeVisible();
   });
 
   test('a smart wallet crossing EVM chains is offered Paste an address alone, never a connect for the wallet it has', async ({ page }) => {
@@ -115,7 +115,7 @@ test.describe('Swap', () => {
     await pickTokens(page);
     await expect(page.getByText('You are using a smart wallet. Type the address that should receive on Polygon, and make sure it is yours there.')).toBeVisible();
     await expect(button(page, 'Enter a valid address')).toBeDisabled();
-    await page.getByPlaceholder(/0x0f70e/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
+    await page.getByPlaceholder(/Enter EVM address/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
@@ -123,6 +123,23 @@ test.describe('Swap', () => {
     await open(page, 'no-wallet');
     await pickTokens(page);
     await expect(button(page, 'Connect wallet')).toBeEnabled();
+  });
+
+  test('no ICP wallet: Connect wallet opens our own menu on the ICP wallets', async ({ page }) => {
+    await open(page, 'no-wallet');
+    await page.getByText('From', { exact: true }).click();
+    await pickChain(page, '0');
+    await page.getByText('ckUSDC', { exact: true }).first().click();
+    await page.getByText('To', { exact: true }).click();
+    await pickChain(page, '8453');
+    await page.getByText('USDC', { exact: true }).first().click();
+    await amountField(page).fill('5');
+    // exact: the header's pill reads Connect Wallet
+    await page.getByRole('button', { name: 'Connect wallet', exact: true, includeHidden: true }).filter({ visible: true }).click();
+    await expect(page.getByText('Choose an ICP wallet', { exact: true })).toBeVisible();
+    const menu = page.getByTestId('wallet-menu');
+    for (const name of ['OISY', 'NFID', 'Internet Identity', 'Plug']) await expect(menu.getByText(name, { exact: true })).toBeVisible();
+    if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
   });
 
   test('swaps from ICP paused while the pool refills (contract 5.15)', async ({ page }) => {
@@ -198,7 +215,7 @@ test.describe('Swap, the shareable link', () => {
     await expect(page.getByTestId('swap-left').getByText('USDC', { exact: true })).toBeVisible();
     await expect(page.getByTestId('swap-left').getByText('WBTC', { exact: true })).toBeVisible();
     await expect(amountField(page)).toHaveValue('5');
-    await expect(page.getByPlaceholder(/0x0f70e/)).toHaveValue('');
+    await expect(page.getByPlaceholder(/Enter EVM address/)).toHaveValue('');
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
   test('a token from a link that is not on the list shows its warning first', async ({ page }) => {
@@ -504,7 +521,7 @@ test.describe('Swap, you pay gas through Permit2', () => {
   test('a flagged smart wallet keeps today\'s approve and run(order) too', async ({ page }) => {
     await open(page, 'permit2-pay-smart');
     await pickTokens(page);
-    await page.getByPlaceholder(/0x0f70e/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
+    await page.getByPlaceholder(/Enter EVM address/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
     await button(page, 'Review swap').click();
     await expectTodaysPath(page);
     await button(page, 'Approve and swap').click();

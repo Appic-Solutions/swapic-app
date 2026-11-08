@@ -19,7 +19,8 @@ import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
-import { useEvmConnect, useEvmModalOpen, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmModalOpen, useEvmSigner, useWallets } from '@/lib/wallets';
+import { useWalletMenu, walletMenuClosed } from '@/lib/wallets/menu';
 import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
@@ -51,7 +52,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const { evm, icp } = useWallets();
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
-  const openIcp = useIcpConnect();
+  const openWalletMenu = useWalletMenu((s) => s.openAt);
   const { query, quote, state, options, picked, error, cap, covers, refill, updatedAt, fetching, settling } = useSwapQuote();
   const { from, to, recipient } = f;
   const both = !!from && !!to;
@@ -150,7 +151,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     const wallet = to.chain_type === 'ICP' ? 'icp' : 'evm';
     askEvent({ kind: 'connect', wallet, toKey: to.key, address: recipient.address });
     const a = ask.current!;
-    if (wallet === 'icp') void openIcp().then(() => endAsk(a), () => { if (ask.current === a) askEvent({ kind: 'ended' }); });
+    if (wallet === 'icp') { openWalletMenu('icp'); void walletMenuClosed().then(() => endAsk(a)); }
     else void openEvm();
   };
   const paste = () => {
@@ -184,7 +185,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   };
   const onButton = () => {
     if (button.text === 'Connect wallet') {
-      if (from?.chain_type === 'ICP') void openIcp();
+      if (from?.chain_type === 'ICP') openWalletMenu('icp');
       else void openEvm();
       return;
     }
