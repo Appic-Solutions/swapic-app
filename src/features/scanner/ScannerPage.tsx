@@ -16,12 +16,15 @@ import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
 import { NotFound } from './NotFound';
 import { ORDER_FRAME, OrderDetail } from './OrderDetail';
-import { ScannerPanel } from './ScannerPanel';
+import { SCANNER_SPACING, ScannerPanel } from './ScannerPanel';
+import { FIT_SCANNER } from '@/features/activity/fit';
+import { cn } from '@/lib/cn';
 import { useNavReset } from '@/lib/nav-tab';
 
-// The Scanner panel's size and layout as the in place frame's (motion part 2).
-const SCANNER_FRAME = 'md:max-h-[800px] md:w-full md:max-w-[1204px] md:overflow-y-hidden';
-const SCANNER_VIEW = 'gap-y-6 md:max-h-[800px] md:pb-5';
+// The Scanner panel's size and layout as the in place frame's (motion part 2): it fits the window, so the list is the one
+// scroll (FIT_SCANNER).
+const SCANNER_FRAME = cn('md:w-full md:max-w-[1204px] md:overflow-y-hidden', FIT_SCANNER);
+const SCANNER_VIEW = cn(SCANNER_SPACING, FIT_SCANNER);
 
 const orderKey = (id: string) => ['scanner-order', id] as const;
 
