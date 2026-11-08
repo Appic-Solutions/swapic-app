@@ -18,6 +18,7 @@ import { NotFound } from './NotFound';
 import { ORDER_FRAME, OrderDetail } from './OrderDetail';
 import { SCANNER_SPACING, ScannerPanel } from './ScannerPanel';
 import { FIT_SCANNER } from '@/features/activity/fit';
+import { putRow } from '@/features/activity/live-list';
 import { cn } from '@/lib/cn';
 import { useNavReset } from '@/lib/nav-tab';
 
@@ -40,6 +41,8 @@ function OrderPage({ id, onBack }: { id: string; onBack: () => void }) {
     wasDone.current = done;
   }, [done, row.data, qc, id]);
   const raw = row.data?.items[0] ?? null;
+  // once the order ended, the lists behind this page (the feed, a wallet search, History) show it ended too, so Back does
+  React.useEffect(() => { if (raw && raw.outcome !== 'pending') putRow(qc, raw); }, [raw, qc]);
   if (row.data && (row.data.match === 'none' || !raw)) {
     return (
       <PanelBox className="flex flex-col gap-6 md:w-full md:max-w-[1060px]">

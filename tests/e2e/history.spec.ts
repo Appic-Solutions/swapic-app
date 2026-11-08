@@ -6,10 +6,22 @@ import { expect, test, type Page } from '@playwright/test';
 async function open(page: Page, scenario: string, before?: () => Promise<unknown>) {
   const { installFakeBackend, setE2eWallets } = await import('../fake/backend.mjs');
   await installFakeBackend(page, scenario);
+  // an order's own status (the rows in progress watch it): still on its way, as the scenario's rows say
+  await page.route((u) => /^\/v2\/orders\/[^/]+$/.test(u.pathname), (route) => route.fulfill({ json: statusOf(decodeURIComponent(new URL(route.request().url()).pathname.split('/')[3]!), false), headers: CORS }));
   await before?.();
   await setE2eWallets(page, scenario);
   await page.goto('/history');
 }
+
+const CORS = { 'access-control-allow-origin': '*' };
+const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
+/** The pending swap of contract 5.11, and the same swap delivered. */
+const PENDING = () => contract('scanner-latest.json').items[0];
+const DELIVERED = () => { const p = PENDING(); return { ...p, outcome: 'delivered', stage: 'delivered', endedAt: p.createdAt + 26, deliveredAt: p.createdAt + 26, tookS: 26, to: { ...p.to, amount: '74400000' } }; };
+/** Contract 5.8's status, for `id`: on its way, or delivered. */
+const statusOf = (id: string, delivered: boolean) => ({ ...contract('order-status-delivered.json'), orderId: id, outcome: delivered ? 'delivered' : 'pending', stage: delivered ? 'delivered' : 'paying', amountOut: delivered ? '74400000' : null });
+/** Contract 5.14's delivered steps, for the pending swap. */
+const STEPS_DELIVERED = () => ({ ...contract('steps-delivered.json'), id: PENDING().id });
 
 /** The wallets' rows as a long list, 50 a page; an older page answers 429 while `limited()` says so. Returns the cursors
  *  asked, in order. A route set after the fake backend's wins (Playwright asks the newest first). */
@@ -123,5 +135,31 @@ test.describe('History', () => {
     await expect(page.getByText('Connect your wallet to see your history')).toBeVisible();
     await open(page, 'history-empty');
     await expect(page.getByText('No swaps yet')).toBeVisible();
+  });
+  test('a row in progress ends on screen within about 3 s of its order, from its own status', async ({ page }) => {
+    let done = false;
+    await open(page, 'history', async () => {
+      await page.route((u) => u.pathname === '/v2/orders', (route) => route.fulfill({ json: { orders: [done ? DELIVERED() : PENDING()], nextCursor: null }, headers: CORS }));
+      await page.route((u) => /^\/v2\/orders\/[^/]+$/.test(u.pathname), (route) => route.fulfill({ json: statusOf(PENDING().id, done), headers: CORS }));
+    });
+    const row = page.getByTestId('order-row');
+    await expect(row).toContainText('In progress');
+    await page.waitForTimeout(1_000);
+    done = true;
+    // the list itself comes again only after 10 s: the row's own status (every 3 s) ends it first
+    await expect(row).toContainText('Delivered', { timeout: 4_500 });
+  });
+  test('an open row whose steps say it ended ends at once, even before its status or the list do', async ({ page }) => {
+    await open(page, 'history', async () => {
+      await page.route((u) => u.pathname === '/v2/orders', (route) => route.fulfill({ json: { orders: [PENDING()], nextCursor: null }, headers: CORS }));
+      await page.route((u) => /^\/v2\/orders\/[^/]+\/steps$/.test(u.pathname), (route) => route.fulfill({ json: STEPS_DELIVERED(), headers: CORS }));
+    });
+    const row = page.getByTestId('order-row');
+    await expect(row).toContainText('In progress');
+    await page.getByText('View Details').first().click();
+    await expect(row).toContainText('Delivered', { timeout: 2_000 });
+    // a list answer that still says in progress never turns it back
+    await page.waitForTimeout(11_000);
+    await expect(row).toContainText('Delivered');
   });
 });

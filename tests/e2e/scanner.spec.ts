@@ -168,6 +168,22 @@ test.describe('Scanner', () => {
     const m = await page.evaluate(() => ({ page: document.scrollingElement!.scrollHeight - window.innerHeight }));
     expect(m.page).toBeLessThanOrEqual(0);
   });
+  test('an order that ended while its page was open shows ended in the list on Back', async ({ page }) => {
+    const pending = JSON.parse(readFileSync('tests/fixtures/contract/scanner-latest.json', 'utf8')).items[0];
+    const delivered = { ...pending, outcome: 'delivered', stage: 'delivered', endedAt: pending.createdAt + 26, to: { ...pending.to, amount: '74400000' } };
+    await open(page, '/scanner', 'scanner', async () => {
+      // the feed keeps its old answer; the order's own lookup, asked again once its status ends, says delivered
+      await page.route((u) => u.pathname === '/v2/scanner/search', (route) => route.fulfill({ json: { q: pending.id, match: 'order', items: [delivered], nextCursor: null }, headers: { 'access-control-allow-origin': '*' } }));
+    });
+    const row = page.locator(ROWS).filter({ visible: true }).filter({ hasText: '75.00 USDC' });
+    await expect(row).toContainText('In progress');
+    await row.click();
+    await expect(page.getByText('Timeline')).toBeVisible();
+    await expect(page.getByText(/^Delivered/).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Back', includeHidden: true }).filter({ visible: true }).click();
+    await expect(row).toContainText('Delivered');
+    await expect(row).not.toContainText('In progress');
+  });
   test('desktop: the order page columns end at the same height', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop');
     await open(page, '/scanner?order=0x9fa14cca14851b2f429f8fa56929263b0039159bf7c2bdf4fe725f381ec6c227', 'scanner');

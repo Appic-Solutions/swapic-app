@@ -4,9 +4,11 @@
 // a minute, over the 20 a minute wallet lookup bucket, contract 1.6). Here the pages live in one infinite query that never
 // refetches itself (staleTime Infinity), and a timer asks for the newest page only and merges it into page one (mergeHead).
 // An older page is asked once, when the list is scrolled near its end (useNearEnd); one that fails (a 429) stops quietly,
-// the rows shown stay, and the next scroll near the end tries again after a pause.
+// the rows shown stay, and the next scroll near the end tries again after a pause. An order that just ended (its own status
+// or its steps say so, end-watch.ts) asks for the newest page at once (`ended`). A row's end is final: no answer that still
+// says pending (a list a moment behind) ever turns an ended row back.
 import * as React from 'react';
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { ApiError, type ActivityRow } from '@/lib/api';
 import { listInterval, mergeRows } from './rows';
 
@@ -23,6 +25,23 @@ const LIMITED = new Set(['rateLimited', 'rate_limited', 'edgeLimited']);
 /** A rate limit answer is never asked again at once: that only spends more of the same limit. */
 const limited = (e: unknown) => e instanceof ApiError && LIMITED.has(e.code);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const idOf = (r: ActivityRow) => r.id.toLowerCase();
+/** The newer word on one row: an end is final, so a pending answer never replaces an ended row. */
+const later = (fresh: ActivityRow, known: ActivityRow | undefined) => (known && known.outcome !== 'pending' && fresh.outcome === 'pending' ? known : fresh);
+
+/** The pages with `row` in its place (where it is loaded), unless that would turn an ended row back to pending. */
+export function replaceRow(old: Pages, row: ActivityRow): Pages {
+  const id = idOf(row);
+  let hit = false;
+  const pages = old.pages.map((p) => ({ ...p, rows: p.rows.map((r) => (idOf(r) === id ? ((hit = true), later(row, r)) : r)) }));
+  return hit ? { ...old, pages } : old;
+}
+
+const LISTS = new Set(['history', 'scanner-latest', 'scanner-wallets']);
+/** Writes a row just read elsewhere (the Scanner's order page) into every list that holds it, so Back shows it as it is. */
+export function putRow(qc: QueryClient, row: ActivityRow) {
+  qc.setQueriesData<Pages>({ predicate: (q) => LISTS.has(String(q.queryKey[0])) }, (old) => (old?.pages ? replaceRow(old, row) : old));
+}
 
 /**
  * The newest page merged into the pages already loaded: page one takes its rows (fresh versions win, rows it pushed out
@@ -31,11 +50,12 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export function mergeHead(old: Pages | undefined, head: RowsPage): Pages {
   if (!old?.pages.length) return { pages: [head], pageParams: [undefined] };
-  const known = new Set(old.pages.flatMap((p) => p.rows.map((r) => r.id.toLowerCase())));
-  const joined = head.nextCursor === null || head.rows.some((r) => known.has(r.id.toLowerCase()));
+  const known = new Map(old.pages.flatMap((p) => p.rows.map((r) => [idOf(r), r] as const)));
+  const joined = head.nextCursor === null || head.rows.some((r) => known.has(idOf(r)));
   if (!joined) return { pages: [head], pageParams: [undefined] };
   const [first, ...rest] = old.pages as [RowsPage, ...RowsPage[]];
-  return { pages: [{ rows: mergeRows([head.rows, first.rows]), nextCursor: first.nextCursor }, ...rest], pageParams: old.pageParams };
+  const fresh = head.rows.map((r) => later(r, known.get(idOf(r))));
+  return { pages: [{ rows: mergeRows([fresh, first.rows]), nextCursor: first.nextCursor }, ...rest], pageParams: old.pageParams };
 }
 
 export interface LiveList {
@@ -49,6 +69,11 @@ export interface LiveList {
   /** Asks for the next older page, unless a page is on its way, none is left, or the last one failed within RETRY_PAUSE_MS. */
   more: () => void;
   refetch: () => void;
+  /**
+   * An order ended (its status or its steps said so): the newest page is asked at once, and if it does not show that end
+   * yet (or fails), `patch` writes what the status or the steps know into the row until the list catches up.
+   */
+  ended: (id: string, patch: (row: ActivityRow) => ActivityRow) => Promise<void>;
 }
 
 /** `live` and `idle`: the refresh period while a row is in progress, and otherwise (listInterval). */
@@ -72,6 +97,30 @@ export function useLiveList({ queryKey, fetchPage, enabled, live, idle }: {
   const has = !!q.data;
   const keyText = JSON.stringify(queryKey);
 
+  // the newest page, merged into page one; one call at a time (the timer and an order that ended share it). An older page on
+  // its way writes the pages it started from: the merge waits for it, or the merge is lost.
+  const pulling = React.useRef<{ key: string; run: Promise<boolean> } | null>(null);
+  const pull = React.useCallback((): Promise<boolean> => {
+    const key = now.current.queryKey;
+    const text = JSON.stringify(key);
+    if (pulling.current?.key === text) return pulling.current.run;
+    const settle = async () => { while (qc.getQueryState(key)?.fetchStatus === 'fetching') await wait(200); };
+    const run = (async () => {
+      await settle();
+      try {
+        const head = await now.current.fetchPage();
+        await settle();
+        qc.setQueryData<Pages>(key, (old) => mergeHead(old, head));
+        return true;
+      } catch {
+        // the rows shown stay; the next period asks again
+        return false;
+      }
+    })().finally(() => { if (pulling.current?.run === run) pulling.current = null; });
+    pulling.current = { key: text, run };
+    return run;
+  }, [qc]);
+
   // the refresh: the newest page every period while the tab shows (live while a row is in progress, else idle)
   React.useEffect(() => {
     if (!enabled || !has) return;
@@ -79,26 +128,22 @@ export function useLiveList({ queryKey, fetchPage, enabled, live, idle }: {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const key = now.current.queryKey;
     const period = () => listInterval(now.current.rows, now.current.live, now.current.idle);
-    // an older page on its way writes the pages it started from: merge after it, or this merge is lost
-    const settle = async () => { while (!stop && qc.getQueryState(key)?.fetchStatus === 'fetching') await wait(200); };
     const tick = async () => {
-      if (visible()) {
-        await settle();
-        try {
-          const head = await now.current.fetchPage();
-          await settle();
-          if (!stop) qc.setQueryData<Pages>(key, (old) => mergeHead(old, head));
-        } catch {
-          // the rows shown stay; the next period asks again
-        }
-      }
+      if (visible()) await pull();
       if (!stop) timer = setTimeout(() => void tick(), period());
     };
     // back on a list kept in the cache: asked at once if its rows are older than a period
     const age = Date.now() - (qc.getQueryState(key)?.dataUpdatedAt ?? 0);
     timer = setTimeout(() => void tick(), Math.max(period() - age, 0));
     return () => { stop = true; clearTimeout(timer); };
-  }, [enabled, has, keyText, qc]);
+  }, [enabled, has, keyText, qc, pull]);
+
+  const ended = React.useCallback(async (id: string, patch: (row: ActivityRow) => ActivityRow) => {
+    const key = now.current.queryKey;
+    await pull();
+    const row = qc.getQueryData<Pages>(key)?.pages.flatMap((p) => p.rows).find((r) => idOf(r) === id.toLowerCase());
+    if (row && row.outcome === 'pending') qc.setQueryData<Pages>(key, (old) => (old ? replaceRow(old, patch(row)) : old));
+  }, [pull, qc]);
 
   const pausedUntil = React.useRef(0);
   const more = () => {
@@ -107,7 +152,7 @@ export function useLiveList({ queryKey, fetchPage, enabled, live, idle }: {
   };
   return {
     rows, loading: q.isLoading, failed: q.isError && !q.data, hasMore: !!q.hasNextPage, loadingMore: q.isFetchingNextPage, more,
-    refetch: () => void q.refetch(),
+    refetch: () => void q.refetch(), ended,
   };
 }
 
