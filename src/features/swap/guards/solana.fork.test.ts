@@ -5,6 +5,7 @@ import type { Quote, Route, SolanaBurnPayment } from '@/lib/api';
 import { tableEntries } from '@/lib/solana/rpc';
 import { fromBase64 } from '@/lib/solana/tx';
 import type { GuardContext } from './context';
+import { cushioned } from '../options';
 import { verifySolanaBurn } from './solana';
 
 const file = process.env.SOLANA_FORK_ANSWERS;
@@ -37,7 +38,9 @@ describe.skipIf(!run)('the guard on the fork', () => {
       const quote = { fromChain: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp', toChain: 'eip155:8453', quotedAt: Math.floor(Date.now() / 1000) } as unknown as Quote;
       const checked = await verifySolanaBurn({
         quote, route, mode: a.mode === 'gasless' ? 'gasless' : 'userPays', user: a.user, recipient: a.recipient, fromToken: a.fromToken, toToken: a.toToken,
-        amountIn: BigInt(a.amountIn), shownMin: BigInt(a.amountOutMin), guard, tables: table, nowSec: Math.floor(Date.now() / 1000),
+        // what the screen shows: the program's most fee is in steps of 0.1 bp (measured: 0.1 bp under the quote's least at worst),
+        // and the screen's own cushion of 5 bps stands under both
+        amountIn: BigInt(a.amountIn), shownMin: cushioned(BigInt(a.amountOutMin)), guard, tables: table, nowSec: Math.floor(Date.now() / 1000),
       });
       expect(checked.orderId).toBe(a.reference);
     }

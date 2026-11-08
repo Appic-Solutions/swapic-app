@@ -73,7 +73,9 @@ test.describe('the wallet chooser', () => {
     await expect(menu.getByText('EVM wallet', { exact: true })).toBeVisible();
     await expect(menu.getByText('ICP wallet', { exact: true })).toBeVisible();
     for (const name of ['OISY', 'NFID', 'Internet Identity', 'Plug']) await expect(menu.getByText(name, { exact: true })).toHaveCount(0);
-    await expect(menu.getByText('You can connect one EVM wallet and one ICP wallet at the same time.')).toBeVisible();
+    // the e2e build shows Solana, so the third section is there too
+    await expect(menu.getByText('Solana wallet', { exact: true })).toBeVisible();
+    await expect(menu.getByText('You can connect one wallet of each kind at the same time.')).toBeVisible();
 
     await menu.getByText('ICP wallet', { exact: true }).click();
     await expect(page.getByText('Choose an ICP wallet', { exact: true })).toBeVisible();
