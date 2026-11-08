@@ -129,11 +129,9 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   }, [h.state, h.rows]);
   return (
     <>
-      <div className="flex w-full flex-col gap-y-1">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
-          <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
-          {connected && <WalletChips wallets={h.wallets} />}
-        </div>
+      <div className="flex w-full flex-wrap items-center justify-between gap-3 text-white">
+        <h1 className="text-2xl font-semibold md:text-3xl">History</h1>
+        {connected && <WalletChips wallets={h.wallets} />}
       </div>
       {connected && h.state !== 'empty' && <Filters value={filter} onChange={setFilter} counts={h.state === 'loading' ? undefined : countRows(h.rows)} />}
       <div ref={boxRef} className={cn('no-scrollbar flex w-full flex-col gap-y-4 md:min-h-0 md:flex-1 md:overflow-y-auto', edge.fade)}>
