@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
 import type { SideView, StepView } from '@/components/orders/types';
 import { Note } from '@/components/design/Note';
+import { COMPACT_VIEW } from '@/components/design/fit';
 import { ClockIcon, WarningIcon } from '@/components/icons';
 import { MorphFrame } from '@/components/motion/parts';
 import { getOrders, getQuote, submitGasless, userMessage, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
@@ -288,7 +289,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   }, [view, named, holding]);
 
   return (
-    <MorphFrame view={viewKey} wide={wide}>
+    <MorphFrame view={viewKey} wide={wide} viewClass={COMPACT_VIEW}>
       {(v) =>
         v === 'swap' ? (
           <SwapPanel onPick={onPick} onReview={start} linking={linking} />

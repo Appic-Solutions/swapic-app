@@ -162,7 +162,7 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
 
   const content = (
     <>
-      <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100"><BoxHeader title={title} onBack={onBack} /></div>
+      <div className="[&_button]:transition [&_button]:duration-150 [&_button:hover]:opacity-70 [&_button:active]:scale-[0.97] motion-reduce:[&_button:active]:scale-100 md:short:[&_p]:text-2xl md:short:[&_button]:left-6 md:tiny:[&_button]:left-5"><BoxHeader title={title} onBack={onBack} /></div>
       <div className="flex w-full items-center gap-3">
         {note ? <div className="min-w-0 flex-1">{note}</div> : search}
         <ChainMenu chains={shown} value={chain} onChange={setChain} />
@@ -170,12 +170,14 @@ export function TokenSelect({ title, chain: start, selected, onBack, onSelect, c
       {tokenList}
     </>
   );
-  if (inFrame) return <div className="flex w-full flex-col items-center justify-normal gap-y-6 md:h-[543px]">{content}</div>;
+  // Short windows (a laptop at 125%): the page's height comes from the window (less the page frame, globals.css, and in the
+  // Pool's panel its compact padding), never more than its usual height; the list scrolls inside it.
+  if (inFrame) return <div className="flex w-full flex-col items-center justify-normal gap-y-6 md:h-[543px] md:short:h-[min(543px,calc(100dvh-var(--frame-top)-var(--frame-bottom)-48px))] md:short:gap-y-4 md:tiny:h-[min(543px,calc(100dvh-var(--frame-top)-var(--frame-bottom)-40px))] md:tiny:gap-y-3">{content}</div>;
   return (
     // Motion (approved 2026-10-29): opened from the Swap panel (inside an AnimatePresence) it slides in from 16 px right
     // and fades in; Back fades it out drifting right. On its own it shows at rest at once.
     <motion.div className="flex w-full md:items-center md:justify-center" variants={page} initial={opened ? 'hidden' : false} animate="shown" exit="gone">
-      <Box className="justify-normal gap-y-6 md:h-[607px] md:max-w-[537px]">{content}</Box>
+      <Box className="justify-normal gap-y-6 md:h-[607px] md:max-w-[537px] md:short:h-[min(607px,calc(100dvh-var(--frame-top)-var(--frame-bottom)))] md:short:gap-y-4 md:short:p-6 md:tiny:gap-y-3 md:tiny:p-5">{content}</Box>
     </motion.div>
   );
 }

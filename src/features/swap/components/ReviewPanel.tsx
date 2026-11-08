@@ -73,8 +73,9 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
       title="Review swap"
       onBack={onBack}
       left={
-        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-4 lg:flex-1">
-          <div className="flex w-full flex-1 flex-col justify-center gap-4">
+        // short windows (a laptop at 125%): a little tighter
+        <MotionCard variants={fade} className="cursor-auto flex-col items-start justify-between gap-4 lg:flex-1 md:short:gap-3 md:short:p-5">
+          <div className="flex w-full flex-1 flex-col justify-center gap-4 md:short:gap-3">
             <SideBlock label="You pay" side={pay} amount={data.payText} badge={marks?.pay} />
             <div className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-secondary"><ArrowDownIcon width={16} height={16} /></div>
             {/* a fresh price (the 20 s refresh): the old minimum fades out, the new one fades in (the design's quote timer) */}

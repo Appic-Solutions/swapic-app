@@ -34,15 +34,19 @@ const Pill = ({ children }: { children: React.ReactNode }) => (
   <div className="whitespace-nowrap rounded-full bg-white/[0.06] px-2.5 py-0.5 text-xs leading-5 text-secondary">{children}</div>
 );
 
-const PANEL = 'gap-y-6 md:w-full md:max-w-[1204px] lg:max-h-[740px] lg:flex-row lg:items-start lg:gap-x-16 lg:overflow-y-hidden';
-const RIGHT = 'no-scrollbar flex w-full flex-col gap-y-6 lg:max-h-[676px] lg:max-w-[400px] lg:overflow-y-auto';
+/** The pool page on a short window (a laptop at 125%): exactly the window less the page frame (globals.css). */
+export const POOL_FIT = 'lg:short:h-[calc(100dvh-var(--frame-top)-var(--frame-bottom))]';
+const PANEL = `gap-y-6 md:w-full md:max-w-[1204px] lg:max-h-[740px] lg:flex-row lg:items-start lg:gap-x-16 lg:overflow-y-hidden md:short:gap-y-4 md:short:p-6 md:tiny:p-5 ${POOL_FIT}`;
+// short windows: the left column is the panel's height (the chart takes what is left), the right one scrolls inside it
+const LEFT = 'flex w-full flex-col gap-y-6 md:short:gap-y-4 md:tiny:gap-y-3 lg:short:h-full lg:short:min-h-0';
+const RIGHT = 'no-scrollbar flex w-full flex-col gap-y-6 lg:max-h-[676px] lg:max-w-[400px] lg:overflow-y-auto md:short:gap-y-4 lg:short:max-h-full';
 
 const Title = ({ status }: { status: React.ReactNode }) => (
   <div className="flex flex-wrap items-center justify-between gap-3">
-    <div className="flex items-center gap-x-3 whitespace-nowrap text-2xl font-semibold text-white md:text-3xl">
+    <div className="flex items-center gap-x-3 whitespace-nowrap text-2xl font-semibold text-white md:text-3xl md:short:text-2xl">
       <div className="flex items-center">
-        <Avatar src={USDC_LOGO} className="h-8 w-8 md:h-12 md:w-12" />
-        <ShareAvatar className="-ml-3 h-8 w-8 md:-ml-4 md:h-12 md:w-12" />
+        <Avatar src={USDC_LOGO} className="h-8 w-8 md:h-12 md:w-12 md:short:h-10 md:short:w-10 md:tiny:h-8 md:tiny:w-8" />
+        <ShareAvatar className="-ml-3 h-8 w-8 md:-ml-4 md:h-12 md:w-12 md:short:h-10 md:short:w-10 md:tiny:h-8 md:tiny:w-8" />
       </div>
       Swapic Pool
     </div>
@@ -76,7 +80,7 @@ export function PoolLoading() {
   const wallet = useWallets((s) => !!s.evm || !!s.icp);
   return (
     <PanelBox className={PANEL}>
-      <motion.div variants={fade} className="flex w-full flex-col gap-y-6">
+      <motion.div variants={fade} className={LEFT}>
         <Title status={<Skeleton className="whitespace-nowrap px-2.5 py-0.5 text-xs leading-5 text-transparent">Withdraw anytime</Skeleton>} />
         <TilesLoading />
         <ChartLoading wallet={wallet} />
@@ -110,7 +114,7 @@ export function PoolPanel({ onStake, onWithdraw, freshPayout }: { onStake: () =>
   const apy30 = p.stats?.apy30dBps === null || p.stats?.apy30dBps === undefined ? null : formatBps(p.stats.apy30dBps);
   return (
     <PanelBox className={PANEL}>
-      <motion.div variants={fade} className="flex w-full flex-col gap-y-6">
+      <motion.div variants={fade} className={LEFT}>
         <Title status={<Pill>{paused ? 'Paused' : 'Withdraw anytime'}</Pill>} />
         <Tiles pool={p} />
         <PoolChart stakes={stakes} nowSec={nowSec} />

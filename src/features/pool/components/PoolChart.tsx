@@ -26,18 +26,25 @@ const TFS: Timeframe[] = ['1D', '1W', '1M', '1Y'];
 const drawn = (v: number) => formatUsd(BigInt(Math.round(v * 1e6)));
 
 const LAUNCH = 'what $1,000 staked at launch is worth';
+// Short windows (a laptop at 125%): the chart takes what the pool page's left column leaves (its column is the panel's
+// height there), over the charts' own fixed heights; the rest is a little tighter.
+const ROOT = 'flex w-full flex-col gap-y-4 md:short:gap-y-3 md:tiny:gap-y-2 lg:short:min-h-0 lg:short:flex-1';
+const HEADLINE = 'text-2xl font-semibold text-white md:text-3xl md:short:text-2xl md:tiny:text-xl';
+const BODY = 'flex w-full flex-col justify-between gap-y-8 md:short:gap-y-4 md:tiny:gap-y-3 lg:short:min-h-0 lg:short:flex-1';
+// the charts fill this box (recharts sizes a chart to its box only for a % height); short windows: what is left
+const FILL = 'w-full lg:short:h-auto lg:short:min-h-0 lg:short:flex-1 lg:short:[&>*]:!h-full';
 
 /** The chart while the pool page loads. With no wallet its words are known, and they wrap on phones. */
 export function ChartLoading({ wallet }: { wallet: boolean }) {
   return (
-    <div className="flex w-full flex-col gap-y-4">
-      <p className="text-2xl font-semibold text-white md:text-3xl">
+    <div className={ROOT}>
+      <p className={HEADLINE}>
         <SkeletonText className="inline-flex w-28 md:w-36" />
         {wallet ? <SkeletonText className="ml-2 inline-flex w-16 text-sm font-medium" /> : <span className="ml-2 text-sm font-medium text-secondary">{LAUNCH}</span>}
         <SkeletonText className={cn('ml-2 inline-flex text-sm font-medium', wallet ? 'w-32' : 'w-12')} />
       </p>
-      <div className="flex w-full flex-col justify-between gap-y-8">
-        <StakeSpace />
+      <div className={BODY}>
+        <div className={cn(FILL, 'h-[300px]')}><StakeSpace /></div>
         <div className="flex items-center justify-between gap-4">
           <Skeleton className="h-10 w-[114px] rounded-xl" />
           <div className="flex items-center gap-2.5">{TFS.map((t) => <Skeleton key={t} className="h-8 w-8" />)}</div>
@@ -86,20 +93,22 @@ export function PoolChart({ stakes, nowSec }: { stakes: MyStake[]; nowSec: numbe
       : gain !== null ? `+${formatBps(gain)}` : null;
 
   return (
-    <div className="flex w-full flex-col gap-y-4">
-      <p className="text-2xl font-semibold text-white md:text-3xl">
+    <div className={ROOT}>
+      <p className={HEADLINE}>
         {waiting ? <SkeletonText className="inline-flex w-28 md:w-36" /> : headline}
         <span className={cn('text-sm font-medium text-secondary', (waiting || headline !== null) && 'ml-2')}>{metric === 'earnings' ? 'earned by stakers' : has ? 'your stake' : LAUNCH}</span>
         {green ? <span className="ml-2 text-sm font-medium text-success">{green}</span> : waiting && metric === 'stake' && !has && <SkeletonText className="ml-2 inline-flex w-12 text-sm font-medium" />}
       </p>
-      <div className="flex w-full flex-col justify-between gap-y-8">
-        {metric === 'stake' ? (
-          waiting ? <StakeSpace /> : <SharePriceChart data={series} onHover={onHover} height={300} format={drawn} pad={0.6} />
-        ) : waiting ? (
-          <EarningsSpace />
-        ) : (
-          <VolumeChart chartData={series.map((p) => ({ ...p, fees: p.value }))} setHovered={onHover as never} />
-        )}
+      <div className={BODY}>
+        <div className={cn(FILL, metric === 'stake' ? 'h-[300px]' : 'h-[360px]')}>
+          {metric === 'stake' ? (
+            waiting ? <StakeSpace /> : <SharePriceChart data={series} onHover={onHover} height="100%" format={drawn} pad={0.6} />
+          ) : waiting ? (
+            <EarningsSpace />
+          ) : (
+            <VolumeChart chartData={series.map((p) => ({ ...p, fees: p.value }))} setHovered={onHover as never} height="100%" />
+          )}
+        </div>
         <div className="flex items-center justify-between gap-4">
           <Select value={metric} onValueChange={(v: 'stake' | 'earnings') => setMetric(v)}>
             <SelectTrigger className="max-w-fit gap-x-2 border-line bg-white/[0.06] text-white outline-none ring-0">

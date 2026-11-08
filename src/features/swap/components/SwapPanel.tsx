@@ -54,6 +54,8 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const linkBoth = !both && !!linking?.from && linking.to;
   const linkColumn = linkBoth && linking!.amount;
   const pickedCard = 'max-h-min md:max-h-min';
+  // short windows: the token cards a little lower
+  const compactCard = 'md:short:py-4 md:tiny:py-3';
   // Motion (approved 2026-10-29): token cards brighten their edge on hover and sink when pressed; inside the in place
   // panel (MorphFrame) the parts fade in place; Send To Wallet opens and closes at panel speed; the route column's first
   // cards fade up when quoting starts.
@@ -157,7 +159,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   return (
     <PanelBox className={'flex h-full flex-col gap-6 overflow-x-hidden transition-[max-width] md:h-fit md:w-full md:max-w-[537px] ' + tw.big + ' ' + (column || linkColumn ? 'lg:max-w-[1060px]' : '')}>
       <motion.div variants={fade} className="flex w-full items-center justify-between text-white">
-        <h1 className="text-2xl font-semibold md:text-3xl">Swap</h1>
+        <h1 className="text-2xl font-semibold md:text-3xl md:short:text-2xl md:tiny:text-xl">Swap</h1>
         <Link href="/history" className="flex cursor-pointer items-center gap-x-2 text-sm text-secondary transition-colors hover:text-white">
           <HistoryIcon width={16} height={16} />
           History
@@ -165,8 +167,8 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
       </motion.div>
       <div className="flex w-full flex-1 flex-col justify-between gap-x-4 gap-y-6 lg:flex-row">
         <motion.div variants={fade} data-testid="swap-left" className="flex w-full flex-col lg:max-w-[482px] lg:shrink-0">
-          <div className={'relative flex w-full ' + (both || linkBoth ? 'flex-row gap-x-3 md:gap-x-4' : 'flex-col gap-y-4')}>
-            <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, card)} />
+          <div className={'relative flex w-full ' + (both || linkBoth ? 'flex-row gap-x-3 md:gap-x-4' : 'flex-col gap-y-4 md:short:gap-y-3')}>
+            <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, compactCard, card)} />
             <div
               onClick={() => f.flip()}
               className={cn(
@@ -178,7 +180,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             >
               <ArrowsUpDownIcon width={20} height={20} />
             </div>
-            <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, card)} />
+            <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
           </div>
           {linkBoth && <AmountCard token={{ logo: '', chainLogo: '' }} amountText="" usdText={null} balanceLoading disabled />}
           {both && (
@@ -219,7 +221,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
               You are using a smart wallet. Type the address that should receive on {to!.chainName}, and make sure it is yours there.
             </p>
           )}
-          {actions('mt-3 max-lg:hidden md:mt-4', false)}
+          {actions('mt-3 max-lg:hidden md:mt-4 md:short:mt-3', false)}
         </motion.div>
         {(column || linkColumn) && (
           // The panel's height comes from the left column (Jeff 2026-11-05: no gap above the button); only Send To Wallet grows it.
