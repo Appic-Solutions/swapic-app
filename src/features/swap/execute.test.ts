@@ -16,7 +16,7 @@ import { executeSwap, sendCheckedEvm, walletSteps, type ExecDeps, type ExecInput
 import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, clone, forge, load, maxToPermit2, permit2PayOf } from './guards/forge.fixture';
 import { PERMIT2, SWAPIC_PERMIT2_ABI, orderIdOf, type OrderValue } from './guards/abi';
 import { verifyEvmRoute } from './guards/evm';
-import { signedByKey } from '@/lib/wallets/guard';
+import { ownSignature } from '@/lib/wallets/guard';
 import { CKUSDC, ICP_FIXTURE, icpRoute } from './guards/icp.fixture';
 import { cushioned } from './options';
 
@@ -31,7 +31,7 @@ function signer(over: Partial<EvmSigner> = {}): EvmSigner {
   return {
     address: lower(PAYER), ensureChain: vi.fn(async () => {}), signTypedData: vi.fn(async () => `0x${'ab'.repeat(65)}` as const),
     sendTransaction: vi.fn(async () => `0x${'cd'.repeat(32)}` as const), waitForReceipt: vi.fn(async () => 'success' as const),
-    maxFeePerGas: vi.fn(async () => 1n), plainKeyOn: vi.fn(async () => true), signedByKey: vi.fn(async () => true), ...over,
+    maxFeePerGas: vi.fn(async () => 1n), payerOn: vi.fn(async () => 'plain' as const), allowanceOf: vi.fn(async () => 0n), ownSignature: vi.fn(async (_td, signature) => signature), ...over,
   };
 }
 function icp(over: Partial<IcpClient> = {}): IcpClient {
@@ -425,14 +425,24 @@ describe('executeSwap, you pay gas through Permit2', () => {
     const evm = signer({
       address: key.address,
       signTypedData: vi.fn(async (td: SignableTypedData) => { const sig = await key.signTypedData(td as never); signed.push({ td, sig }); return sig; }),
-      signedByKey: (td, sig) => signedByKey(key.address, td, sig),
+      ownSignature: (td, sig) => ownSignature(key.address, td, sig),
     });
     const r = await executeSwap({ ...s.input, query: { ...s.input.query, payer: key.address }, evm, permit2: true }, s.deps);
     expect(r).toEqual({ kind: 'started', activityId: route.orderId!.toLowerCase() });
     expect(await recoverTypedDataAddress({ ...signed[0]!.td, signature: signed[0]!.sig } as never)).toBe(key.address);
-    const wrong = signer({ address: key.address, signedByKey: (td, sig) => signedByKey(key.address, td, sig) });
-    expect(await executeSwap({ ...s.input, query: { ...s.input.query, payer: key.address }, evm: wrong, permit2: true }, s.deps)).toEqual({ kind: 'noPermit2' });
+    const wrong = signer({ address: key.address, ownSignature: (td, sig) => ownSignature(key.address, td, sig) });
+    expect(await executeSwap({ ...s.input, query: { ...s.input.query, payer: key.address }, evm: wrong, permit2: true }, s.deps)).toEqual({ kind: 'noPermit2', wallet: true });
     expect(wrong.sendTransaction).not.toHaveBeenCalled();
+    // a device that answers its last byte as 0 or 1: the calldata carries the bytes Permit2's ecrecover takes
+    let good: Hex = '0x';
+    const low = signer({
+      address: key.address,
+      signTypedData: vi.fn(async (td: SignableTypedData) => { good = await key.signTypedData(td as never); return `${good.slice(0, 130)}${good.endsWith('1b') ? '00' : '01'}` as Hex; }),
+      ownSignature: (td, sig) => ownSignature(key.address, td, sig),
+    });
+    expect((await executeSwap({ ...s.input, query: { ...s.input.query, payer: key.address }, evm: low, permit2: true }, s.deps)).kind).toBe('started');
+    const tx = (low.sendTransaction as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { data: Hex };
+    expect(runWithPermit2(tx)[1].signature).toBe(good);
   });
   it('a "no" to the signature is a clean stop: the approve stays done, no swap sent', async () => {
     const s = pay(true);
@@ -462,22 +472,93 @@ describe('executeSwap, you pay gas through Permit2', () => {
     it(`a wallet with no way to sign (${name}): back to Review swap, no other popup, no swap sent`, async () => {
       const s = pay(true);
       s.input.evm!.signTypedData = vi.fn(async () => { throw error; });
-      expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2' });
+      expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2', wallet: true });
       expect(s.log).toEqual([`send:${USDC}`, 'receipt']);
     });
   }
   it('a signature that is not the key\'s (an account with no code yet): back to Review swap, no gas spent on it', async () => {
     const s = pay(false);
-    s.input.evm!.signedByKey = vi.fn(async () => false);
-    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2' });
+    s.input.evm!.ownSignature = vi.fn(async () => null);
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2', wallet: true });
     expect(s.log).toEqual(['sign']);
   });
-  it('code at the payer\'s address by the time of the signature: back to Review swap, nothing asked', async () => {
-    const s = pay(false);
-    s.input.evm!.plainKeyOn = vi.fn(async () => false);
-    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2' });
-    expect(s.input.evm!.plainKeyOn).toHaveBeenCalledWith(42161);
-    expect(s.log).toEqual([]);
+  describe('read before anything is asked', () => {
+    const CHECK = { kind: 'tryAgain', message: "Couldn't check your wallet, try again." };
+    it('code at the payer\'s address: back to Review swap before the approve, no gas spent, the wallet not marked as unable', async () => {
+      const s = pay(true);
+      s.input.evm!.payerOn = vi.fn(async () => 'code' as const);
+      expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2', wallet: false });
+      expect(s.input.evm!.payerOn).toHaveBeenCalledWith(42161, expect.any(Number));
+      expect(s.log).toEqual([]);
+      expect(steps(s.input)).toEqual([]);
+    });
+    it('a session that names no typed data method: back to Review swap before the approve', async () => {
+      const s = pay(true);
+      s.input.evm!.payerOn = vi.fn(async () => 'noTypedData' as const);
+      expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2', wallet: true });
+      expect(s.log).toEqual([]);
+    });
+    it('a code read that failed is no verdict on the wallet: try again, nothing asked, and the same run goes through once it reads', async () => {
+      const s = pay(true);
+      s.input.evm!.payerOn = vi.fn(async () => 'unread' as const);
+      expect(await executeSwap(s.input, s.deps)).toEqual(CHECK);
+      expect(s.log).toEqual([]);
+      expect(steps(s.input)).toEqual([]);
+      s.input.evm!.payerOn = vi.fn(async () => 'plain' as const);
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+    });
+    it('code that came with the approve: read again after it, nothing signed', async () => {
+      const s = pay(true);
+      s.input.evm!.payerOn = vi.fn().mockResolvedValueOnce('plain').mockResolvedValueOnce('code');
+      expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'noPermit2', wallet: false });
+      expect(s.log).toEqual([`send:${USDC}`, 'receipt']);
+    });
+    it('a read that fails after the approve: try again, nothing signed, the approve stays done and the next row is not left waiting as failed', async () => {
+      const s = pay(true);
+      s.input.evm!.payerOn = vi.fn().mockResolvedValueOnce('plain').mockResolvedValueOnce('unread');
+      expect(await executeSwap(s.input, s.deps)).toEqual(CHECK);
+      expect(s.log).toEqual([`send:${USDC}`, 'receipt']);
+      expect(steps(s.input)).toEqual([[0, 'wait'], [0, 'done'], [1, 'wait']]);
+    });
+    it('no approve asked: one read is enough', async () => {
+      const s = pay(false);
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+      expect(s.input.evm!.payerOn).toHaveBeenCalledTimes(1);
+      expect(s.input.evm!.allowanceOf).not.toHaveBeenCalled();
+    });
+    it('the allowance is read on chain, of Permit2, before the maximum is sent', async () => {
+      const s = pay(true);
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+      expect(s.input.evm!.allowanceOf).toHaveBeenCalledWith(42161, getAddress(USDC), getAddress(PERMIT2), expect.any(Number));
+      expect(approveArgs(s.sent[0]!)).toEqual([getAddress(PERMIT2), maxUint256]);
+    });
+    it('short by one unit: the approve goes out', async () => {
+      const s = pay(true);
+      s.input.evm!.allowanceOf = vi.fn(async () => 4_999_999n);
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+      expect(s.log[0]).toBe(`send:${USDC}`);
+    });
+    it('the chain says it already covers the amount (the quoter\'s read failed or lags): no approve, its row done, the rest in order', async () => {
+      const s = pay(true);
+      s.input.evm!.allowanceOf = vi.fn(async () => 5_000_000n);
+      s.input.shown = { permit2: true, approval: true };
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+      expect(s.log).toEqual(['sign', `send:${SWAPIC}`, 'receipt']);
+      expect(steps(s.input)).toEqual([[0, 'done'], [1, 'wait'], [1, 'done'], [2, 'wait'], [2, 'done']]);
+    });
+    it('covered, and Review swap shows no approve: nothing goes back to it', async () => {
+      const s = pay(true);
+      s.input.evm!.allowanceOf = vi.fn(async () => maxUint256);
+      s.input.shown = { permit2: true, approval: false };
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+      expect(s.log).toEqual(['sign', `send:${SWAPIC}`, 'receipt']);
+    });
+    it('the allowance read fails: try again, nothing sent', async () => {
+      const s = pay(true);
+      s.input.evm!.allowanceOf = vi.fn(async () => null);
+      expect(await executeSwap(s.input, s.deps)).toEqual(CHECK);
+      expect(s.log).toEqual([]);
+    });
   });
   it('a payer with code keeps today\'s exact approve and run(order), never the field', async () => {
     const s = pay(true);
@@ -487,7 +568,16 @@ describe('executeSwap, you pay gas through Permit2', () => {
     expect(approveArgs(s.sent[0]!)).toEqual([getAddress(SWAPIC), 5_000_000n]);
     expect(s.sent[1]).toMatchObject({ data: s.route.tx!.data, value: 0n });
     expect(s.input.evm!.signTypedData).not.toHaveBeenCalled();
-    expect(s.input.evm!.plainKeyOn).not.toHaveBeenCalled();
+    expect(s.input.evm!.payerOn).not.toHaveBeenCalled();
+    expect(s.input.evm!.allowanceOf).not.toHaveBeenCalled();
+  });
+  it('the allowance to Swapic already covers this swap, Permit2 would need an approve: today\'s run(order), one transaction', async () => {
+    const s = pay(true);
+    delete s.route.approval;
+    expect((await executeSwap(s.input, s.deps)).kind).toBe('started');
+    expect(s.log).toEqual([`send:${SWAPIC}`, 'receipt']);
+    expect(s.sent[0]!.data).toBe(s.route.tx!.data);
+    expect(s.input.evm!.signTypedData).not.toHaveBeenCalled();
   });
   it('no field keeps today\'s approve and run(order), whatever Review swap read of the payer', async () => {
     const s = pay(false);
@@ -497,6 +587,12 @@ describe('executeSwap, you pay gas through Permit2', () => {
     expect(approveArgs(s.sent[0]!)).toEqual([getAddress(SWAPIC), 5_000_000n]);
     expect(s.sent[1]!.data).toBe(s.route.tx!.data);
     expect(s.input.evm!.signTypedData).not.toHaveBeenCalled();
+  });
+  it('less out than on screen is still a new price, the Permit2 path or not', async () => {
+    const s = pay(false);
+    s.input.shownMin = BigInt(s.route.amountOutMin) + 1n;
+    expect((await executeSwap(s.input, s.deps)).kind).toBe('newPrice');
+    expect(s.log).toEqual([]);
   });
   it('a native input keeps run with its value, even with a field on the route', async () => {
     const s = pay(false, 'base-eth-to-arb-arb');
@@ -524,18 +620,19 @@ describe('executeSwap, you pay gas through Permit2', () => {
     it('it shows no approve and the fresh route asks one: back to it, nothing asked', async () => {
       const s = pay(true);
       s.input.shown = { permit2: true, approval: false };
-      expect((await executeSwap(s.input, s.deps)).kind).toBe('newPrice');
+      const r = await executeSwap(s.input, s.deps);
+      expect(r).toEqual({ kind: 'stepsChanged', quote: s.q, option: expect.objectContaining({ route: s.route }) });
       expect(s.log).toEqual([]);
     });
     it('it shows today\'s steps and the fresh route is through Permit2, or the other way round: back to it', async () => {
       const a = pay(false);
       a.input.shown = { permit2: false, approval: true };
-      expect((await executeSwap(a.input, a.deps)).kind).toBe('newPrice');
+      expect((await executeSwap(a.input, a.deps)).kind).toBe('stepsChanged');
       expect(a.log).toEqual([]);
       const b = pay(false);
       delete b.route.permit2Pay;
       b.input.shown = { permit2: true, approval: false };
-      expect((await executeSwap(b.input, b.deps)).kind).toBe('newPrice');
+      expect((await executeSwap(b.input, b.deps)).kind).toBe('stepsChanged');
       expect(b.log).toEqual([]);
     });
     it('it shows the approve, which went through before a cancel: its row is done, the others light up in order', async () => {
@@ -581,12 +678,12 @@ describe('executeSwap, you pay gas through Permit2', () => {
     });
     it('compares with the chosen path\'s approval: the fresh route no longer has the field, its exact approve is not covered: back to Review swap', async () => {
       const s = late((fresh) => { delete fresh.permit2Pay; });
-      expect((await executeSwap(s.input, s.deps)).kind).toBe('newPrice');
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('stepsChanged');
       expect(s.log).toEqual([`send:${USDC}`, 'receipt']);
     });
     it('the other path with no approve to ask is still a step the review never showed: back to it', async () => {
       const s = late((fresh) => { delete fresh.permit2Pay; delete fresh.approval; });
-      expect((await executeSwap(s.input, s.deps)).kind).toBe('newPrice');
+      expect((await executeSwap(s.input, s.deps)).kind).toBe('stepsChanged');
       expect(s.log).toEqual([`send:${USDC}`, 'receipt']);
     });
   });

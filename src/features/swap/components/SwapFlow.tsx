@@ -19,9 +19,10 @@
 // You pay gas through Permit2 (Jeff 2026-11-08). The named quote says what a token's swap asks, and only it: before it comes
 // the priced route has no permit2Pay (no approval either), so a payer who may pay that way sees the wallet list wait, with no
 // words that could turn out wrong (gasless has needsApproval for this; here nothing priced can say it, its allowance being
-// a different one). A payer who cannot (flagged a smart wallet, code on the From chain read with the named quote, a wallet
-// that refused) has today's steps from the start. A wallet that cannot sign comes back here with today's steps and a note:
-// it sees the new approve before any wallet asks for it, and is not asked to sign again on this visit.
+// a different one), for at most REVIEW_READ_MS of a slow code read. A payer who cannot (flagged a smart wallet, code on the
+// From chain read with the named quote, a wallet that refused) has today's steps from the start, and a code not read has
+// them as the safest for now, read again at the next refresh. A wallet that cannot sign comes back here with today's steps and
+// a note: it sees the new approve before any wallet asks for it, and is not asked to sign again on this visit.
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import type { UiToken } from '@/components/ui/token-types';
@@ -45,7 +46,7 @@ import { isNative } from '../guards/abi';
 import { routeOffered } from '../guards/evm';
 import { forPayer, namedOption, pickOf, type PickedOption } from '../options';
 import { namedQueryOf, useGuardContext } from '../quote';
-import { reviewData, reviewRefresh } from '../review';
+import { reviewData, reviewRefresh, sameSteps } from '../review';
 import { CountdownLabel, QUOTE_CYCLE_MS } from '@/components/ui/countdown-label';
 import { NOT_SEEN_GRACE_S, ownSteps, statusView, whenText, type OwnSend, type StatusData } from '../status-view';
 import { gasText, sumFees } from '../view';
@@ -61,6 +62,9 @@ const RING_MOVING = 0.85;
 const TOO_MANY = new Set(['Too many tries, wait a minute', 'Too many requests. Wait a minute and try again.']);
 const GONE = 'This option is not available right now. Go back to pick another.';
 const CANNOT_SIGN = "Your wallet can't sign this, so the steps changed. Check them and try again.";
+const STEPS_CHANGED = 'The steps for this swap changed. Check them and try again.';
+/** How long the payer's code may hold Review swap's steps back: past it the code counts as not read, for now. */
+const REVIEW_READ_MS = 3_000;
 
 /** The started swap Your swap follows: its id, when it started, its deadline while unseen, and the app's own send. */
 interface Activity { id: string; startedSec: number; deadline: number | null; own: OwnSend | null }
@@ -72,7 +76,7 @@ interface Review extends ReviewStart {
   wasMinText?: string;
   /** The review comes from the picked route's own executable quote (until then it shows the priced card, unsigned). */
   named: boolean;
-  /** This payer can sign through Permit2 on the From chain; null until its code is read, with the named quote. */
+  /** This payer can sign through Permit2 on the From chain; null while its code is not read (today's steps until it is). */
   signs: boolean | null;
 }
 
@@ -121,6 +125,13 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const cannotSign = React.useRef(new Set<string>());
   /** Whether this route of this From token could go through Permit2 for this wallet, as far as is known before any read. */
   const mayPermit2 = (o: PickedOption, from: UiToken) => o.mode === 'userPays' && !isNative(from.address) && wallet?.smartWallet === false && !cannotSign.current.has(wallet.address);
+  /** Whether this review's payer can sign through Permit2: an answer is kept for the review, a read that failed never is. */
+  const readSigns = async (cur: Review): Promise<boolean | null> => {
+    if (cur.signs !== null) return cur.signs;
+    if (!signer || !mayPermit2(cur.option, cur.from)) return wallet?.smartWallet === null ? null : false;
+    const read = await signer.payerOn(chainNumber(cur.from.chain), REVIEW_READ_MS);
+    return read === 'plain' ? true : read === 'unread' ? null : false;
+  };
 
   // a "too many tries" pause: the button comes back after a minute
   React.useEffect(() => {
@@ -178,9 +189,24 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
       newPrice(rv, out.quote, out.option);
       return;
     }
+    if (out.kind === 'stepsChanged' && rv) {
+      // the price stands: only the steps on screen change, with no struck through minimum and no "Accept new price"
+      const data = reviewData({ option: out.option, quote: out.quote, from: rv.from, to: rv.to, amountIn: rv.amountIn, native: rv.native, recipient: rv.data.recipient });
+      setRv((r) => r && { ...r, option: out.option, quote: out.quote, data, wasMinText: undefined, named: true, shownMin: data.min });
+      setRvAt(Date.now());
+      setStates(undefined);
+      setNote({ tone: 'yellow', text: STEPS_CHANGED });
+      return;
+    }
+    if (out.kind === 'tryAgain') {
+      // nothing was sent and nothing is known against the wallet: the same steps, the same button
+      setStates((s) => s?.map((x) => (x === 'wait' ? 'todo' : x)));
+      setNote({ tone: 'yellow', text: out.message });
+      return;
+    }
     if (out.kind === 'noPermit2' && rv) {
-      // the wallet cannot sign: today's steps on Review swap, for the person to see before any wallet asks again
-      if (signer) cannotSign.current.add(signer.address);
+      // today's steps on Review swap, for the person to see before any wallet asks again
+      if (out.wallet && signer) cannotSign.current.add(signer.address);
       const option = forPayer(rv.option, false);
       const data = reviewData({ option, quote: rv.quote, from: rv.from, to: rv.to, amountIn: rv.amountIn, native: rv.native, recipient: rv.data.recipient });
       setRv((r) => r && { ...r, option, data, signs: false });
@@ -203,12 +229,12 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     }
   };
 
-  /** Less out than on screen (or an approve the review did not show): the struck through minimum, the yellow note and
-   *  "Accept new price"; nothing signed. */
-  const newPrice = (cur: Review, quote: Quote, option: PickedOption) => {
+  /** Less out than on screen: the struck through minimum, the yellow note and "Accept new price"; nothing signed. `at`: when
+   *  that quote came. */
+  const newPrice = (cur: Review, quote: Quote, option: PickedOption, at = Date.now()) => {
     const data = reviewData({ option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
     setRv({ ...cur, option, quote, data, wasMinText: cur.data.minText, named: true });
-    setRvAt(Date.now());
+    setRvAt(at);
     setStates(undefined);
     setNote({ tone: 'yellow', text: `The price moved. You now get at least ${data.minText}${data.minUsd ? ` (${data.minUsd})` : ''}.` });
   };
@@ -220,29 +246,32 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     refreshing.current = true;
     setUpdating(true);
     try {
-      // the named quote says which steps the route asks, the payer's code on the From chain whether it may take them
-      const [quote, signs] = await Promise.all([
-        getQuote(cur.query),
-        cur.signs ?? (signer && mayPermit2(cur.option, cur.from) ? signer.plainKeyOn(chainNumber(cur.from.chain)) : false),
+      // the named quote says which steps the route asks, the payer's code on the From chain whether it may take them; its
+      // timer starts when it came, not when the read ended
+      const [{ quote, at }, signs] = await Promise.all([
+        getQuote(cur.query).then((answer) => ({ quote: answer, at: Date.now() })),
+        readSigns(cur),
       ]);
       // a signature started while it loaded: the price never changes under it
       if (signing.current) return;
       const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: cur.query.payer, recipient: cur.query.recipient, guard });
       const offered = namedOption(quote, pickOf(cur.option), accept);
-      const out = reviewRefresh(cur.data.min, offered && forPayer(offered, signs));
+      const out = reviewRefresh(cur.data.min, offered && forPayer(offered, signs === true));
       if (out.kind === 'quiet') {
         // the minimum on screen follows the fresh quote, up or down: its cushion stands against the latest quote
         const data = reviewData({ option: out.option, quote, from: cur.from, to: cur.to, amountIn: cur.amountIn, native: cur.native, recipient: cur.data.recipient });
         // the numbers on screen are what a signature binds (after a new price not yet accepted, the old minimum stays bound)
         setRv((r) => (r === cur ? { ...cur, option: out.option, quote, data, named: true, signs, shownMin: cur.wasMinText ? cur.shownMin : data.min } : r));
+        // the list's states go by position (after a cancel, an approve's done): other steps start over, so a row never shows another's
+        if (!sameSteps(cur.data.steps, data.steps)) setStates(undefined);
         if (!cur.named) setNote(null);
-        setRvAt(Date.now());
+        setRvAt(at);
       } else if (out.kind === 'newPrice') {
-        newPrice({ ...cur, signs }, quote, out.option);
+        newPrice({ ...cur, signs }, quote, out.option, at);
       } else {
         // the picked route is no longer offered: before its own quote came, nothing can be signed
         if (!cur.named) setNote({ tone: 'yellow', text: GONE });
-        setRvAt(Date.now());
+        setRvAt(at);
       }
     } catch (e) {
       // no answer: the review stays as it is and the ring goes round again (before its own quote came, it says why)

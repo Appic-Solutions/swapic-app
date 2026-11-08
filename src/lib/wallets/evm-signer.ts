@@ -20,7 +20,8 @@ import {
   estimateFeesPerGas, getAccount, getBytecode, getPublicClient, sendTransaction, signTypedData, switchChain,
 } from 'wagmi/actions';
 import { wagmiConfig } from './evm-config';
-import { holdsNoCode, signedByKey } from './guard';
+import { erc20Abi } from 'viem';
+import { holdsNoCode, ownSignature, sessionLacksTypedData, within, type PayerRead } from './guard';
 
 export type SignableTypedData = {
   domain: Record<string, unknown>;
@@ -39,11 +40,12 @@ export interface EvmSigner {
    *  looking then and throws (the caller's limit). */
   waitForReceipt(chainId: number, hash: `0x${string}`, timeoutMs?: number): Promise<'success' | 'reverted'>;
   maxFeePerGas(chainId: number): Promise<bigint>;
-  /** May this wallet pay through Permit2 on that chain (guard.ts): not a known smart wallet, and no code at all at its
-   *  address there. A read that failed is a no. Never throws. */
-  plainKeyOn(chainId: number): Promise<boolean>;
-  /** Is this signature over `td` the address's own key's, as Permit2 will ask (guard.ts)? */
-  signedByKey(td: SignableTypedData, signature: `0x${string}`): Promise<boolean>;
+  /** What is known of this wallet for paying through Permit2 on that chain (guard.ts), within `limitMs`. Never throws. */
+  payerOn(chainId: number, limitMs: number): Promise<PayerRead>;
+  /** This wallet's allowance of `token` to `spender`, read on chain within `limitMs`; null when it could not be read. */
+  allowanceOf(chainId: number, token: `0x${string}`, spender: `0x${string}`, limitMs: number): Promise<bigint | null>;
+  /** This signature over `td`, in the bytes to send, when it is the address's own key's as Permit2 will ask (guard.ts); else null. */
+  ownSignature(td: SignableTypedData, signature: `0x${string}`): Promise<`0x${string}` | null>;
 }
 
 type ChainId = (typeof wagmiConfig)['chains'][number]['id'];
@@ -79,15 +81,19 @@ export function wagmiSigner(address: `0x${string}`, smartWallet?: boolean | null
       const f = await estimateFeesPerGas(wagmiConfig, { chainId: chainId as ChainId });
       return f.maxFeePerGas ?? 0n;
     },
-    async plainKeyOn(chainId) {
-      if (smartWallet !== false) return false;
-      try {
-        return holdsNoCode((await getBytecode(wagmiConfig, { address, chainId: chainId as ChainId })) ?? '0x');
-      } catch {
-        return false;
-      }
+    async payerOn(chainId, limitMs) {
+      if (smartWallet === true) return 'code';
+      if (smartWallet !== false) return 'unread';
+      if (sessionLacksTypedData(await within(limitMs, async () => getAccount(wagmiConfig).connector?.getProvider()))) return 'noTypedData';
+      const code = await within(limitMs, async () => (await getBytecode(wagmiConfig, { address, chainId: chainId as ChainId })) ?? '0x');
+      return code === null ? 'unread' : holdsNoCode(code) ? 'plain' : 'code';
     },
-    signedByKey: (td, signature) => signedByKey(address, td, signature),
+    allowanceOf: (chainId, token, spender, limitMs) => within(limitMs, async () => {
+      const client = getPublicClient(wagmiConfig, { chainId: chainId as ChainId });
+      if (!client) throw new Error('wrongChain');
+      return client.readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [address, spender] });
+    }),
+    ownSignature: (td, signature) => ownSignature(address, td, signature),
   };
 }
 

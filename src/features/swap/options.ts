@@ -1,5 +1,4 @@
 import type { Quote, Route } from '@/lib/api';
-import { isNative } from './guards/abi';
 
 export type OptionTag = 'Gasless' | 'Fastest' | 'Best price';
 export interface PickedOption { key: string; tags: OptionTag[]; mode: 'gasless' | 'userPays' | 'icpPull'; route: Route }
@@ -19,12 +18,14 @@ export const shownMinOf = (o: PickedOption): bigint => cushioned(minOutOf(o));
 
 /**
  * The route as this payer runs it: `permit2Pay` stays only for a payer who can sign through Permit2 (`signs`: guard.ts in the
- * wallets folder), on a token. Anyone else has the route as if the field were never there, so every later reader (the
- * review's steps, the check, the send) takes today's approval and run(order) by the same one test: is the field there.
+ * wallets folder) and only when it is not worse. A route with no approval (a native input, or an allowance to Swapic that
+ * already covers this swap) is one transaction as run(order), with nothing to approve or sign. Anyone else has the route as
+ * if the field were never there, so every later reader (the review's steps, the check, the send) takes today's approval
+ * and run(order) by the same one test: is the field there.
  */
 export function forPayer(o: PickedOption, signs: boolean): PickedOption {
   const { permit2Pay, ...route } = o.route;
-  return permit2Pay && (!signs || isNative(o.route.order?.tokenIn ?? '')) ? { ...o, route } : o;
+  return permit2Pay && (!signs || !o.route.approval) ? { ...o, route } : o;
 }
 
 /** Routes priced only: no wallet yet, or (since the quoter builds only a named route) not named. */

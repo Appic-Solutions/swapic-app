@@ -22,6 +22,9 @@ export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined)
   return { kind: minOutOf(fresh) >= shownMin ? 'quiet' : 'newPrice', option: fresh };
 }
 
+/** The same wallet steps, in the same places: the list's states are read by position, so any other list starts over. */
+export const sameSteps = (a: { label: string }[], b: { label: string }[]) => a.length === b.length && a.every((s, k) => s.label === b[k]!.label);
+
 /**
  * The review of a route. Its "You get at least" is the route's own least, cushioned (shownMinOf): a quiet refresh shows the
  * fresh quote's, up or down (at most 0.05% under that quote's least), so the cushion always stands against the latest
@@ -54,6 +57,6 @@ export function reviewData(i: {
     refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
     blocked,
     pending: !!i.pending,
-    button: blocked ? `Add ${i.native.symbol} to continue` : signsFirst ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
+    button: i.pending ? 'Getting your swap ready' : blocked ? `Add ${i.native.symbol} to continue` : signsFirst ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
   };
 }
