@@ -69,13 +69,6 @@ function impactWarning(p: PickedOption, ctx: { from: UiToken; to: UiToken; amoun
   return `You get about ${formatUsd(usdIn - usdOut)} less than you pay`;
 }
 
-/** What the swap loses against what is paid, once it is at least a percent; a fifth or more is called out. */
-export function lossOf(usdIn: bigint | null, usdOut: bigint | null): { text: string; high: boolean } | undefined {
-  if (usdIn === null || usdOut === null || usdIn <= 0n || usdOut >= usdIn) return undefined;
-  const pct = Number(((usdIn - usdOut) * 100n + usdIn / 2n) / usdIn);
-  return pct < 1 ? undefined : { text: `-${pct}%`, high: pct >= 20 };
-}
-
 export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; amountIn: bigint; sameChainNoUsdc: boolean; native: NativeCoin }): RouteOptionView {
   const r = p.route;
   const amountOut = BigInt(r.amountOut);
@@ -90,7 +83,6 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     // the token's own format (stable coins with two decimals), as Review swap's "You get at least" shows it
     minOutText: `${tokenAmountText(shownMinOf(p), ctx.to.decimals, ctx.to.symbol)} ${ctx.to.symbol}`,
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
-    loss: lossOf(usdMicro(ctx.amountIn, ctx.from.decimals, ctx.from.priceUsd), usdOut),
     networkFeeText: BigInt(r.fees.network) > 0n ? formatUsd(BigInt(r.fees.network)) : undefined,
     totalFeeText: formatUsd(fee),
     gasText: gasText(p, ctx.native),
