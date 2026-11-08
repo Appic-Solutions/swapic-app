@@ -1,6 +1,6 @@
 // Which fixture answers which path, per scenario. Real answers wherever one exists (plan rule 2).
 import { readFileSync } from 'node:fs';
-import { getAddress, hashTypedData } from 'viem';
+import { getAddress, hashTypedData, maxUint256 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 const real = (p) => `tests/fixtures/real/${p}`;
 const contract = (p) => `tests/fixtures/contract/${p}`;
@@ -188,6 +188,31 @@ const needsApproval = () => {
   for (const r of q.gasless.routes) r.needsApproval = true;
   return { status: 200, json: q };
 };
+// You pay gas through Permit2 (plan 2026-11-08), from the recorded quote with gasless closed so You pay gas is the top route on
+// phones too. Asked without a route, as the quoter answers since a named route alone is built: priced only, no order, no
+// approval, no field. Asked by name: built, permit2Pay beside tx and approval (Permit2Pay::of, order/mod.rs), in the recorded
+// gasless Permit2 door's own domain and types. o.first: its allowance of Permit2 is short; o.resetFirst: clears first;
+// o.delayMs: the named answer is that slow; derived, manifest
+const PERMIT2 = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
+const permit2PayQuote = (o = {}) => async (u) => {
+  const q = JSON.parse(readFileSync(new URL(`../../${QUOTE}`, import.meta.url), 'utf8'));
+  q.gasless = { allowed: false, whyNot: 'gaslessOff', routes: [] };
+  const usable = q.userPays.routes.filter((r) => r.executable);
+  if (!u.searchParams.get('routeId')) {
+    q.userPays.routes = usable.map(({ order: _o, orderId: _i, envelope: _e, contracts: _c, tx: _t, approval: _a, ...r }) => ({ ...r, executable: false, reason: 'routeNotNamed' }));
+    return { status: 200, json: q };
+  }
+  if (o.delayMs) await new Promise((done) => setTimeout(done, o.delayMs));
+  const door = JSON.parse(readFileSync(new URL('../fixtures/real/quote/pol-wbtc-to-arb-usdc.json', import.meta.url), 'utf8')).gasless.routes.find((r) => r.sign?.door === 'permit2').sign.typedData[0];
+  const swapic = getAddress(CFG.chains['42161'].swapic);
+  q.userPays.routes = usable.map((r) => {
+    const nonce = BigInt(r.orderId).toString();
+    const typedData = { ...door, domain: { ...door.domain, chainId: 42161 }, message: { permitted: { token: r.order.tokenIn, amount: r.order.amountIn }, spender: swapic, nonce, deadline: r.order.deadline, witness: { orderId: r.orderId } } };
+    const approval = o.first ? { approval: { token: q.fromToken.address, spender: PERMIT2, amount: maxUint256.toString(), ...(o.resetFirst ? { resetFirst: true } : {}) } } : {};
+    return { ...r, permit2Pay: { typedData, nonce, deadline: r.order.deadline, ...approval } };
+  });
+  return { status: 200, json: q };
+};
 const noCoin = (u) => ({ status: 200, json: { chain: u.searchParams.get('chain'), wallet: PAYER.toLowerCase(), block: 1, balances: [{ token: '0x0000000000000000000000000000000000000000', balance: '0' }, { token: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', balance: '250000000' }] } });
 const common = {
   '/v2/chains': contract('chains.json'),
@@ -286,5 +311,15 @@ export const SCENARIOS = {
   'needs-approval': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': needsApproval }, clockAt: SWAP_CLOCK },
   // the same with none of the chain's coin to pay for the approve; derived, manifest
   'needs-approval-no-coin': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': needsApproval, '/v2/balances': noCoin }, clockAt: SWAP_CLOCK },
+  // You pay gas through Permit2 (permit2PayQuote): a wallet's first swap of the token, later swaps, a token cleared first, a
+  // named answer slow to come; an address with code a key still signs for (an EIP-7702 delegation), a flagged smart wallet,
+  // and a wallet with no typed data method; derived, manifest
+  'permit2-pay-first': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': permit2PayQuote({ first: true }) }, clockAt: SWAP_CLOCK },
+  'permit2-pay-later': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': permit2PayQuote() }, clockAt: SWAP_CLOCK },
+  'permit2-pay-reset': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': permit2PayQuote({ first: true, resetFirst: true }) }, clockAt: SWAP_CLOCK },
+  'permit2-pay-slow': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': permit2PayQuote({ first: true, delayMs: 2500 }) }, clockAt: SWAP_CLOCK },
+  'permit2-pay-code': { wallets: { evm: PAYER, icp: ICP, evmCode: true }, routes: { ...common, '/v2/quote': permit2PayQuote({ first: true }) }, clockAt: SWAP_CLOCK },
+  'permit2-pay-smart': { wallets: { evm: PAYER, icp: ICP, evmSmart: true }, routes: { ...common, '/v2/quote': permit2PayQuote({ first: true }) }, clockAt: SWAP_CLOCK },
+  'permit2-pay-cannot-sign': { wallets: { evm: PAYER, icp: ICP, signUnsupported: true }, routes: { ...common, '/v2/quote': permit2PayQuote() }, clockAt: SWAP_CLOCK },
   'submit-reverts': { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': { status: 422, file: real('submit/reverts.json') } }, clockAt: 1792336073 },
 };

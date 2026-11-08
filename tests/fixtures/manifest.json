@@ -1,5 +1,13 @@
 [
   {
+    "path": "tests/fake/scenarios.mjs#permit2PayQuote",
+    "kind": "derived",
+    "source": "tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json with gasless closed; priced asks stripped to what the quoter answers for a route not named (reason routeNotNamed); named asks with permit2Pay in the shape of Permit2PayRequest (services quoter, api/answer/mod.rs), in the domain and types of the recorded gasless Permit2 door (tests/fixtures/real/quote/pol-wbtc-to-arb-usdc.json)",
+    "recordedAt": "2026-11-08",
+    "replacedBy": null,
+    "note": "no recording of the field yet: the quoter side was built beside this; replace with a real named answer once it runs on prod"
+  },
+  {
     "path": "tests/fake/scenarios.mjs#needsApproval",
     "kind": "derived",
     "source": "tests/fixtures/derived/quote-arb-usdc-to-pol-wbtc-memo.json with needsApproval on its gasless routes (Route in src/lib/api/quoter-types.ts); noCoin is the balances answer with no coin",
