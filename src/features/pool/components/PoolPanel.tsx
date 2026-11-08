@@ -12,6 +12,8 @@ import { PanelBox } from '@/components/motion/parts';
 import { Avatar } from '@/components/ui/avatar';
 import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import { Note } from '@/components/design/Note';
+import { Hint } from '@/components/design/Hint';
+import { HINTS } from '@/lib/copy/hints';
 import { ShareAvatar } from '@/components/design/ResultCard';
 import { statCard } from '@/components/design/stat-card';
 import { ClockIcon } from '@/components/icons';
@@ -88,9 +90,12 @@ export function PoolLoading() {
       <motion.div variants={fade} ref={edge.ref} className={cn(RIGHT, edge.fade)}>
         {/* no wallet in the store: the empty card's shape, but never its words (a wallet may still be reconnecting) */}
         {wallet ? <PositionLoading /> : <PositionCard mine={combine([])} apy={null} nowSec={0} loading />}
-        <div className="flex items-center justify-center gap-3 md:gap-4">
-          <Skeleton className="h-12 flex-1 rounded-xl" />
-          <Skeleton className="h-12 flex-1 rounded-xl" />
+        <div>
+          <div className="flex items-center justify-center gap-3 md:gap-4">
+            <Skeleton className="h-12 flex-1 rounded-xl" />
+            <Skeleton className="h-12 flex-1 rounded-xl" />
+          </div>
+          <Hint text={HINTS.pool} hang={false} />
         </div>
         <HowItWorks paused={false} apy={<div><p className={statLabel}>APY</p><SkeletonText className={cn(statValue, 'w-44')} /></div>} />
         <Activity rows={[]} loading />
@@ -121,7 +126,11 @@ export function PoolPanel({ onStake, onWithdraw, freshPayout }: { onStake: () =>
       </motion.div>
       <motion.div variants={fade} ref={edge.ref} className={cn(RIGHT, edge.fade)}>
         <PositionCard mine={mine} apy={apy} nowSec={nowSec} freshPayout={freshPayout} />
-        <Actions canStake={!paused} canWithdraw={mine.has && !paused} onStake={onStake} onWithdraw={onWithdraw} />
+        <div>
+          <Actions canStake={!paused} canWithdraw={mine.has && !paused} onStake={onStake} onWithdraw={onWithdraw} />
+          {/* the grey line under the buttons (none while the pool is paused: its note says why) */}
+          <Hint text={paused ? null : HINTS.pool} hang={false} />
+        </div>
         {paused && (
           <Note tone="yellow" icon={<ClockIcon width={16} height={16} />}>{POOL_PAUSED}</Note>
         )}
