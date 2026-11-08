@@ -48,6 +48,10 @@ const config: Config = {
       /* Screen Sizes */
       screens: {
         xs: '480px',
+        // short windows on a wide screen: a laptop at 125% (1920x1080 leaves about 1536x730, 1600x900 about 1280x580)
+        short: { raw: '(min-width: 768px) and (max-height: 780px)' },
+        // very short: 1366x768 at 125% leaves about 1090x480
+        tiny: { raw: '(min-width: 768px) and (max-height: 560px)' },
       },
 
       /* Keyframes */
