@@ -5,6 +5,7 @@ import '@/style/globals.css';
 import { Providers } from '@/lib/wallets';
 import { Backdrop } from '@/components/layout/Backdrop';
 import { CoinLayer } from '@/components/layout/CoinLayer';
+import { REST_IMAGE } from '@/components/layout/coin-table';
 import { HostRedirect } from '@/components/layout/HostRedirect';
 import { SentryInit } from '@/components/layout/SentryInit';
 import { MotionRoot } from '@/lib/motion';
@@ -20,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="font-rethink-sans relative bg-[#060607] md:h-full" data-scroll-behavior="smooth">
       <head>
         {/* the resting coins, ahead of the app's code on a slow connection; only a screen that shows them asks */}
-        <link rel="preload" as="image" href="/images/coins/rest.webp" media="(min-width: 1024px) and (hover: hover)" fetchPriority="high" />
+        <link rel="preload" as="image" href={REST_IMAGE} media="(min-width: 1024px) and (hover: hover)" fetchPriority="high" />
       </head>
       <body>
         {/* the coins are in the page itself, so they show with the first paint, and a page change never touches them */}

@@ -18,8 +18,8 @@ export function CoinLayer() {
           <div className="coin-face">
             <div className="coin-rest" style={{ backgroundPosition: `${cell(i % REST_ACROSS)} ${cell(Math.floor(i / REST_ACROSS))}` }} />
             <div className="coin-sharp">
-              <img alt="" />
-              <img alt="" />
+              <div />
+              <div />
             </div>
           </div>
         </div>

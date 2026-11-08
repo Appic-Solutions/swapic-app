@@ -4,20 +4,26 @@
 // real 3D, from nine rendered angles. Panels and controls stay on top.
 //
 // Built to cost next to nothing. The travel is one Web Animation per coin on transform with plain numbers, so it runs on the
-// GPU and the main thread does nothing at rest. A coin's sharp frames load the first time the mouse comes near it. Hover changes
-// classes and image sources directly, nothing renders. The styles are in globals.css (.coin).
-import { COINS } from './coin-table';
+// GPU and the main thread does nothing at rest. A coin's nine angles are one strip image, fetched once, the first time the
+// mouse comes near it; turning only moves the strip, so it never asks the network again. Hover changes classes and styles
+// directly, nothing renders. The styles are in globals.css (.coin).
+import { COINS, COIN_DIR, STRIP } from './coin-table';
 
 /** A coin's walls stay this far inside the window. */
 const EDGE = 12;
 /** Window height in px below which the walls start to close in. */
 const TALL = 800;
-const LAST = 8;
+const LAST = STRIP.frames - 1;
 const MID = LAST / 2;
 const FOLLOW = 0.14;
 /** A hovered coin has grown 15%, so the mouse has to leave a wider circle than it came in by, or the rim blinks on and off. */
 const STAY = 1.2;
-const frame = (name: string, i: number) => `/images/coins/${name}-${i}.webp`;
+const strip = (name: string) => `${COIN_DIR}/${name}.webp`;
+/** The strip drawn as tall as a layer, so one frame is exactly as wide as the layer. */
+const STRIP_SIZE = `${(STRIP.cell * STRIP.frames * 100) / STRIP.size}% 100%`;
+/** Where the strip sits to show frame i: that frame's left edge, as a background-position % (it counts in strip width less
+ *  layer width, which here is the strip less one frame). */
+const frame = (i: number) => `${((STRIP.cell * i + (STRIP.cell - STRIP.size) / 2) * 100) / (STRIP.cell * STRIP.frames - STRIP.size)}% 0`;
 /** Whether a panel, a card or a control sits at this point. The page itself has no background of its own, anything over it has. */
 function covered(x: number, y: number) {
   const top = document.elementFromPoint(x, y);
@@ -30,17 +36,23 @@ function covered(x: number, y: number) {
   return false;
 }
 
-// each coin's frames, fetched and decoded once, the first time the mouse comes near
-const loading = new Map<string, Promise<void>>();
-function loadFrames(name: string) {
-  let p = loading.get(name);
+/** The two layers of a coin's sharp face: the turn shows the lower frame below and blends the next one in on top. */
+const layers = (el: HTMLElement) => el.querySelectorAll<HTMLElement>('.coin-sharp > div') as unknown as [HTMLElement, HTMLElement];
+
+// each coin's strip, fetched and decoded once, the first time the mouse comes near; then both layers draw it
+const loading = new Map<HTMLElement, Promise<void>>();
+function loadStrip(el: HTMLElement) {
+  let p = loading.get(el);
   if (!p) {
-    p = Promise.all(Array.from({ length: LAST + 1 }, (_, i) => { const img = new Image(); img.src = frame(name, i); return img.decode().catch(() => {}); })).then(() => {});
-    loading.set(name, p);
+    const img = new Image();
+    img.src = strip(el.dataset.coin!);
+    p = img.decode().catch(() => {}).then(() => {
+      for (const layer of layers(el)) Object.assign(layer.style, { backgroundImage: `url("${img.src}")`, backgroundSize: STRIP_SIZE });
+    });
+    loading.set(el, p);
   }
   return p;
 }
-
 
 /** Starts the coins in this layer; the answer stops them. */
 export function startCoins(box: HTMLElement): () => void {
@@ -71,12 +83,11 @@ export function startCoins(box: HTMLElement): () => void {
   travel();
   window.addEventListener('resize', travel, { passive: true });
 
-  // hover: `hot` is the coin under the mouse, `lit` the one whose frames are showing (it stays lit while it turns back flat)
+  // hover: `hot` is the coin under the mouse, `lit` the one whose strip is showing (it stays lit while it turns back flat)
   let hot: HTMLElement | null = null;
   let lit: HTMLElement | null = null;
   let tilt = MID, now = MID, turning = 0, checking = 0, x = 0, y = 0;
   const trip = (el: HTMLElement) => trips[coins.indexOf(el)];
-  const layers = (el: HTMLElement) => el.querySelectorAll<HTMLImageElement>('.coin-sharp img') as unknown as [HTMLImageElement, HTMLImageElement];
 
   const turn = () => {
     if (!lit) { turning = 0; return; }
@@ -86,7 +97,7 @@ export function startCoins(box: HTMLElement): () => void {
     if (done) now = MID;
     const low = Math.min(Math.floor(now), LAST - 1);
     const [a, b] = layers(lit);
-    if (a.dataset.i !== String(low)) { a.src = frame(lit.dataset.coin!, low); b.src = frame(lit.dataset.coin!, low + 1); a.dataset.i = String(low); }
+    if (a.dataset.i !== String(low)) { a.style.backgroundPosition = frame(low); b.style.backgroundPosition = frame(low + 1); a.dataset.i = String(low); }
     b.style.opacity = String(now - low);
     // back flat and no longer hovered: nothing more to draw
     if (done) { lit = null; turning = 0; return; }
@@ -97,7 +108,7 @@ export function startCoins(box: HTMLElement): () => void {
     if (lit !== el) {
       if (lit) layers(lit)[1].style.opacity = '0';
       const [a, b] = layers(el);
-      a.src = frame(el.dataset.coin!, MID); b.style.opacity = '0'; delete a.dataset.i;
+      a.style.backgroundPosition = frame(MID); b.style.opacity = '0'; delete a.dataset.i;
       lit = el; now = MID;
     }
     hot = el;
@@ -113,7 +124,7 @@ export function startCoins(box: HTMLElement): () => void {
   };
 
   // once a frame at most, and only while the mouse moves. Coins are measured first; asking the page what is on top comes last,
-  // and a coin behind a panel neither wakes nor loads its frames
+  // and a coin behind a panel neither wakes nor loads its strip
   const check = () => {
     checking = 0;
     let found: HTMLElement | null = null;
@@ -125,10 +136,10 @@ export function startCoins(box: HTMLElement): () => void {
       if (far < (r.width / 2) * (el === hot ? STAY : 1)) { found = el; tilt = Math.min(Math.max((x - r.left) / r.width, 0), 1) * LAST; }
     }
     if (near.length && covered(x, y)) { near = []; found = null; }
-    near.forEach((el) => void loadFrames(el.dataset.coin!));
+    near.forEach((el) => void loadStrip(el));
     if (found === hot) return;
     sleep();
-    if (found) { const el = found; void loadFrames(el.dataset.coin!).then(() => { if (!hot) wake(el); }); }
+    if (found) { const el = found; void loadStrip(el).then(() => { if (!hot) wake(el); }); }
   };
   const move = (e: PointerEvent) => { x = e.clientX; y = e.clientY; if (!checking) checking = requestAnimationFrame(check); };
   window.addEventListener('pointermove', move, { passive: true });

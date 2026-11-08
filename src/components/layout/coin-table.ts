@@ -10,3 +10,12 @@ export const COINS: Coin[] = [
 ];
 /** The resting image holds the coins 4 across, in this order. */
 export const REST_ACROSS = 4;
+
+/** The coin images: the resting one (rest.webp) and one strip per coin (<name>.webp). The folder is named by a hash of its
+ *  files, so a browser may keep them forever (scripts/ic-assets.mjs); change a file and the folder gets a new name
+ *  (coin-table.test.ts says which). globals.css names the resting image too. */
+export const COIN_DIR = '/images/coins/7cc0fcf4';
+export const REST_IMAGE = `${COIN_DIR}/rest.webp`;
+/** A coin's strip: its nine angles side by side, each `size` px square in the middle of a `cell` px wide slot, the slot's
+ *  sides copying the frame's own edge (so neither the encoder nor rounding ever shows a neighbouring frame). */
+export const STRIP = { frames: 9, size: 228, cell: 256 };
