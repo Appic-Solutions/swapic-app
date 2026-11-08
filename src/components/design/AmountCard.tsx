@@ -79,11 +79,13 @@ export default function AmountCard({ token, amountText, onAmountText, usdText, b
               balanceText !== undefined && <p className="text-nowrap text-center text-xs font-normal text-secondary md:text-sm">{balanceText}</p>
             )}
           </div>
-          {reserveMessage ? (
-            <p className="mt-1 min-h-4 text-xs font-normal leading-4 text-warn">{message && <span key={message} className="block animate-slide-in-from-top">{message}</span>}</p>
-          ) : message && <p className="mt-1 animate-slide-in-from-top text-xs font-normal text-warn">{message}</p>}
         </div>
       </div>
+      {/* the message line sits under the logo row, indented to the amount's column (logo plus gap), so the logo stays
+          centered on the amount and its dollar line whether the line is reserved, empty or showing */}
+      {reserveMessage ? (
+        <p className="-mt-1 min-h-4 w-full pl-12 text-xs font-normal leading-4 text-warn md:pl-16 md:tiny:mt-0">{message && <span key={message} className="block animate-slide-in-from-top">{message}</span>}</p>
+      ) : message && <p className="-mt-1 w-full animate-slide-in-from-top pl-12 text-xs font-normal text-warn md:pl-16 md:tiny:mt-0">{message}</p>}
     </Card>
   );
 }

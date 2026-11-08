@@ -226,7 +226,11 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             )}
           >
           <div className={'relative flex w-full ' + (both || linkBoth ? 'flex-row gap-x-3 md:gap-x-4' : 'flex-col gap-y-4 md:short:gap-y-3')}>
-            <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, compactCard, card)} />
+            {/* both columns take the same share of the row (basis 0, may shrink), so From and To stay equal and the flip
+                button centered whatever the names or the Receive at chip */}
+            <div className="relative w-full min-w-0 flex-1 basis-0">
+              <TokenCard token={from ?? undefined} loading={!!linking?.from && !from} customOnClick={() => onPick('from')} label="From" className={cn((from || linkBoth) && pickedCard, compactCard, card)} />
+            </div>
             <div
               onClick={() => f.flip()}
               className={cn(
@@ -239,7 +243,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
               <ArrowsUpDownIcon width={20} height={20} />
             </div>
             {/* the To card, and over its top right corner (beside its label) the Receive at control once a To token is picked */}
-            <div className="relative w-full min-w-0">
+            <div className="relative w-full min-w-0 flex-1 basis-0">
               <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
               {/* with both tokens, as the address field it opens (it sits under the amount) */}
               {both && (
