@@ -34,8 +34,6 @@ export interface RouteOptionView {
   amountOutText: string;
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
-  /** What the swap loses against what is paid, "-69%", once it is at least a percent; high: it is a big share. */
-  loss?: { text: string; high: boolean };
   /** The network fee taken from the swap, where the card shows no Fee row. */
   networkFeeText?: string;
   totalFeeText: string;
@@ -146,10 +144,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
             <span className="shrink-0 text-sm font-medium text-secondary lg:text-lg">{toToken.symbol}</span>
           </p>
           <span className="flex items-center gap-x-2 whitespace-nowrap text-xs font-normal text-secondary">
-            <span>
-              {o.usdOutText ?? ''}
-              {o.loss && <span className={cn('ml-1', o.loss.high && 'text-warn')}>{o.loss.text}</span>}
-            </span>
+            {o.usdOutText ?? ''}
             {/* phones: the time sits here, there is no room beside the amount */}
             <Time text={o.durationText} className="flex md:hidden" />
           </span>
