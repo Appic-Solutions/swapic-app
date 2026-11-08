@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
+import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { ScannerIcon } from '@/components/icons';
 import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, userMessage, type ActivityRow } from '@/lib/api';
 import { T, fade } from '@/lib/motion';
@@ -71,6 +72,12 @@ export function ScannerLoading() {
       </section>
     </PanelBox>
   );
+}
+
+/** "Nothing found" on a short window: it scrolls inside the panel, its edge fading, like the list it stands in for. */
+function Scrolls({ children }: { children: React.ReactNode }) {
+  const edge = useScrollFade<HTMLDivElement>();
+  return <div ref={edge.ref} className={cn('no-scrollbar flex w-full flex-col md:min-h-0 md:overflow-y-auto', edge.fade)}>{children}</div>;
 }
 
 function Hint() {
@@ -190,13 +197,13 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
         <AnimatePresence initial={false} mode="wait">
           <motion.div
             key={notFound !== null ? 'none' : 'results'}
-            className={cn('flex w-full flex-col md:min-h-0', notFound !== null && 'no-scrollbar md:overflow-y-auto')}
+            className="flex w-full flex-col md:min-h-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: T.enter }}
             exit={{ opacity: 0, transition: T.exit }}
           >
             {notFound !== null ? (
-              <NotFound query={notFound} />
+              <Scrolls><NotFound query={notFound} /></Scrolls>
             ) : (
               <Results
                 orders={orders}
