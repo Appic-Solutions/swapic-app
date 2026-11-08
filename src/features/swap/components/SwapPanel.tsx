@@ -182,7 +182,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             </div>
             <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
           </div>
-          {linkBoth && <AmountCard token={{ logo: '', chainLogo: '' }} amountText="" usdText={null} balanceLoading disabled />}
+          {linkBoth && <AmountCard token={{ logo: '', chainLogo: '' }} amountText="" usdText={null} balanceLoading disabled reserveMessage />}
           {both && (
             <AmountCard
               token={{ logo: from!.logo, chainLogo: from!.chainLogo }}
@@ -193,6 +193,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
               onMax={() => void onMax()}
               balanceLoading={fromWallet && balanceLoading}
               message={message}
+              reserveMessage
             />
           )}
           {both && (
@@ -225,7 +226,8 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
         </motion.div>
         {(column || linkColumn) && (
           // The panel's height comes from the left column (Jeff 2026-11-05: no gap above the button); only Send To Wallet grows it.
-          <div data-testid="swap-routes" className="relative w-full lg:min-h-[300px] lg:flex-1">
+          // A short window's left column is lower than 300 px: the floor follows, so the column never makes the panel taller.
+          <div data-testid="swap-routes" className="relative w-full lg:min-h-[300px] lg:flex-1 lg:short:min-h-[240px]">
             <div className="lg:absolute lg:inset-0">
               <RouteOptionsList
                 enter={mounted}
