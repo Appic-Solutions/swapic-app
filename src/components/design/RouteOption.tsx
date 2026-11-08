@@ -34,6 +34,10 @@ export interface RouteOptionView {
   amountOutText: string;
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
+  /** What the swap loses against what is paid, "-69%", once it is at least a percent; high: it is a big share. */
+  loss?: { text: string; high: boolean };
+  /** The network fee taken from the swap, where the card shows no Fee row. */
+  networkFeeText?: string;
   totalFeeText: string;
   /** The least the user receives (the route's least less the small cushion, shownMinOf) with the token's symbol: the details' first row. */
   minOutText: string;
@@ -142,7 +146,10 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
             <span className="shrink-0 text-sm font-medium text-secondary lg:text-lg">{toToken.symbol}</span>
           </p>
           <span className="flex items-center gap-x-2 whitespace-nowrap text-xs font-normal text-secondary">
-            {o.usdOutText ?? ''}
+            <span>
+              {o.usdOutText ?? ''}
+              {o.loss && <span className={cn('ml-1', o.loss.high && 'text-warn')}>{o.loss.text}</span>}
+            </span>
             {/* phones: the time sits here, there is no room beside the amount */}
             <Time text={o.durationText} className="flex md:hidden" />
           </span>
@@ -214,6 +221,7 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
         <div className="space-y-2 border-t border-line pt-3 text-xs md:text-sm">
           <Row label="You get at least">{o.minOutText}</Row>
           {(!o.gasless || review) && <Row label="Fee">{o.totalFeeText}</Row>}
+          {o.gasless && !review && o.networkFeeText && <Row label="Network fee">{o.networkFeeText}</Row>}
           <Row label="Route">
             <span className="inline-flex items-center gap-x-1">
               <span className="font-normal text-secondary">via</span> {o.viaMinter ? 'ckETH minter' : 'Swapic'}
