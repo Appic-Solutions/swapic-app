@@ -25,7 +25,7 @@ const STEPS_DELIVERED = () => ({ ...contract('steps-delivered.json'), id: PENDIN
 
 /** The wallets' rows as a long list, 50 a page; an older page answers 429 while `limited()` says so. Returns the cursors
  *  asked, in order. A route set after the fake backend's wins (Playwright asks the newest first). */
-async function paged(page: Page, total: number, limited: () => boolean = () => false) {
+async function paged(page: Page, total: number, limited: () => boolean = () => false, size = 50) {
   const base = JSON.parse(readFileSync('tests/fixtures/contract/scanner-search-tx.json', 'utf8')).items[0];
   const rows = Array.from({ length: total }, (_, i) => ({ ...base, id: `0x${(i + 1).toString(16).padStart(64, '0')}`, createdAt: base.createdAt - i * 60 }));
   const asked: (string | null)[] = [];
@@ -35,8 +35,8 @@ async function paged(page: Page, total: number, limited: () => boolean = () => f
     const headers = { 'access-control-allow-origin': '*' };
     if (cursor && limited()) return route.fulfill({ status: 429, json: { code: 'rateLimited', message: 'too many requests' }, headers });
     const from = cursor ? rows.findIndex((r) => r.id === cursor) + 1 : 0;
-    const orders = rows.slice(from, from + 50);
-    return route.fulfill({ json: { orders, nextCursor: from + 50 < rows.length ? orders.at(-1).id : null }, headers });
+    const orders = rows.slice(from, from + size);
+    return route.fulfill({ json: { orders, nextCursor: from + size < rows.length ? orders.at(-1).id : null }, headers });
   });
   return asked;
 }
@@ -160,5 +160,40 @@ test.describe('History', () => {
     // a list answer that still says in progress never turns it back
     await page.waitForTimeout(11_000);
     await expect(row).toContainText('Delivered');
+  });
+  test('a list that does not fill its box loads the next page without a scroll, one page at a time', async ({ page }) => {
+    let asked: (string | null)[] = [];
+    // two rows a page: the first page cannot fill the panel (or a phone's screen), so there is nothing to scroll
+    await open(page, 'history', async () => { asked = await paged(page, 9, undefined, 2); });
+    const rows = page.getByTestId('order-row');
+    await expect.poll(() => rows.count()).toBeGreaterThan(2);
+    expect(asked.filter(Boolean).length).toBeGreaterThan(0);
+    // one at a time: every older page was asked with the cursor of the one before it, none twice
+    const older = asked.filter(Boolean);
+    expect(new Set(older).size).toBe(older.length);
+  });
+  test('a filter that keeps few rows loads the next page without a scroll', async ({ page }) => {
+    let asked: (string | null)[] = [];
+    await open(page, 'history', async () => { asked = await paged(page, 80); });
+    const rows = page.getByTestId('order-row');
+    await expect(rows).toHaveCount(50);
+    await page.waitForTimeout(500);
+    expect(asked.filter(Boolean)).toHaveLength(0);
+    // these rows are all swaps: the Pool filter keeps none, so the end of the list is in view
+    await page.getByRole('button', { name: /^Pool/, includeHidden: true }).click();
+    await expect.poll(() => asked.filter(Boolean).length).toBe(1);
+    await page.getByRole('button', { name: /^All/, includeHidden: true }).click();
+    await expect(rows).toHaveCount(80);
+  });
+  test('a refund in a token that is not a stable coin shows no empty dollar line', async ({ page }) => {
+    const r = contract('scanner-search-tx.json').items[0];
+    const pol = { ...r, refund: { ...r.refund, token: '0x0000000000000000000000000000000000001010', symbol: 'POL', decimals: 18, amount: '2500000000000000000' } };
+    await open(page, 'history', async () => {
+      await page.route((u) => u.pathname === '/v2/orders', (route) => route.fulfill({ json: { orders: [pol], nextCursor: null }, headers: CORS }));
+    });
+    const row = page.getByTestId('order-row');
+    await expect(row).toContainText('Refunded on Polygon');
+    await expect(row.locator('p.text-warn')).toContainText('POL');
+    await expect(row.locator('p.text-warn + p')).toHaveCount(0);
   });
 });

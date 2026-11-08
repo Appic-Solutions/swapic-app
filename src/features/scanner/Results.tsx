@@ -72,11 +72,11 @@ const Cols = () => (
 );
 
 /** One scroll box (the table's rows, or the cards): its edge fades, and it asks for the next page near its end. */
-function useListBox(onNearEnd: () => void) {
+function useListBox(onNearEnd: () => void, watch: unknown) {
   const [box, setBox] = React.useState<HTMLDivElement | null>(null);
   const edge = useScrollFade<HTMLDivElement>();
   const ref = React.useCallback((el: HTMLDivElement | null) => { edge.ref(el); setBox(el); }, [edge.ref]);
-  useNearEnd(box, onNearEnd);
+  useNearEnd(box, onNearEnd, watch);
   return { ref, fade: edge.fade };
 }
 
@@ -84,10 +84,12 @@ const none = () => {};
 
 // Motion (approved 2026-10-29, part 2): rows glide to their new places, a new order slides down into the top, rows sink
 // a little when pressed.
-export function Results({ orders, loading, loadingMore, onNearEnd = none, onOpen, freshId }: { orders: OrderView[]; loading?: boolean; loadingMore?: boolean; onNearEnd?: () => void; onOpen: (o: OrderView) => void; freshId?: string }) {
+/** `watch`: what makes the list look at its end again (its rows, whether more is left; ScannerPanel's useLiveList). */
+export function Results({ orders, loading, loadingMore, onNearEnd = none, watch, onOpen, freshId }: { orders: OrderView[]; loading?: boolean; loadingMore?: boolean; onNearEnd?: () => void; watch?: unknown; onOpen: (o: OrderView) => void; freshId?: string }) {
   const mounted = useMounted();
-  const table = useListBox(onNearEnd);
-  const cards = useListBox(onNearEnd);
+  const look = `${orders.length}:${!!loading}:${String(watch)}`;
+  const table = useListBox(onNearEnd, look);
+  const cards = useListBox(onNearEnd, look);
   const enter = (o: OrderView) => (mounted && freshId === o.id ? { initial: { opacity: 0, y: -12 }, animate: { opacity: 1, y: 0, transition: T.big } } : {});
   return (
     <>

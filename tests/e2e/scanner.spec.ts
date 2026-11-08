@@ -124,6 +124,15 @@ test.describe('Scanner', () => {
     await rows.last().scrollIntoViewIfNeeded();
     await expect(rows).toHaveCount(50);
   });
+  test('a feed whose first page does not fill the list loads on without a scroll', async ({ page }) => {
+    let asked: (string | null)[] = [];
+    await open(page, '/scanner', 'scanner', async () => { asked = await paged(page, '/v2/scanner/latest', 3, 12); });
+    const rows = page.locator(ROWS).filter({ visible: true });
+    await expect.poll(() => rows.count()).toBeGreaterThan(3);
+    const older = asked.filter(Boolean);
+    expect(older.length).toBeGreaterThan(0);
+    expect(new Set(older).size).toBe(older.length);
+  });
   test('a wallet search pages the same way', async ({ page }) => {
     let asked: (string | null)[] = [];
     await open(page, '/scanner?q=0xf00eba8e5fd231b526adfaaa68b4d0ede72a89ac', 'scanner', async () => { asked = await paged(page, '/v2/orders', 50, 70); });

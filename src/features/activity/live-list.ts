@@ -76,6 +76,9 @@ export interface LiveList {
   loadingMore: boolean;
   /** Asks for the next older page, unless a page is on its way, none is left, or the last one failed within RETRY_PAUSE_MS. */
   more: () => void;
+  /** Counts the pauses after a failed page that are over: a change asks useNearEnd to look again (a list that cannot be
+   *  scrolled has no scroll to try again with). */
+  again: number;
   refetch: () => void;
   /**
    * An order ended (its status or its steps said so): the newest page is asked at once, and if it does not show that end
@@ -154,35 +157,48 @@ export function useLiveList({ queryKey, fetchPage, enabled, live, idle }: {
   }, [pull, qc]);
 
   const pausedUntil = React.useRef(0);
+  const [again, setAgain] = React.useState(0);
+  const pauseTimer = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  React.useEffect(() => () => clearTimeout(pauseTimer.current), []);
   const more = () => {
     if (!q.hasNextPage || q.isFetching || Date.now() < pausedUntil.current) return;
-    void q.fetchNextPage({ cancelRefetch: false }).then((r) => { if (r.isError) pausedUntil.current = Date.now() + RETRY_PAUSE_MS; });
+    void q.fetchNextPage({ cancelRefetch: false }).then((r) => {
+      if (!r.isError) return;
+      pausedUntil.current = Date.now() + RETRY_PAUSE_MS;
+      clearTimeout(pauseTimer.current);
+      pauseTimer.current = setTimeout(() => setAgain((n) => n + 1), RETRY_PAUSE_MS);
+    });
   };
   return {
-    rows, loading: q.isLoading, failed: q.isError && !q.data, hasMore: !!q.hasNextPage, loadingMore: q.isFetchingNextPage, more,
+    rows, loading: q.isLoading, failed: q.isError && !q.data, hasMore: !!q.hasNextPage, loadingMore: q.isFetchingNextPage, more, again,
     refetch: () => void q.refetch(), ended,
   };
 }
 
 /**
- * Calls `onNear` when the list is scrolled to within NEAR_END_PX of its end: its own scroll where it scrolls inside its
- * panel (desktop), the page's where it does not (phones). Passive scroll listeners only, never an IntersectionObserver: one
- * anywhere on the page keeps the background coins' animations on the main thread (measured 94 ms a frame against 3 ms).
+ * Calls `onNear` when the end of the list is within NEAR_END_PX: its own scroll where it scrolls inside its panel (desktop),
+ * the page's where it does not (phones). It looks on every scroll, on a resize, once mounted, and whenever `watch` changes
+ * (the rows, the filter, whether more is left): a list that does not fill its box (a filter that keeps two rows, a short
+ * first page, a phone taller than its content) has its end in view already, so the next page comes without a scroll, one
+ * page at a time, and only what scrolling could reach. Passive listeners only, never an IntersectionObserver: one anywhere
+ * on the page keeps the background coins' animations on the main thread (measured 94 ms a frame against 3 ms).
  */
-export function useNearEnd(box: HTMLElement | null, onNear: () => void) {
+export function useNearEnd(box: HTMLElement | null, onNear: () => void, watch?: unknown) {
   const call = React.useRef(onNear);
   call.current = onNear;
+  const check = React.useCallback(() => {
+    // not there yet, or hidden at this size (the table on phones, the cards on desktop); an empty list is still there
+    if (!box || box.getClientRects().length === 0) return;
+    const inside = box.scrollHeight > box.clientHeight + 1 && getComputedStyle(box).overflowY !== 'visible';
+    const left = inside ? box.scrollHeight - box.scrollTop - box.clientHeight : box.getBoundingClientRect().bottom - window.innerHeight;
+    if (left < NEAR_END_PX) call.current();
+  }, [box]);
   React.useEffect(() => {
     if (!box) return;
-    const check = () => {
-      // hidden at this size (the table on phones, the cards on desktop)
-      if (box.clientHeight === 0) return;
-      const inside = box.scrollHeight > box.clientHeight + 1 && getComputedStyle(box).overflowY !== 'visible';
-      const left = inside ? box.scrollHeight - box.scrollTop - box.clientHeight : box.getBoundingClientRect().bottom - window.innerHeight;
-      if (left < NEAR_END_PX) call.current();
-    };
     box.addEventListener('scroll', check, { passive: true });
     window.addEventListener('scroll', check, { passive: true });
-    return () => { box.removeEventListener('scroll', check); window.removeEventListener('scroll', check); };
-  }, [box]);
+    window.addEventListener('resize', check, { passive: true });
+    return () => { box.removeEventListener('scroll', check); window.removeEventListener('scroll', check); window.removeEventListener('resize', check); };
+  }, [box, check]);
+  React.useEffect(check, [check, watch]);
 }

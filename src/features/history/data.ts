@@ -37,6 +37,6 @@ export function useHistory() {
   const state = !wallets.length ? 'nowallet' : list.loading ? 'loading' : list.failed ? 'error' : rows.length ? 'ready' : 'empty';
   return {
     rows, raw, wallets, state: state as 'nowallet' | 'loading' | 'empty' | 'error' | 'ready',
-    more: list.more, hasMore: list.hasMore, loadingMore: list.loadingMore, refetch: list.refetch, ended: list.ended,
+    more: list.more, hasMore: list.hasMore, loadingMore: list.loadingMore, again: list.again, refetch: list.refetch, ended: list.ended,
   };
 }

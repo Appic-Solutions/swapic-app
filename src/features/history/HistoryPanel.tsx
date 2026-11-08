@@ -105,8 +105,9 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   // the next page comes by itself as the list nears its end (its own scroll on desktop, the page's on phones)
   const [box, setBox] = React.useState<HTMLDivElement | null>(null);
   const boxRef = React.useCallback((el: HTMLDivElement | null) => { edge.ref(el); setBox(el); }, [edge.ref]);
-  useNearEnd(box, h.more);
   const shown = filterRows(h.rows, filter);
+  // looked at again as the rows, the filter or what is left change: a list that does not fill its box loads on by itself
+  useNearEnd(box, h.more, `${h.state}:${filter}:${shown.length}:${h.hasMore}:${h.again}`);
   const connected = h.state !== 'nowallet';
   const rawOf = new Map(h.raw.map((r) => [r.id, r]));
   // a row that was not there on the last answer arrives at the top (motion row 56); the first answer marks all as seen, and

@@ -203,6 +203,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
                 loading={list.loading}
                 loadingMore={list.loadingMore}
                 onNearEnd={list.more}
+                watch={`${list.hasMore}:${list.again}`}
                 freshId={freshId}
                 onOpen={(o) => { const r = raw.find((x) => x.id === o.id); if (r) onOpen(r); }}
               />
