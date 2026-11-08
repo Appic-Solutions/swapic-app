@@ -46,7 +46,7 @@ export async function signedByKey(address: string, td: SignableTypedData, signat
   if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return false;
   try {
     const { EIP712Domain: _omit, ...types } = td.types;
-    const who = await recoverTypedDataAddress({ domain: td.domain as never, types: types as never, primaryType: td.primaryType, message: td.message as never, signature });
+    const who = await recoverTypedDataAddress({ domain: td.domain, types, primaryType: td.primaryType, message: td.message, signature } as never);
     return who.toLowerCase() === address.toLowerCase();
   } catch {
     return false;

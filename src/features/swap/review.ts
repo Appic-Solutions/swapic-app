@@ -27,12 +27,19 @@ export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined)
  * fresh quote's, up or down (at most 0.05% under that quote's least), so the cushion always stands against the latest
  * quote, and the check at confirm compares against the number on screen at that moment.
  */
-export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToken; to: UiToken; amountIn: bigint; native: NativeCoin; recipient: { label: string; address: string; chain: string } }) {
+export function reviewData(i: {
+  option: PickedOption; quote: Quote; from: UiToken; to: UiToken; amountIn: bigint; native: NativeCoin; recipient: { label: string; address: string; chain: string };
+  /** The priced route of a payer who may pay through Permit2, its named quote still to come: which steps it asks is not
+   *  known yet (the priced answer says nothing of them), so none is claimed, and the wallet list waits. */
+  pending?: boolean;
+}) {
   const min = shownMinOf(i.option);
   const usd = (v: bigint, t: UiToken) => { const m = usdMicro(v, t.decimals, t.priceUsd); return m === null ? null : formatUsd(m); };
-  const steps = walletSteps(i.option, i.from, i.amountIn, i.native);
+  const steps = i.pending ? [] : walletSteps(i.option, i.from, i.amountIn, i.native);
   // the named route can ask an approve the list did not: no coin to pay it, nothing to sign yet
   const blocked = approveState(i.option, i.native) === 'noCoin';
+  // no approve before the signature: the only step on gasless, the first of two through Permit2
+  const signsFirst = steps.length === (i.option.mode === 'gasless' ? 1 : 2) && (i.option.mode === 'gasless' || !!i.option.route.permit2Pay);
   const option = routeView(i.option, { from: i.from, to: i.to, amountIn: i.amountIn, sameChainNoUsdc: isSameChainNoUsdc(i.quote, undefined), native: i.native });
   return {
     payText: `${tokenAmountText(i.amountIn, i.from.decimals, i.from.symbol)} ${i.from.symbol}`,
@@ -46,6 +53,7 @@ export function reviewData(i: { option: PickedOption; quote: Quote; from: UiToke
     recipient: i.recipient,
     refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
     blocked,
-    button: blocked ? `Add ${i.native.symbol} to continue` : i.option.mode === 'gasless' && steps.length === 1 ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
+    pending: !!i.pending,
+    button: blocked ? `Add ${i.native.symbol} to continue` : signsFirst ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
   };
 }
