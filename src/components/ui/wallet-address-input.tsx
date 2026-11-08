@@ -84,7 +84,8 @@ const WalletAddressInput = ({
               onChange={handleAddressChange}
               className={cn(
                 'w-full bg-transparent py-1 font-medium text-primary outline-none',
-                'placeholder:text-base placeholder:font-normal placeholder:text-faint md:placeholder:text-lg',
+                // the same placeholder as the amount's: the card's own type, faint
+                'placeholder:text-xl placeholder:font-semibold placeholder:text-faint md:placeholder:text-2xl',
                 '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
                 address.length > 45 ? 'text-xs md:text-sm' : 'text-base md:text-lg',
               )}
