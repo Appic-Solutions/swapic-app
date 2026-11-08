@@ -17,7 +17,8 @@ import AmountCard from '@/components/design/AmountCard';
 import RouteOptionsList from '@/components/design/RouteOptionsList';
 import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
-import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
+import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdcGasReserve, usdMicro } from '@/lib/money';
+import { isGasUsdc } from '@/lib/chains';
 import { icpClient } from '@/lib/icp';
 import { useEvmConnect, useEvmModalOpen, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
 import { swapButton } from '../button';
@@ -179,6 +180,10 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     } else if (from.address === ZERO) {
       const feePerGas = signer ? await signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS;
       max = maxNative(balance, nativeReserve(feePerGas));
+    } else if (isGasUsdc(from.chain, from.address)) {
+      // Arc: the USDC token is the gas money too
+      const feePerGas = signer ? await signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS;
+      max = maxNative(balance, usdcGasReserve(nativeReserve(feePerGas)));
     }
     f.set({ amountText: formatUnits(max, from.decimals).replace(/,/g, '') });
   };

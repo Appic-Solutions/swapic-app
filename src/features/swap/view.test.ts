@@ -62,6 +62,12 @@ describe('routeView', () => {
     expect(view(gasless, null).gaslessNote).toBe('Just sign, no ETH needed');
     expect(view(gasless, false).gaslessNote).toBe('You have no ETH on Arbitrum. Gasless works anyway');
     expect(view(paid, false).gaslessNote).toBeUndefined();
+    // Arc pays its gas in its USDC: a USDC swap there is never told "no USDC needed"
+    const arc = { ...tok('USDC', 6, '1'), chain: 'eip155:5042', chainId: 5042, chainName: 'Arc' };
+    const onArc = (held?: boolean | null) =>
+      routeView(gasless!, { from: arc, to: tok('WETH', 18, '2240'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { symbol: 'USDC', decimals: 18, priceUsd: '1', held } });
+    expect(onArc(true).gaslessNote).toBe('Just sign, no gas to pay');
+    expect(onArc(false).gaslessNote).toBe('You have no USDC on Arc. Gasless works anyway');
   });
   it('writes times the way the design does', () => {
     expect(etaText(12)).toBe('12 sec');
