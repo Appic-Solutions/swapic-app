@@ -30,7 +30,8 @@ import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
 import { POOL_CHAIN } from '@/lib/chains';
 import { fade, tw } from '@/lib/motion';
-import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmSigner, useIcpCaller, useWallets } from '@/lib/wallets';
+import { useWalletMenu } from '@/lib/wallets/menu';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { usePool, type MyStake } from '../data';
@@ -70,7 +71,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
   const signer = useEvmSigner();
   const caller = useIcpCaller();
   const openEvm = useEvmConnect();
-  const openIcp = useIcpConnect();
+  const openWalletMenu = useWalletMenu((s) => s.openAt);
   const pool = usePool().data;
   const guard = useGuardContext();
   const fromIcp = stake?.kind === 'icp';
@@ -150,7 +151,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
 
   /** Review withdrawal: from the record checkWithdrawQuote accepted (EVM), or the amount less the ledger fee (ICP). */
   const onReviewClick = () => {
-    if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
+    if (!wallet) { if (fromIcp) openWalletMenu('icp'); else void openEvm(); return; }
     if (!ready || !to || amount === null || !stake) return;
     if (fromIcp) {
       if (fee === undefined || moveFee === null) return;

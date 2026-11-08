@@ -19,7 +19,7 @@ import { ChevronDownIcon, CloseIcon, CopyIcon, BackIcon } from '@/components/ico
 import {
   loadEvmList, PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
-import { useWalletMenu } from '@/lib/wallets/menu';
+import { useWalletMenu, type MenuStep } from '@/lib/wallets/menu';
 import { AnimatePresence, motion } from 'motion/react';
 import { menu, tw } from '@/lib/motion';
 
@@ -119,7 +119,7 @@ function Connecting({ logo, name }: { logo: string; name: string }) {
 }
 
 /** 'choose': the EVM and ICP sections; 'icp': the ICP wallets' own step. */
-export type MenuStep = 'choose' | 'icp';
+export type { MenuStep };
 
 export interface WalletMenuProps {
   wallets: Wallets;
@@ -243,14 +243,14 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
   const connectIcp = useIcpConnect();
   const disconnect = useDisconnectWallets();
   // shared, so a page's own "Connect wallet" opens this menu too
-  const { open, setOpen } = useWalletMenu();
+  const { open, setOpen, step: firstStep } = useWalletMenu();
   const [connecting, setConnecting] = React.useState<'evm' | IcpWallet | null>(null);
   // every opening starts on the two choices; set while rendering, so the old step never shows for a frame
   const [step, setStep] = React.useState<MenuStep>('choose');
   const [wasOpen, setWasOpen] = React.useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setStep('choose');
+    if (open) setStep(firstStep);
   }
 
   // the EVM wallet list's views load while the menu is open, so EVM wallet opens the list at once

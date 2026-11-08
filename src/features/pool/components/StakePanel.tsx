@@ -25,7 +25,8 @@ import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, postStakeQuote, swapCapOf, userMessage, type StakeRequest } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, parseUnits } from '@/lib/money';
-import { useEvmConnect, useEvmSigner, useIcpCaller, useIcpConnect, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmSigner, useIcpCaller, useWallets } from '@/lib/wallets';
+import { useWalletMenu } from '@/lib/wallets/menu';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { useBalance, useChains, useTokenList } from '@/features/swap/tokens';
@@ -58,7 +59,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   const signer = useEvmSigner();
   const caller = useIcpCaller();
   const openEvm = useEvmConnect();
-  const openIcp = useIcpConnect();
+  const openWalletMenu = useWalletMenu((s) => s.openAt);
   const pool = usePool().data;
   const guard = useGuardContext();
   const guardReady = !!guard;
@@ -153,7 +154,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   const apyLine = apyText && apyText !== 'Not yet' ? `Starts earning ${apyText} APY right away` : 'Starts earning right away';
   /** Review stake: from an EVM chain the route is read as the canister reads it first; a route that fails never opens one. */
   const onStake = () => {
-    if (!wallet) { void (fromIcp ? openIcp() : openEvm()); return; }
+    if (!wallet) { if (fromIcp) openWalletMenu('icp'); else void openEvm(); return; }
     if (!ready || !from || amount === null) return;
     setNote(null);
     if (fromIcp) {
