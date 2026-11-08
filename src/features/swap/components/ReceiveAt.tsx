@@ -1,17 +1,21 @@
 'use client';
 // "Receive at" on the To card (as Relay does it, the tester's ask of 2026-11-08): a small control in the card's top right
-// names where the swap pays out (your connected wallet, or the address pasted) and opens a menu of two: your wallet (or
-// "Connect a wallet", the To chain's own connect flow, when none is connected) and "Paste an address" (the Send To Wallet
-// field under the amount, with all its checks). It replaced the wallet button beside the main button. It sits over the
-// card, so the card keeps its height: only the field, once asked for, opens under the amount.
+// names where the swap pays out (your connected wallet, or the address pasted) and opens a menu (receive.ts receiveItems):
+// your wallet, or "Connect a wallet" (the To chain's own connect flow) when none is connected, then "Paste an address" (the
+// Send To Wallet field under the amount, with all its checks); a smart wallet crossing EVM chains gets Paste alone. It
+// replaced the wallet button beside the main button. It sits over the card, so the card keeps its height: only the field,
+// once asked for, opens under the amount.
 import * as React from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CheckIcon, ChevronDownIcon, CopyIcon, WalletIcon } from '@/components/icons';
 import { short } from '@/lib/copy/format';
 import { cn } from '@/lib/cn';
 import { tw } from '@/lib/motion';
+import type { ReceiveItem } from '../receive';
 
 export interface ReceiveAtProps {
+  /** What the menu offers, in order (receiveItems). */
+  items: ReceiveItem[];
   /** The connected wallet that can receive the To token (its kind, and not a smart wallet crossing chains), or null. */
   own: string | null;
   /** The address field is open: the swap pays out to the address typed there. */
@@ -30,7 +34,7 @@ export interface ReceiveAtProps {
 
 const ITEM = cn('flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-semibold text-white hover:bg-white/[0.06]', tw.quick, tw.pressRow);
 
-export function ReceiveAt({ own, pasting, address, valid, onOwn, onConnect, onPaste, className }: ReceiveAtProps) {
+export function ReceiveAt({ items, own, pasting, address, valid, onOwn, onConnect, onPaste, className }: ReceiveAtProps) {
   const [open, setOpen] = React.useState(false);
   const showsAddress = pasting && valid;
   const value = showsAddress ? short(address) : pasting ? 'New address' : own ? 'Your wallet' : 'Not set';
@@ -52,7 +56,7 @@ export function ReceiveAt({ own, pasting, address, valid, onOwn, onConnect, onPa
         <ChevronDownIcon width={14} height={14} className={cn('shrink-0 transition-transform', tw.panel, open && 'rotate-180')} />
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={8} className="flex w-[248px] flex-col gap-1 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
-        {own ? (
+        {items.includes('own') && own && (
           <button type="button" onClick={pick(onOwn)} className={cn(ITEM, !pasting && 'bg-white/[0.06]')}>
             <WalletIcon width={18} height={18} className="shrink-0 text-secondary" />
             <span className="flex min-w-0 flex-1 flex-col">
@@ -61,17 +65,20 @@ export function ReceiveAt({ own, pasting, address, valid, onOwn, onConnect, onPa
             </span>
             {!pasting && <CheckIcon width={16} height={16} className="shrink-0 text-secondary" />}
           </button>
-        ) : (
+        )}
+        {items.includes('connect') && (
           <button type="button" onClick={pick(onConnect)} className={ITEM}>
             <WalletIcon width={18} height={18} className="shrink-0 text-secondary" />
             <span className="flex-1">Connect a wallet</span>
           </button>
         )}
-        <button type="button" onClick={pick(onPaste)} className={cn(ITEM, pasting && 'bg-white/[0.06]')}>
-          <CopyIcon width={18} height={18} className="shrink-0 text-secondary" />
-          <span className="flex-1">Paste an address</span>
-          {pasting && <CheckIcon width={16} height={16} className="shrink-0 text-secondary" />}
-        </button>
+        {items.includes('paste') && (
+          <button type="button" onClick={pick(onPaste)} className={cn(ITEM, pasting && 'bg-white/[0.06]')}>
+            <CopyIcon width={18} height={18} className="shrink-0 text-secondary" />
+            <span className="flex-1">Paste an address</span>
+            {pasting && <CheckIcon width={16} height={16} className="shrink-0 text-secondary" />}
+          </button>
+        )}
       </PopoverContent>
     </Popover>
   );

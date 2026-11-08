@@ -86,6 +86,30 @@ test.describe('Swap', () => {
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
+  test('Receive at shows with both tokens, as the address field it opens (only a To token: none)', async ({ page }) => {
+    await open(page, 'default');
+    await page.getByText('To', { exact: true }).click();
+    await pickChain(page, '137');
+    await page.getByText('WBTC', { exact: true }).first().click();
+    await expect(page.getByRole('button', { name: /^Receive at/, includeHidden: true })).toHaveCount(0);
+    await page.getByText('From', { exact: true }).click();
+    await pickChain(page, '42161');
+    await page.getByText('USDC', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Receive at: Your wallet', includeHidden: true }).click();
+    await page.getByRole('button', { name: 'Paste an address', includeHidden: true }).click();
+    await expect(page.getByPlaceholder(/0x0f70e/)).toBeVisible();
+  });
+
+  test('a smart wallet crossing EVM chains is offered Paste an address alone, never a connect for the wallet it has', async ({ page }) => {
+    await open(page, 'smart-wallet');
+    await pickTokens(page);
+    await page.getByRole('button', { name: 'Receive at: New address', includeHidden: true }).click();
+    await expect(page.getByRole('button', { name: 'Paste an address', includeHidden: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Connect a wallet', includeHidden: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Your wallet/, includeHidden: true })).toHaveCount(0);
+    await expect(page.getByText('You are using a smart wallet. Type the address that should receive on Polygon, and make sure it is yours there.')).toBeVisible();
+  });
+
   test('a smart wallet types the address that receives on another chain (plan 2 Smart wallets)', async ({ page }) => {
     await open(page, 'smart-wallet');
     await pickTokens(page);

@@ -19,7 +19,7 @@ import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
-import { useEvmConnect, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmModalOpen, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
 import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
@@ -27,12 +27,15 @@ import { useBalance, useChains, useTokenList } from '../tokens';
 import { approveState, isSameChainNoUsdc, routeView, type NativeCoin } from '../view';
 import type { PickedOption } from '../options';
 import { ReceiveAt } from './ReceiveAt';
+import { connectTakesOver, nextAsk, receiveItems, type AskEvent, type ConnectAsk } from '../receive';
 import type { Quote, QuoteQuery } from '@/lib/api';
 
 const NO_ROUTE = 'No route found for this amount';
 const PAUSED = 'Swaps are paused right now';
 const PAUSED_TEXT = 'No new swap can start for now. Try again in a little while. Swaps you already started show in History.';
 const ZERO = '0x0000000000000000000000000000000000000000';
+/** How long a connect flow that ended waits for its wallet to reach the store before "Connect a wallet" stops standing. */
+const CONNECT_GRACE_MS = 5_000;
 /** The gas price Max falls back to when the wallet cannot tell: 50 gwei. */
 const FALLBACK_FEE_PER_GAS = 50_000_000_000n;
 
@@ -109,26 +112,49 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     }
   }, [fromWallet, to, ownRecipient, smartTyped, recipient.show, recipient.address, f]);
 
-  // Receive at (the To card's menu): the connected wallet that can receive, "Connect a wallet" (once it connects, the swap
-  // pays out to it and the field closes) or "Paste an address" (the field opens, focused)
+  // Receive at (the To card's menu, receive.ts): the connected wallet that can receive, "Connect a wallet" (once it
+  // connects, the swap pays out to it and the field closes) or "Paste an address" (the field opens, focused). A smart wallet
+  // crossing EVM chains is offered Paste an address alone. The payout target never changes without the person choosing it:
+  // the connect ask ends with any later choice, an address typed, another To token, or the connect flow ending with no wallet.
   const ownAddress = to ? (to.chain_type === 'ICP' ? icp?.principal ?? null : smartTyped ? null : evm?.address ?? null) : null;
-  const wantOwn = React.useRef(false);
+  const items = receiveItems({ own: ownAddress, smart: smartTyped });
+  const ask = React.useRef<ConnectAsk | null>(null);
+  const askEvent = (e: AskEvent) => { ask.current = nextAsk(ask.current, e); };
+  const toKey = to?.key ?? null;
+  React.useEffect(() => { askEvent({ kind: 'toChanged', toKey }); }, [toKey]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    if (!wantOwn.current || !ownRecipient) return;
-    wantOwn.current = false;
-    if (recipient.show) f.set({ recipient: { ...recipient, show: false } });
-  }, [ownRecipient, recipient, f]);
+    const a = ask.current;
+    if (!a || !ownRecipient) return;
+    ask.current = null;
+    if (connectTakesOver(a, { toKey, show: recipient.show, address: recipient.address })) f.set({ recipient: { ...recipient, show: false } });
+  }, [ownRecipient, toKey, recipient, f]);
+  // The connect flow ended: a wallet it connected reaches the store a moment later (an EVM one after its code check), so
+  // the ask waits that long, then ends if no wallet came.
+  const endAsk = (a: ConnectAsk) => setTimeout(() => { if (ask.current === a) askEvent({ kind: 'ended' }); }, CONNECT_GRACE_MS);
+  // AppKit's list: seen open, then closed
+  const evmModalOpen = useEvmModalOpen();
+  const evmListSeen = React.useRef(false);
+  React.useEffect(() => {
+    const a = ask.current;
+    if (!a || a.kind !== 'evm') { evmListSeen.current = false; return; }
+    if (evmModalOpen) evmListSeen.current = true;
+    else if (evmListSeen.current) { evmListSeen.current = false; endAsk(a); }
+  }, [evmModalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const field = React.useRef<HTMLDivElement>(null);
   // Paste an address: the field takes the focus once it has opened (focus scrolls it into view in a scrolling column)
   const focusField = React.useRef(false);
   const focusInput = () => field.current?.querySelector('input')?.focus();
-  const pickOwn = () => f.set({ recipient: { ...recipient, show: false } });
+  const pickOwn = () => { askEvent({ kind: 'own' }); f.set({ recipient: { ...recipient, show: false } }); };
   const connectTo = () => {
-    wantOwn.current = true;
-    if (to?.chain_type === 'ICP') void openIcp();
+    if (!to) return;
+    const wallet = to.chain_type === 'ICP' ? 'icp' : 'evm';
+    askEvent({ kind: 'connect', wallet, toKey: to.key, address: recipient.address });
+    const a = ask.current!;
+    if (wallet === 'icp') void openIcp().then(() => endAsk(a), () => { if (ask.current === a) askEvent({ kind: 'ended' }); });
     else void openEvm();
   };
   const paste = () => {
+    askEvent({ kind: 'paste' });
     if (recipient.show) { focusInput(); return; }
     focusField.current = true;
     f.set({ recipient: { ...recipient, show: true, error: recipientError(to, recipient.address) } });
@@ -215,9 +241,10 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
             {/* the To card, and over its top right corner (beside its label) the Receive at control once a To token is picked */}
             <div className="relative w-full min-w-0">
               <TokenCard token={to ?? undefined} loading={!!linking?.to && !to} customOnClick={() => onPick('to')} label="To" className={cn((to || linkBoth) && pickedCard, compactCard, card)} />
-              {to && (
+              {/* with both tokens, as the address field it opens (it sits under the amount) */}
+              {both && (
                 <ReceiveAt
-                  own={ownAddress} pasting={recipient.show} address={recipient.address} valid={!recipient.error}
+                  items={items} own={ownAddress} pasting={recipient.show} address={recipient.address} valid={!recipient.error}
                   onOwn={pickOwn} onConnect={connectTo} onPaste={paste}
                   className="absolute right-3 top-3 z-10 max-w-[calc(100%-56px)] md:right-4 md:top-[18px] md:short:top-[14px] md:tiny:top-[10px]"
                 />
@@ -257,7 +284,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
               <WalletAddressInput
                 token={to!}
                 address={recipient.address}
-                setAddress={(a) => f.set({ recipient: { ...recipient, address: a, error: recipientError(to, a) } })}
+                setAddress={(a) => { askEvent({ kind: 'typed' }); f.set({ recipient: { ...recipient, address: a, error: recipientError(to, a) } }); }}
                 validationError={recipient.show ? recipient.error || '' : ''}
                 onValidationError={() => {}}
                 show
