@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
 import type { UiToken } from '@/components/ui/token-types';
 import { pickOptions } from './options';
-import { approveState, etaText, gasText, routeView, sumFees } from './view';
+import { approveState, etaText, gasText, lossOf, routeView, sumFees } from './view';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, priceUsd: string | null): UiToken => ({
@@ -80,5 +80,16 @@ describe('the ckETH minter card', () => {
   it('never says gasless or no fee: the network fee is on the card', () => {
     const option = { key: 'k', tags: [], mode: 'icpPull', route } as unknown as Parameters<typeof gasText>[0];
     expect(gasText(option, { symbol: null, decimals: 8, priceUsd: null, held: null } as never)).toBe('$0.67 network fee');
+  });
+});
+
+describe('lossOf', () => {
+  it('reads what the swap loses, from a percent up, and calls out a fifth or more', () => {
+    expect(lossOf(2_290_000n, 700_000n)).toEqual({ text: '-69%', high: true });
+    expect(lossOf(22_990_000n, 21_220_000n)).toEqual({ text: '-8%', high: false });
+    expect(lossOf(100_000_000n, 99_600_000n)).toBeUndefined();
+    expect(lossOf(100_000_000n, 100_500_000n)).toBeUndefined();
+    expect(lossOf(null, 700_000n)).toBeUndefined();
+    expect(lossOf(2_290_000n, null)).toBeUndefined();
   });
 });

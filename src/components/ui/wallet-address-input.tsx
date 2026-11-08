@@ -75,7 +75,7 @@ const WalletAddressInput = ({
           <div className="relative">
             <Avatar src={avatar} className="h-9 w-9 md:h-12 md:w-12" />
           </div>
-          <div className="relative flex w-full min-w-0 flex-col">
+          <div className="relative w-full min-w-0">
             <input
               type="text"
               maxLength={token?.chain_type === 'ICP' ? 63 : 42}
@@ -89,10 +89,10 @@ const WalletAddressInput = ({
                 address.length > 45 ? 'text-xs md:text-sm' : 'text-base md:text-lg',
               )}
             />
-            {/* an empty field is not a mistake yet: the line holds its place so the card never jumps */}
-            <p className="min-h-4 text-xs font-normal leading-4 text-warn">{address ? validationError : ''}</p>
           </div>
         </div>
+        {/* an empty field is not a mistake yet: the line holds its place so the card never jumps */}
+        <p className="-mt-1 min-h-4 pl-12 text-xs font-normal leading-4 text-warn md:pl-16">{address ? validationError : ''}</p>
       </Card>
     </div>
   );
