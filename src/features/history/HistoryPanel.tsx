@@ -103,16 +103,20 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
   const shown = filterRows(h.rows, filter);
   const connected = h.state !== 'nowallet';
   const rawOf = new Map(h.raw.map((r) => [r.id, r]));
-  // a row that was not there on the last answer arrives at the top (motion row 56); the first answer marks all as seen
+  // a row that was not there on the last answer arrives at the top (motion row 56); the first answer marks all as seen, and
+  // rows of an older page loaded at the end are not arrivals
   const seen = React.useRef<Set<string> | null>(null);
+  const newest = React.useRef(0);
   const [freshId, setFreshId] = React.useState<string | null>(null);
   React.useEffect(() => {
     if (h.state !== 'ready') return;
-    if (seen.current === null) { seen.current = new Set(h.rows.map((r) => r.id)); return; }
+    if (seen.current === null) { seen.current = new Set(h.rows.map((r) => r.id)); newest.current = h.rows[0]?.createdAt ?? 0; return; }
     const unseen = h.rows.filter((r) => !seen.current!.has(r.id));
     unseen.forEach((r) => seen.current!.add(r.id));
-    if (unseen.length) {
-      setFreshId(unseen[0]!.id);
+    const arrived = unseen.filter((r) => r.createdAt >= newest.current);
+    if (arrived.length) {
+      newest.current = arrived[0]!.createdAt;
+      setFreshId(arrived[0]!.id);
       // fully visible: the list glides back to its top, so the new row never opens clipped at the panel edge
       list.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
