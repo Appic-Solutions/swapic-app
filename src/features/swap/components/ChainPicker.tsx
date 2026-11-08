@@ -57,7 +57,7 @@ export function ChainMenu({ chains, value, onChange }: {
             key={id}
             type="button"
             // a test hook, not a visible change
-            data-chain-id={id === ALL_CHAINS ? 'all' : chainNumber(id)}
+            data-chain-id={id === ALL_CHAINS ? 'all' : chainNumber(id) ?? id}
             aria-pressed={id === value}
             onClick={() => { onChange(id); setOpen(false); }}
             className={cn('flex items-center gap-2.5 rounded-xl px-2 py-2 text-left text-sm font-semibold text-white hover:bg-white/[0.06]', tw.quick, tw.pressRow, id === value && 'bg-white/[0.06]')}

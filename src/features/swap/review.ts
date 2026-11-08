@@ -57,6 +57,6 @@ export function reviewData(i: {
     refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
     blocked,
     pending: !!i.pending,
-    button: i.pending ? 'Getting your swap ready' : blocked ? `Add ${i.native.symbol} to continue` : signsFirst ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
+    button: i.pending ? 'Getting your swap ready' : blocked ? `Add ${i.native.symbol} to continue` : i.from.chain_type === 'SOLANA' || signsFirst ? 'Sign and swap' : steps.length > 1 ? 'Approve and swap' : 'Confirm swap',
   };
 }

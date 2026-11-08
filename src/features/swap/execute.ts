@@ -499,7 +499,7 @@ async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked:
 
 /** The review's "In your wallet" list, in the order of onStep indexes (review-screens.tsx:60-73). */
 export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigint, native: NativeCoin): { label: string; sub: string }[] {
-  if (option.route.solana) {
+  if (option.route.solana || from.chain_type === 'SOLANA') {
     // the wallet signs once, and Swapic sends it
     const sign = option.mode === 'gasless'
       ? { label: 'Sign in your wallet (no gas)', sub: 'Swapic sends it and pays the Solana fees' }

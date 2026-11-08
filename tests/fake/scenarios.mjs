@@ -241,7 +241,53 @@ const common = {
   '/v2/scanner/search': (u) => ({ status: 200, file: contract(u.searchParams.get('q')?.length === 66 ? 'scanner-search-tx.json' : 'scanner-search-none.json') }),
 };
 
+// The Solana line: bytes the Rust wire crate composed (tests/fixtures/solana/guard.json), a USDC burn to Base, gasless.
+const SOL_FIXTURE = JSON.parse(readFileSync(new URL('../fixtures/solana/guard.json', import.meta.url), 'utf8'));
+const SOLANA = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+const SOL_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+const WSOL = 'So11111111111111111111111111111111111111112';
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const SOL_CLOCK = 2_000_000_000;
+const solChains = () => ({ status: 200, json: [
+  ...JSON.parse(readFileSync(new URL('../fixtures/contract/chains.json', import.meta.url), 'utf8')),
+  { chainId: SOLANA, name: 'Solana', nativeToken: { address: WSOL, symbol: 'SOL', decimals: 9 }, usdc: { address: SOL_USDC, decimals: 6 }, gasless: true },
+] });
+const solTokens = (u) => (u.searchParams.get('chain') === SOLANA
+  ? { status: 200, json: { chain: SOLANA, tokens: [
+    { address: SOL_USDC, symbol: 'USDC', name: 'USD Coin', decimals: 6, logo: null, priceUsd: '1', verified: true, rank: 1 },
+    { address: WSOL, symbol: 'SOL', name: 'Solana', decimals: 9, logo: null, priceUsd: '90', verified: true, rank: 2 },
+  ] } }
+  : common['/v2/tokens'](u));
+const solBalances = (u) => (u.searchParams.get('chain') === SOLANA
+  ? { status: 200, json: { chain: SOLANA, wallet: u.searchParams.get('wallet'), block: 1, balances: [{ token: WSOL, balance: '1000000000' }, { token: SOL_USDC, balance: '5000000000' }] } }
+  : common['/v2/balances'](u));
+const solQuote = (u) => {
+  const named = !!u.searchParams.get('routeId');
+  const route = {
+    routeId: 'cctpFast', bridge: 'cctpFast', path: [SOL_USDC, BASE_USDC], rank: 0, slow: false, priceImpactPct: '0', etaSeconds: 20, etaSource: 'estimate', warnings: [],
+    amountOut: '999800000', amountOutMin: '999000000', amountOutText: '999.8', fees: { network: '50000', bridge: '100000', platform: '0' },
+    executable: named, ...(named ? {} : { reason: 'routeNotNamed' }),
+    ...(named ? { solana: {
+      kind: 'burn', message: SOL_FIXTURE.gaslessBurn.message, feePayer: SOL_FIXTURE.payerKey, blockhash: SOL_FIXTURE.blockhash, lastValidBlockHeight: 100,
+      lookupTables: SOL_FIXTURE.gaslessBurn.tables, version: 0, reference: SOL_FIXTURE.reference,
+    } } : {}),
+  };
+  return { status: 200, json: {
+    quoteId: 'solana-q', fromChain: SOLANA, toChain: 'eip155:8453',
+    fromToken: { address: SOL_USDC, symbol: 'USDC', decimals: 6, chain: SOLANA }, toToken: { address: BASE_USDC, symbol: 'USDC', decimals: 6, chain: 'eip155:8453' },
+    amountIn: u.searchParams.get('amount'), quotedAt: SOL_CLOCK, expiresAt: SOL_CLOCK + 60, unavailable: [],
+    gasless: { allowed: true, routes: [route] }, userPays: { allowed: true, routes: [] },
+  } };
+};
+const solRoutes = { ...common, '/v2/chains': solChains, '/v2/tokens': solTokens, '/v2/balances': solBalances, '/v2/quote': solQuote, 'POST /v2/solana/submit': { status: 202, json: { orderId: SOL_FIXTURE.reference, status: 'submitted' } } };
+
 export const SCENARIOS = {
+  // a burn out of Solana, gasless: the guard reads the Rust-made bytes, the wallet signs, the door takes it
+  'solana-out': { wallets: { evm: SOL_FIXTURE.recipient, icp: ICP, sol: SOL_FIXTURE.user }, routes: solRoutes, clockAt: SOL_CLOCK },
+  // the same answer, paying another address than this wallet's: no card, and the wallet is never asked
+  'solana-other-recipient': { wallets: { evm: PAYER, icp: ICP, sol: SOL_FIXTURE.user }, routes: solRoutes, clockAt: SOL_CLOCK },
+  // no Solana wallet connected: Connect wallet comes first
+  'solana-no-wallet': { wallets: { evm: SOL_FIXTURE.recipient, icp: ICP }, routes: solRoutes, clockAt: SOL_CLOCK },
   default: { wallets: { evm: PAYER, icp: ICP }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
   // a smart wallet (plan 2 Smart wallets): the default quote, the EVM wallet flagged as holding contract code
   'smart-wallet': { wallets: { evm: PAYER, icp: ICP, evmSmart: true }, routes: { ...common, '/v2/quote': QUOTE, 'POST /v2/orders': real('submit/accepted.json') }, clockAt: 1792336073 },
