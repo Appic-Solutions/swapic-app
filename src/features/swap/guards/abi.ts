@@ -51,6 +51,19 @@ export const SWAPIC_RUN_ABI = [
   { type: 'function', name: 'run', stateMutability: 'payable', inputs: [{ name: 'order', ...ORDER_TUPLE }], outputs: [{ name: 'id', type: 'bytes32' }] },
 ] as const;
 
+/** Swapic.runWithPermit2(Order, Permit2Auth), selector 0x21be144a: the payer's own transaction, its input pulled through
+ *  Permit2. Apart from SWAPIC_RUN_ABI, so a route's `tx` can only ever read as run(Order). */
+export const SWAPIC_PERMIT2_ABI = [
+  {
+    type: 'function', name: 'runWithPermit2', stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'o', ...ORDER_TUPLE },
+      { name: 'a', type: 'tuple', components: [{ name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }, { name: 'signature', type: 'bytes' }] },
+    ],
+    outputs: [{ name: 'id', type: 'bytes32' }],
+  },
+] as const;
+
 /** The calls a step may make, as the canister reads them (canister/types/src/swapic/mod.rs:60-147). */
 export const STEP_ABI = parseAbi([
   'function transfer(address to, uint256 amount) returns (bool)',
