@@ -22,6 +22,7 @@ import { useQueryOnce } from '@/lib/use-query-once';
 import { useWallets } from '@/lib/wallets';
 import { useNavReset } from '@/lib/nav-tab';
 import { TokenSelect } from '@/features/swap/components/TokenSelect';
+import { ALL_CHAINS } from '@/features/swap/components/ChainPicker';
 import { parseTokenKey, tokenKeyOf } from '@/features/swap/link';
 import { useChains } from '@/features/swap/tokens';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
@@ -197,7 +198,8 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
         return from ? (
           <TokenSelect
             title="Stake From"
-            chain={from.chain}
+            // always opens on All chains (Jeff 2026-11-08): every chain's stake token in one list
+            chain={ALL_CHAINS}
             chains={stakeTokens.map((t) => t.chain)}
             fixedTokens={Object.fromEntries(stakeTokens.map((t) => [t.chain, [t]]))}
             selected={from}
