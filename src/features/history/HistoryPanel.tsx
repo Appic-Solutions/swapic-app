@@ -24,6 +24,7 @@ import { OrderRowSkeleton } from '@/components/orders/OrderRowSkeleton';
 import { LoadingMore } from '@/components/orders/LoadingMore';
 import { FIT_HISTORY } from '@/features/activity/fit';
 import { useNearEnd } from '@/features/activity/live-list';
+import { patchFromSteps } from '@/features/activity/end-watch';
 import { getSteps, type ActivityRow } from '@/lib/api';
 import { stepViews } from '@/lib/copy/status';
 import { useWalletMenu } from '@/lib/wallets/menu';
@@ -33,7 +34,7 @@ import { Empty } from './Empty';
 import { Filters } from './Filters';
 import { WalletChips } from './WalletChips';
 
-function HistoryRow({ order, raw, open, onToggle, onOpenScanner }: { order: OrderView; raw: ActivityRow; open: boolean; onToggle: () => void; onOpenScanner: () => void }) {
+function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { order: OrderView; raw: ActivityRow; open: boolean; onToggle: () => void; onOpenScanner: () => void; onEnded: (id: string, patch: (row: ActivityRow) => ActivityRow) => void }) {
   const live = order.status === 'pending' || order.status === 'queued';
   const steps = useQuery({
     queryKey: ['steps', order.id],
@@ -41,6 +42,11 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner }: { order: Orde
     enabled: open,
     refetchInterval: () => (open && live && typeof document !== 'undefined' && document.visibilityState === 'visible' ? 10_000 : false),
   }).data;
+  // the steps say the order ended while the row still says in progress: the row ends at once too
+  const stepsEnded = !!steps && steps.outcome !== 'pending';
+  React.useEffect(() => {
+    if (stepsEnded && raw.outcome === 'pending') onEnded(raw.id, patchFromSteps(steps!));
+  }, [stepsEnded, raw.outcome]);
   return (
     <OrderRow
       order={order}
@@ -147,7 +153,7 @@ function HistoryList({ h, onOpenScanner }: { h: ReturnType<typeof useHistory>; o
             {shown.map((o, i) => (
               // shrink-0: an arriving row clips while it opens, and the scrolling list must not squeeze it
               <motion.div key={o.id} className="shrink-0" {...(freshId === o.id ? arriveTop(16) : mounted ? listItem(Math.min(i, 8)) : {})}>
-                <HistoryRow order={o} raw={rawOf.get(o.id)!} open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onOpenScanner={() => onOpenScanner(o.id)} />
+                <HistoryRow order={o} raw={rawOf.get(o.id)!} open={openId === o.id} onToggle={() => setOpenId(openId === o.id ? null : o.id)} onOpenScanner={() => onOpenScanner(o.id)} onEnded={(id, patch) => void h.ended(id, patch)} />
               </motion.div>
             ))}
             {h.loadingMore && <LoadingMore />}
