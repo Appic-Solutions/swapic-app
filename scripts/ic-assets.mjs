@@ -104,6 +104,27 @@ export function alternativeOriginsFor(cfg) {
   return JSON.stringify({ alternativeOrigins: [cfg.siteOrigin] }) + '\n';
 }
 
+export const CACHE_FOREVER = 'public, max-age=31536000, immutable';
+export const CACHE_DAY = 'public, max-age=86400';
+/** The asset canister's rules, in order: a later rule that matches a file overrides an earlier one. Every rule carries the
+ *  security headers. Files whose name changes with their content (Next's own files; the coin images, in a folder named by a
+ *  hash of them, src/components/layout/coin-table.ts) are kept forever. Other files under public/ keep their name from one
+ *  release to the next, so a browser keeps them a day. Pages are always checked again. */
+export function assetRules(headers) {
+  const cached = (value) => ({ ...headers, 'Cache-Control': value });
+  return [
+    { match: '**/*', headers, allow_raw_access: false },
+    { match: 'images/**/*', headers: cached(CACHE_DAY) },
+    { match: 'favicon.*', headers: cached(CACHE_DAY) },
+    { match: '_next/static/**/*', headers: cached(CACHE_FOREVER) },
+    { match: 'images/coins/**/*', headers: cached(CACHE_FOREVER) },
+    { match: '**/*.html', headers: cached('no-cache') },
+    { match: '.well-known', ignore: false },
+    // wallets fetch it from the page's origin: JSON, readable cross-origin
+    { match: '.well-known/ii-alternative-origins', headers: { ...headers, 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } },
+  ];
+}
+
 /** One environment's entry of src/config/sites.json; only a deployable one (with a domain). */
 export function siteFor(env) {
   const sites = JSON.parse(readFileSync(new URL('../src/config/sites.json', import.meta.url), 'utf8'));
@@ -127,15 +148,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
     'X-Frame-Options': 'DENY',
   };
-  const assets = [
-    { match: '**/*', headers, allow_raw_access: false },
-    { match: '_next/static/**/*', headers: { ...headers, 'Cache-Control': 'public, max-age=31536000, immutable' } },
-    { match: '**/*.html', headers: { ...headers, 'Cache-Control': 'no-cache' } },
-    { match: '.well-known', ignore: false },
-    // wallets fetch it from the page's origin: JSON, readable cross-origin
-    { match: '.well-known/ii-alternative-origins', headers: { ...headers, 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } },
-  ];
-  writeFileSync(join(out, '.ic-assets.json5'), JSON.stringify(assets, null, 2) + '\n');
+  writeFileSync(join(out, '.ic-assets.json5'), JSON.stringify(assetRules(headers), null, 2) + '\n');
   mkdirSync(join(out, '.well-known'), { recursive: true });
   writeFileSync(join(out, '.well-known', 'ic-domains'), cfg.domain + '\n');
   const alternatives = alternativeOriginsFor(cfg);

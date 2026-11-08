@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { alternativeOriginsFor, chainRpcHosts, cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
+import { join, matchesGlob } from 'node:path';
+import { CACHE_DAY, CACHE_FOREVER, alternativeOriginsFor, assetRules, chainRpcHosts, cspFor, siteFor, slashAliases, sentryHost } from './ic-assets.mjs';
 
 describe('the CSP', () => {
   it('lists exactly the hosts the environment needs', () => {
@@ -67,5 +67,29 @@ describe('the ii-alternative-origins file', () => {
     expect(JSON.parse(alternativeOriginsFor({ derivationOrigin: 'https://a.example', siteOrigin: 'https://b.example' }))).toEqual({ alternativeOrigins: ['https://b.example'] });
     expect(alternativeOriginsFor(siteFor('prod'))).toBeNull();
     expect(alternativeOriginsFor(siteFor('test'))).toBeNull();
+  });
+});
+
+describe('the cache rules', () => {
+  const SECURITY = { 'Content-Security-Policy': "default-src 'self'", 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff' };
+  const rules = assetRules(SECURITY);
+  // the asset canister's reading: every rule that matches, in order, a later header replacing an earlier one
+  const headersOf = (file) => rules.filter((r) => r.headers && matchesGlob(file, r.match)).reduce((h, r) => ({ ...h, ...r.headers }), {});
+  it('keeps names that change with their content forever, other public files a day, and checks pages every time', () => {
+    expect(headersOf('_next/static/chunks/0mc4r8s-3z28c.js')['Cache-Control']).toBe(CACHE_FOREVER);
+    expect(headersOf('images/coins/7cc0fcf4/btc.webp')['Cache-Control']).toBe(CACHE_FOREVER);
+    expect(headersOf('images/coins/7cc0fcf4/rest.webp')['Cache-Control']).toBe(CACHE_FOREVER);
+    expect(headersOf('images/tokens/usdc.svg')['Cache-Control']).toBe(CACHE_DAY);
+    expect(headersOf('images/wallet.webp')['Cache-Control']).toBe(CACHE_DAY);
+    expect(headersOf('favicon.svg')['Cache-Control']).toBe(CACHE_DAY);
+    expect(headersOf('index.html')['Cache-Control']).toBe('no-cache');
+    expect(headersOf('pool/index.html')['Cache-Control']).toBe('no-cache');
+    // what a release rewrites under the same name (the pages' data) is never cached
+    expect(headersOf('index.txt')['Cache-Control']).toBeUndefined();
+    expect(CACHE_FOREVER).toBe('public, max-age=31536000, immutable');
+  });
+  it('sends the security headers with every file', () => {
+    for (const r of rules) if (r.headers) expect(r.headers).toMatchObject(SECURITY);
+    for (const f of ['images/coins/7cc0fcf4/btc.webp', 'images/tokens/usdc.svg', 'favicon.ico', 'index.html', 'index.txt']) expect(headersOf(f)).toMatchObject(SECURITY);
   });
 });
