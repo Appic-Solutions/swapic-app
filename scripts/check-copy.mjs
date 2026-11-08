@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 // `ckMinter` as the route id is read
 export const BANNED = [
   /\bshares?\b/i, /\bcircle\b/i, /\bcctp\b/i, /\beco\b/i, /\bck minter\b/i, /(?<!ckETH )\bminter\b/i,
-  /\brebalanc/i, /\bpockets?\b/i, /\boperator\b/i, /\bkyber/i, /\bicpswap\b/i, /\bintent\b/i, /\brails?\b/i,
+  /\bjupiter\b/i, /\bforwarder\b/i, /\brebalanc/i, /\bpockets?\b/i, /\boperator\b/i, /\bkyber/i, /\bicpswap\b/i, /\bintent\b/i, /\brails?\b/i,
 ];
 const EM_DASH = /—/;
 const SEPARATOR = /\s-\s/;

@@ -16,6 +16,9 @@ export function scrub(text: string): string {
   return text
     .replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, '$1')
     .replace(/0x[0-9a-fA-F]{40,64}/g, '0x…')
+    // Solana signatures and addresses, longest first; the set has no 0, O, I or l
+    .replace(/\b[1-9A-HJ-NP-Za-km-z]{86,88}\b/g, '<signature>')
+    .replace(/\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g, '<address>')
     .replace(/\b[a-z0-9]{5}(-[a-z0-9]{5}){3,}(-[a-z0-9]{1,5})?\b/g, '<principal>')
     .replace(/\d{6,}/g, '<n>');
 }

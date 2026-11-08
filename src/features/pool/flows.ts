@@ -58,7 +58,7 @@ import { ApiError, userMessage, type PoolAnswer, type Quote, type StakeQuote, ty
 import { PoolErrorFailure, poolErrorMessage, stakeRoom as roomAfterCap, type IcpCaller, type IcpClient } from '@/lib/icp';
 import { Principal } from '@icp-sdk/core/principal';
 import { ICP_CHAIN } from '@/config';
-import { chainNumber } from '@/lib/explorer';
+import { evmId } from '@/lib/explorer';
 import type { UiToken } from '@/components/ui/token-types';
 import { formatUsd, formatUsdWhole, planIcpWithdraw } from '@/lib/money';
 import { tokenAmountText } from '@/lib/copy/format';
@@ -304,11 +304,11 @@ export async function executeWithdrawEvm(
   let checked: CheckedWithdraw;
   try {
     // the token is the canister's: the destination chain's USDC from get_config, never the quoter's chain list (plan check C4)
-    const dstUsdc = cfg.chains.get(chainNumber(i.dstChain))?.usdc;
+    const dstUsdc = cfg.chains.get(evmId(i.dstChain))?.usdc;
     if (!dstUsdc) throw new GuardError('noAnchor');
     const answer = await d.postWithdrawQuote({ staker: i.evm.address, usdc: i.usdc.toString(), dstChain: i.dstChain, recipient: i.evm.address, tokenOut: dstUsdc });
     checked = checkWithdrawQuote({
-      answer, staker: i.evm.address, usdc: i.usdc, dstChainId: chainNumber(i.dstChain), dstUsdc,
+      answer, staker: i.evm.address, usdc: i.usdc, dstChainId: evmId(i.dstChain), dstUsdc,
       poolChain: cfg.poolChain, swapic: cfg.poolChain === null ? undefined : cfg.chains.get(cfg.poolChain)?.swapic,
       totalAssets: pool.totalAssets, totalShares: pool.totalShares, nowSec: Math.floor(d.nowMs() / 1000), used: d.used.has,
     });

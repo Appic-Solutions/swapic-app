@@ -38,7 +38,9 @@ const hex = (t: string) => t.toLowerCase() as `0x${string}`;
 export function realIcpClient(): IcpClient {
   return {
     async getConfig(): Promise<SwapicConfigView> {
-      const c = await swapic(await anon()).get_config();
+      const actor = swapic(await anon());
+      const [c, keys] = await Promise.all([actor.get_config(), actor.solana_addresses()]);
+      const sol = c.solana[0];
       const chains = new Map(
         c.evm_chains.map(([id, ch]) => [Number(id), {
           swapic: hex(ch.swapic), usdc: hex(ch.usdc), runner: hex(ch.runner),
@@ -50,6 +52,11 @@ export function realIcpClient(): IcpClient {
         chains,
         cctpDomains: new Map(c.cctp_domains.map(([id, d]) => [Number(id), Number(d)])),
         ecoPortal: c.eco_portal[0] ? hex(c.eco_portal[0]) : null,
+        // base58 is case exact: never `hex`
+        solana: sol && keys[0] ? {
+          programId: sol.program_id, payerKey: keys[0].payer, adminKey: keys[0].admin,
+          maxCuLimit: sol.max_cu_limit, maxCuPrice: sol.max_cu_price, maxFeeDeciBps: sol.max_fee_deci_bps,
+        } : null,
       };
     },
     async ecoProver() {

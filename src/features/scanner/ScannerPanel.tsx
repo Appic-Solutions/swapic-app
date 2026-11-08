@@ -39,7 +39,7 @@ export function chipsOf(q: string | null): Chip[] {
   const out: Chip[] = [];
   for (const part of (q ?? '').split(',')) {
     const c = classify(part);
-    if ((c.kind === 'evm' || c.kind === 'icp') && !out.some((x) => x.value === c.value) && out.length < MAX_CHIPS) out.push({ kind: c.kind, value: c.value });
+    if ((c.kind === 'evm' || c.kind === 'icp' || c.kind === 'solana') && !out.some((x) => x.value === c.value) && out.length < MAX_CHIPS) out.push({ kind: c.kind, value: c.value });
   }
   return out;
 }
@@ -137,7 +137,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
     const c = classify(typed);
     setError(null);
     if (c.kind === 'none') { setNotFound(c.value); return; }
-    if (c.kind === 'evm' || c.kind === 'icp') {
+    if (c.kind === 'evm' || c.kind === 'icp' || c.kind === 'solana') {
       if (!chips.some((x) => x.value === c.value) && chips.length < MAX_CHIPS) setChipsAndLink([...chips, { kind: c.kind, value: c.value }]);
       setText('');
       return;

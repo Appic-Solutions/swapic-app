@@ -4,7 +4,8 @@ import { Principal } from '@icp-sdk/core/principal';
 import { config } from '@/config';
 import { getBalances, getChains, getTokens, type BalancesAnswer, type ChainInfo, type TokenAnswer } from '@/lib/api';
 import { icpClient } from '@/lib/icp';
-import { chainLogo, chainName, chainNumber, isKnownChain } from '@/lib/explorer';
+import { decode58 } from '@/lib/solana/base58';
+import { chainKind, chainLogo, chainName, chainNumber, isKnownChain, normalizeAddress } from '@/lib/explorer';
 import { formatListAmount, formatListUsd, usdMicro } from '@/lib/money';
 import { chainPlace } from '@/lib/chains';
 import { fallbackLogo, ownLogo } from '@/lib/token-logos';
@@ -14,10 +15,11 @@ import type { UiToken } from '@/components/ui/token-types';
 
 export function toUiToken(t: TokenAnswer, chain: ChainInfo, balance?: bigint): UiToken {
   const icp = chain.chainId === config.icpChain;
-  const address = icp ? t.address : t.address.toLowerCase();
+  const solana = chainKind(chain.chainId)?.kind === 'solana';
+  const address = icp ? t.address : normalizeAddress(t.address);
   const ui: UiToken = {
-    key: `${chain.chainId}|${address}`, chain: chain.chainId, chainId: chainNumber(chain.chainId),
-    chainName: chainName(chain.chainId), chainLogo: chainLogo(chain.chainId), chain_type: icp ? 'ICP' : 'EVM',
+    key: `${chain.chainId}|${address}`, chain: chain.chainId, chainId: chainNumber(chain.chainId) ?? 0,
+    chainName: chainName(chain.chainId), chainLogo: chainLogo(chain.chainId), chain_type: icp ? 'ICP' : solana ? 'SOLANA' : 'EVM',
     address, ...(icp ? { canisterId: address } : { contractAddress: address }),
     symbol: t.symbol, name: t.name, logo: ownLogo(chain.chainId, address) ?? t.logo ?? fallbackLogo(chain.chainId, address) ?? '/images/logo/placeholder.png', decimals: t.decimals,
     priceUsd: t.priceUsd ?? null, verified: t.verified,
@@ -33,7 +35,7 @@ export function withBalance(t: UiToken, balance: bigint): UiToken {
 /** Balances joined by address; an answer for another chain is ignored. */
 export function joinBalances(list: UiToken[], b: BalancesAnswer | undefined, chain: string): UiToken[] {
   if (!b || b.chain !== chain) return list;
-  const by = new Map(b.balances.map((x) => [x.token.toLowerCase(), BigInt(x.balance)]));
+  const by = new Map(b.balances.map((x) => [normalizeAddress(x.token), BigInt(x.balance)]));
   return list.map((t) => (by.has(t.address) ? withBalance(t, by.get(t.address)!) : t));
 }
 
@@ -49,7 +51,11 @@ export function useTokenList(chain: string, query: string) {
   const evm = useWallets((s) => s.evm);
   const icp = useWallets((s) => s.icp);
   const isIcp = chain === config.icpChain;
-  const pasted = isIcp ? isIcpPrincipal(query) : isEvmAddress(query);
+  const isSolana = chainKind(chain)?.kind === 'solana';
+  const sol = useWallets((s) => s.sol);
+  // a mint on no list: 32 bytes of base58, on the curve or not
+  const pasted = isIcp ? isIcpPrincipal(query) : isSolana ? decode58(query)?.length === 32 : isEvmAddress(query);
+  const owner = isSolana ? sol?.address : evm?.address;
   const list = useInfiniteQuery({
     queryKey: ['tokens', chain, query],
     queryFn: ({ pageParam }) => getTokens(chain, query || undefined, pageParam),
@@ -61,9 +67,9 @@ export function useTokenList(chain: string, query: string) {
   const raw = (list.data?.pages ?? []).flatMap((p) => p.tokens);
   const base = info ? raw.map((t) => toUiToken(t, info)) : [];
   const balances = useQuery({
-    queryKey: ['balances', chain, evm?.address, pasted ? query.toLowerCase() : ''],
-    queryFn: () => getBalances(evm!.address, chain, pasted ? [query] : []),
-    enabled: !isIcp && !!evm && !!info,
+    queryKey: ['balances', chain, owner, pasted ? normalizeAddress(query) : ''],
+    queryFn: () => getBalances(owner!, chain, pasted ? [query] : []),
+    enabled: !isIcp && !!owner && !!info,
     staleTime: 10_000,
   });
   const icpBalances = useQuery({
@@ -124,6 +130,8 @@ const allChainsTurn = limiter(3);
 export function useAllTokens(query: string, enabled: boolean, only?: readonly string[]) {
   const { chains } = useChains();
   const evm = useWallets((s) => s.evm);
+  const sol = useWallets((s) => s.sol);
+  const ownerOn = (chain: string) => (chainKind(chain)?.kind === 'solana' ? sol?.address : evm?.address);
   const infos = chains.filter((c) => !only || only.includes(c.chainId)).sort((a, b) => chainPlace(a.chainId) - chainPlace(b.chainId));
   const lists = useQueries({
     queries: infos.map((info) => ({
@@ -135,9 +143,9 @@ export function useAllTokens(query: string, enabled: boolean, only?: readonly st
   const balances = useQueries({
     queries: infos.map((info) => ({
       // the same key as useTokenList's balances, so a chain's balances are read once
-      queryKey: ['balances', info.chainId, evm?.address, ''],
-      queryFn: () => allChainsTurn(() => getBalances(evm!.address, info.chainId, [])),
-      enabled: enabled && !!evm && info.chainId !== config.icpChain,
+      queryKey: ['balances', info.chainId, ownerOn(info.chainId), ''],
+      queryFn: () => allChainsTurn(() => getBalances(ownerOn(info.chainId)!, info.chainId, [])),
+      enabled: enabled && !!ownerOn(info.chainId) && info.chainId !== config.icpChain,
       staleTime: 10_000,
     })),
   });
@@ -149,17 +157,19 @@ export function useAllTokens(query: string, enabled: boolean, only?: readonly st
 export function useBalance(token: UiToken | null) {
   const evm = useWallets((s) => s.evm);
   const icp = useWallets((s) => s.icp);
+  const sol = useWallets((s) => s.sol);
+  const owner = token?.chain_type === 'ICP' ? icp?.principal : token?.chain_type === 'SOLANA' ? sol?.address : evm?.address;
   const q = useQuery({
-    queryKey: ['balance', token?.key, token?.chain_type === 'ICP' ? icp?.principal : evm?.address],
+    queryKey: ['balance', token?.key, owner],
     queryFn: async () => {
       if (token!.chain_type === 'ICP') return icpClient().balance(token!.address, Principal.fromText(icp!.principal));
       // contract 5.1: a verified token ranked below 200 is answered only when named, so the picked token is always named
       // (the coin is always answered); a named token missing from the answer is 0
-      const b = await getBalances(evm!.address, token!.chain, token!.address === '0x0000000000000000000000000000000000000000' ? [] : [token!.address]);
-      const row = b.chain === token!.chain ? b.balances.find((x) => x.token.toLowerCase() === token!.address) : undefined;
+      const b = await getBalances(owner!, token!.chain, token!.chain_type === 'SOLANA' || token!.address === '0x0000000000000000000000000000000000000000' ? [] : [token!.address]);
+      const row = b.chain === token!.chain ? b.balances.find((x) => normalizeAddress(x.token) === token!.address) : undefined;
       return row ? BigInt(row.balance) : 0n;
     },
-    enabled: !!token && (token.chain_type === 'ICP' ? !!icp : !!evm),
+    enabled: !!token && !!owner,
     staleTime: 10_000,
     refetchInterval: 30_000,
   });

@@ -22,7 +22,11 @@ export interface SwapicConfigView {
   cctpDomains: Map<number, number>;
   /** Eco's Portal, the same on every chain (get_config eco_portal). */
   ecoPortal: `0x${string}` | null;
+  /** The Solana line as get_config and solana_addresses name it; null where the canister has none. */
+  solana: SolanaAnchors | null;
 }
+/** The canister's own word on Solana: the guard never takes these from the quoter. */
+export interface SolanaAnchors { programId: string; payerKey: string; adminKey: string; maxCuLimit: number; maxCuPrice: bigint; maxFeeDeciBps: number }
 
 export interface IcpClient {
   getConfig(): Promise<SwapicConfigView>;

@@ -18,6 +18,7 @@ const config: SwapicConfigView = {
   chains: new Map(Object.entries(cfg.chains).map(([id, c]) => [Number(id), c as ChainView])),
   cctpDomains: new Map(Object.entries(cfg.cctpDomains).map(([id, d]) => [Number(id), d as number])),
   ecoPortal: cfg.ecoPortal,
+  solana: null,
 };
 export const GUARD: GuardContext = { config, ecoProver: cfg.ecoProver, ckHelper: cfg.ckHelper, canisterEvm: CANISTER };
 /** A recorded quote, its orders brought to the memo Order (an empty memo; the ids, ABI bytes, transactions and gasless

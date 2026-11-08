@@ -6,6 +6,16 @@ import type { ChainView, IcpClient } from './client';
 
 export const E2E_MARKER = 'E2E-FAKE-MARKER';
 
+/** The Solana line of the e2e fake: the addresses `solana.test.ts`'s fixture is composed with. */
+const FAKE_SOLANA = {
+  programId: '4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi',
+  payerKey: '8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR',
+  adminKey: 'CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8',
+  maxCuLimit: 1_400_000,
+  maxCuPrice: 5_000_000n,
+  maxFeeDeciBps: 500,
+};
+
 export function fakeIcpClient(): IcpClient {
   (globalThis as { __SWAPIC_E2E_MARKER__?: string }).__SWAPIC_E2E_MARKER__ = E2E_MARKER;
   const chains = new Map(Object.entries(configJson.chains).map(([id, c]) => [Number(id), c as ChainView]));
@@ -15,6 +25,7 @@ export function fakeIcpClient(): IcpClient {
       poolChain: configJson.poolChain, chains,
       cctpDomains: new Map(Object.entries(configJson.cctpDomains).map(([id, d]) => [Number(id), d])),
       ecoPortal: configJson.ecoPortal as `0x${string}`,
+      solana: FAKE_SOLANA,
     }),
     ecoProver: async () => configJson.ecoProver as `0x${string}`,
     ckHelper: async () => configJson.ckHelper as `0x${string}`,
@@ -23,7 +34,7 @@ export function fakeIcpClient(): IcpClient {
     poolAccount: async () => ({ shares: 1_182_254_000_000_000_000_000n, valueUsdc: 1_192_805_102n }),
     payout: async (id) => ({
       id, kind: { IcpSwap: null }, planned: [], ck_amount: [], ck_withdrawal_id: [], order_id: [], tx_hash: [], amount: [], received: [],
-      terms: { dst_chain: 8453n, min_out: 601_110_000n, recipient: '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC', deadline_ns: 0n, token_out: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' },
+      terms: { dst_chain: 8453n, min_out: 601_110_000n, recipient: '0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC', deadline_ns: 0n, token_out: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', solana: [] },
       status: payoutStatus++ < 2 ? { Signed: 7n } : { Paid: null },
     }),
     ledgerFee: async () => 10_000n,

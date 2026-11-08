@@ -723,7 +723,7 @@ describe('executeSwap, ICP', () => {
     const chains = new Map([[1, { swapic: ATTACKER, usdc: usdc as `0x${string}`, runner: ATTACKER, cctpReceiver: ATTACKER, tokenMessenger: ATTACKER }]]);
     const q = await s.deps.getQuote({} as never);
     s.deps.getQuote = vi.fn(async () => ({ ...q, toChain: 'eip155:1' }));
-    s.icpc.getConfig = async () => ({ poolChain: 8453, chains, cctpDomains: new Map(), ecoPortal: null });
+    s.icpc.getConfig = async () => ({ poolChain: 8453, chains, cctpDomains: new Map(), ecoPortal: null, solana: null });
     const out = await executeSwap({ ...s.input, pick: { mode: 'icpPull', routeId: 'ckMinter', tags: [] }, to: { ...s.input.to, address: usdc, chainId: 1 } }, s.deps);
     expect(out).toEqual({ kind: 'started', activityId: 'payout-42' });
     expect(swapFromIcpCk).toHaveBeenCalledTimes(1);

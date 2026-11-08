@@ -3,14 +3,14 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, getQuote, poolCoversOf, swapCapOf, userMessage, type Quote, type QuoteQuery } from '@/lib/api';
 import { parseUnits } from '@/lib/money';
-import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
+import { useWallets, type EvmWallet, type IcpWallet, type SolWallet } from '@/lib/wallets/store';
 import type { QuoteState } from './button';
 import { icpClient } from '@/lib/icp';
 import { findByTag, pickOptions, type RoutePick } from './options';
 import { loadGuardContext } from './guards/context';
 import { useSwapForm, type SwapFormState } from './form';
 
-type Wallets = { evm: EvmWallet | null; icp: IcpWallet | null };
+type Wallets = { evm: EvmWallet | null; icp: IcpWallet | null; sol?: SolWallet | null };
 
 /** A smart wallet's address is known to be the person's only on the chain it is connected on, where its code was read
  *  (plan 2 Smart wallets, lead 2026-10-29): the connected address is the recipient only when the destination is that chain
@@ -27,8 +27,8 @@ export function quoteQueryOf(f: Pick<SwapFormState, 'from' | 'to' | 'amountText'
   let amount: bigint;
   try { amount = parseUnits(f.amountText, f.from.decimals); } catch { return null; }
   if (amount <= 0n) return null;
-  const payer = f.from.chain_type === 'ICP' ? w.icp?.principal : w.evm?.address;
-  const own = f.to.chain_type === 'ICP' ? w.icp?.principal : smartWalletTypesRecipient(f, w) ? undefined : w.evm?.address;
+  const payer = f.from.chain_type === 'ICP' ? w.icp?.principal : f.from.chain_type === 'SOLANA' ? w.sol?.address : w.evm?.address;
+  const own = f.to.chain_type === 'ICP' ? w.icp?.principal : f.to.chain_type === 'SOLANA' ? w.sol?.address : smartWalletTypesRecipient(f, w) ? undefined : w.evm?.address;
   const recipient = f.recipient.show ? (f.recipient.address && !f.recipient.error ? f.recipient.address : undefined) : own;
   return {
     fromChain: f.from.chain, fromToken: f.from.address, amount: amount.toString(), toChain: f.to.chain, toToken: f.to.address,

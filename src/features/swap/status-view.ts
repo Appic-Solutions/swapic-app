@@ -129,7 +129,7 @@ const NEVER_RAN: StepRow = { step: 'failed', state: 'fail', chain: null, atMs: n
  *  failed answer for an order that never ran (no word, or `expired`). */
 export function neverStarted(s: OrderStatusAnswer | PayoutAnswer, steps: StepsAnswer | undefined, deadline: number | null, nowSec: number): boolean {
   if (deadline === null || nowSec <= deadline + NOT_SEEN_GRACE_S) return false;
-  if (!('srcTx' in s) || s.srcTx || s.signedTxId != null || s.onHold === true) return false;
+  if (!('srcTx' in s) || s.srcTx || s.srcSignature || s.signedTxId != null || s.onHold === true) return false;
   const rows = steps?.steps ?? [];
   const word = rows.find((r) => r.step === 'failed' || r.step === 'refunded')?.reason ?? null;
   if (s.outcome !== 'pending' && !(s.outcome === 'failed' && (word === null || word === 'expired'))) return false;

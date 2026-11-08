@@ -3,6 +3,8 @@
 // The receiving address is never part of it, read or written (a scam link could quietly send the money elsewhere).
 import { config } from '@/config';
 import { formatUnits, parseUnits } from '@/lib/money';
+import { decode58 } from '@/lib/solana/base58';
+import { SOLANA_CHAIN } from '@/lib/explorer';
 import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
 
 export interface TokenRef { chain: string; address: string }
@@ -17,6 +19,8 @@ export function parseTokenKey(text: string | null | undefined): TokenRef | null 
   if (/^eip155:[1-9]\d{0,9}$/.test(chain)) {
     return /^0x[0-9a-fA-F]{40}$/.test(address) && isEvmAddress(address.toLowerCase()) ? { chain, address: address.toLowerCase() } : null;
   }
+  // a mint: 32 bytes of base58, on the curve or not
+  if (chain === SOLANA_CHAIN) return address.length <= 44 && decode58(address)?.length === 32 ? { chain, address } : null;
   if (chain === config.icpChain || chain === 'icp') return isIcpPrincipal(address) ? { chain: config.icpChain, address } : null;
   return null;
 }

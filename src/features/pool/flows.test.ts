@@ -124,7 +124,7 @@ describe('executeWithdrawEvm', () => {
   const deps = (over: Partial<IcpClient> = {}, postWithdraw = vi.fn(async () => ({ id: 43, burned: '1' }))) => ({
     icp: client({
       getConfig: async () => ({
-        poolChain: 8453, cctpDomains: new Map(), ecoPortal: null,
+        poolChain: 8453, cctpDomains: new Map(), ecoPortal: null, solana: null,
         chains: new Map([
           [8453, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }],
           [42161, { swapic: SWAPIC.toLowerCase() as `0x${string}`, usdc: ARB_USDC.toLowerCase() as `0x${string}`, runner: '0x', cctpReceiver: '0x', tokenMessenger: '0x' }],

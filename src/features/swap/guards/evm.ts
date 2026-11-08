@@ -38,10 +38,11 @@
 import { decodeAbiParameters, decodeFunctionData, getAddress, maxUint256, type Hex } from 'viem';
 import type { ApprovalRequest, Authorization, Door, Quote, Route, TypedDataJson } from '@/lib/api';
 import type { SignableTypedData } from '@/lib/wallets';
-import { chainNumber } from '@/lib/explorer';
+import { chainKind, evmId, SOLANA_CHAIN } from '@/lib/explorer';
 import { ORDER_TUPLE, PERMIT2, SWAPIC_RUN_ABI, isNative, orderIdOf, orderValue, sameAddress, sameToken, type OrderValue } from './abi';
 import type { GuardContext } from './context';
 import { decodeEnvelope, principalWord, sameEnvelope } from './envelope';
+import { checkSolanaDelivery, solanaRouteOffered } from './solana';
 import { GuardError, must } from './errors';
 import { decodeMemo, memoRef, type MemoTerms } from './memo';
 import { readPlan, type Plan } from './plan';
@@ -76,7 +77,7 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
   must(!!i.guard, 'noAnchor');
   const g = i.guard!;
   must(r.executable && !!r.order && !!r.orderId, 'notExecutable');
-  const chainId = chainNumber(q.fromChain);
+  const chainId = evmId(q.fromChain);
   must(chainId > 0, 'notEvm');
   const anchor = g.config.chains.get(chainId);
   must(!!anchor, 'noAnchor');
@@ -119,6 +120,16 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
  *  canister's anchors, an EVM route must pass the whole check as of its own quote time; ICP routes are checked by Task 2 before
  *  signing, and the canister reads every step of their plan. The full check runs again on a fresh quote before anything is signed. */
 export function routeOffered(q: Quote, r: Route, mode: 'gasless' | 'userPays' | 'icpPull', who: { payer?: string; recipient?: string; guard?: GuardContext }): boolean {
+  // a route out of Solana: read before it is a card, whatever else it says
+  if (r.executable && r.solana) {
+    if (mode === 'icpPull' || !who.payer || !who.recipient || !who.guard) return false;
+    return solanaRouteOffered({
+      quote: q, route: r, mode, user: who.payer, recipient: who.recipient, fromToken: q.fromToken.address, toToken: q.toToken.address,
+      amountIn: BigInt(q.amountIn), shownMin: 0n, guard: who.guard, nowSec: q.quotedAt,
+    });
+  }
+  // an executable route of a kind nothing here can read is no card
+  if (r.executable && !r.order && !r.icpSwap && !r.icpCkSwap) return false;
   if (mode === 'icpPull' || !r.executable || !r.order || !who.payer || !who.recipient || !who.guard || !isEvmAddress(who.payer)) return true;
   try {
     verifyEvmRoute({
@@ -174,9 +185,15 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
     must(sameAddress(e.recipient, i.payer), 'refundReceiver');
     return null;
   }
+  // into Solana: the one rail the canister reads a Solana recipient on, never on any other chain
+  must(!!plan.solana === (i.quote.toChain === SOLANA_CHAIN), 'toChain');
+  if (plan.solana) {
+    checkSolanaDelivery(plan.solana, i.recipient, i.toToken, minOut);
+    return null;
+  }
   const d = plan.delivery;
   must(!!d, 'noDelivery');
-  must(d!.chainId === chainNumber(i.quote.toChain), 'toChain');
+  must(chainKind(i.quote.toChain)?.kind === 'evm' && d!.chainId === evmId(i.quote.toChain), 'toChain');
   must(isEvmAddress(i.recipient) && sameAddress(d!.recipient, i.recipient), 'recipient');
   must(sameToken(d!.token, i.toToken), 'tokenOut');
   must(d!.minOut >= minOut, 'minOut');

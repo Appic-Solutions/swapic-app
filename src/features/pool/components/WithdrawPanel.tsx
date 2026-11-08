@@ -24,7 +24,7 @@ import { CheckIcon, ClockIcon } from '@/components/icons';
 import type { UiToken } from '@/components/ui/token-types';
 import { postWithdrawQuote, userMessage, type WithdrawRequest } from '@/lib/api';
 import { short, tokenAmountText } from '@/lib/copy/format';
-import { chainNumber } from '@/lib/explorer';
+import { chainNumber, evmId } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUnits, formatUsd, parseUnits, percentOf } from '@/lib/money';
 import { cn } from '@/lib/cn';
@@ -92,7 +92,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
 
   // the quote: 600 ms after the amount settles, for this wallet as staker and recipient, in the canister's USDC of that chain
   const typed = useDebounced(amountText, 600);
-  const dstUsdc = to ? guard?.config.chains.get(chainNumber(to.chain))?.usdc : undefined;
+  const dstUsdc = to ? guard?.config.chains.get(chainNumber(to.chain) ?? -1)?.usdc : undefined;
   let request: WithdrawRequest | null = null;
   if (!fromIcp && evm && to && dstUsdc && stake && !closed) {
     try {
@@ -123,7 +123,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
     try {
       const cfg = guard.config;
       checked = checkWithdrawQuote({
-        answer: q.data, staker: evm!.address, usdc: BigInt(request.usdc), dstChainId: chainNumber(request.dstChain), dstUsdc,
+        answer: q.data, staker: evm!.address, usdc: BigInt(request.usdc), dstChainId: evmId(request.dstChain), dstUsdc,
         poolChain: cfg.poolChain, swapic: cfg.poolChain === null ? undefined : cfg.chains.get(cfg.poolChain)?.swapic,
         totalAssets: state.data.totalAssets, totalShares: state.data.totalShares, nowSec: Math.floor(Date.now() / 1000), used: usedNonces.has,
       });

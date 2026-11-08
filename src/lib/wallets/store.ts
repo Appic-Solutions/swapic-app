@@ -14,12 +14,16 @@ export const kitIdOf = (s: IcpSignerId): string => (s === 'Plug' ? PLUG_UUID : s
  *  could not be read (unknown: the recipient rule treats it as smart, Stake does not block on it). */
 export interface EvmWallet { address: `0x${string}`; chainId: number | null; smartWallet?: boolean | null }
 export interface IcpWallet { principal: string; signer: IcpSignerId | null }
+/** A Solana wallet: its base58 address, case exact (the EVM slot lowers, this one never does). */
+export interface SolWallet { address: string }
 
 interface WalletState {
   evm: EvmWallet | null;
   icp: IcpWallet | null;
+  sol: SolWallet | null;
   setEvm(w: EvmWallet | null): void;
   setIcp(w: IcpWallet | null): void;
+  setSol(w: SolWallet | null): void;
 }
 
 const ANONYMOUS = '2vxsx-fae';
@@ -27,6 +31,8 @@ const ANONYMOUS = '2vxsx-fae';
 export const useWallets = create<WalletState>()((set) => ({
   evm: null,
   icp: null,
+  sol: null,
+  setSol: (w) => set({ sol: w }),
   setEvm: (w) => set({ evm: w ? { address: w.address.toLowerCase() as `0x${string}`, chainId: w.chainId, smartWallet: w.smartWallet === undefined ? false : w.smartWallet } : null }),
   setIcp: (w) => set({ icp: w && w.principal !== ANONYMOUS ? w : null }),
 }));

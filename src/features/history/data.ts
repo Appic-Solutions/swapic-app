@@ -7,21 +7,22 @@
 // so a row ends on screen within about 3 s of its order; `ended` is also what an open row's steps call when they end.
 import { getOrders } from '@/lib/api';
 // the store only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
-import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
+import { useWallets, type EvmWallet, type IcpWallet, type SolWallet } from '@/lib/wallets/store';
 import { orderView, type OrderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { useLiveList } from '@/features/activity/live-list';
 import { useEndWatch } from '@/features/activity/end-watch';
 
 export type Filter = 'All' | 'Swaps' | 'Pool';
-export const historyWallets = (w: { evm: EvmWallet | null; icp: IcpWallet | null }) => [w.evm?.address, w.icp?.principal].filter((x): x is string => !!x);
+export const historyWallets = (w: { evm: EvmWallet | null; icp: IcpWallet | null; sol?: SolWallet | null }) => [w.evm?.address, w.icp?.principal, w.sol?.address].filter((x): x is string => !!x);
 export const filterRows = (rows: OrderView[], f: Filter) => rows.filter((o) => f === 'All' || (f === 'Swaps' ? o.kind === 'swap' : o.kind !== 'swap'));
 export const counts = (rows: OrderView[]) => ({ All: rows.length, Swaps: filterRows(rows, 'Swaps').length, Pool: filterRows(rows, 'Pool').length });
 
 export function useHistory() {
   const evm = useWallets((s) => s.evm);
   const icp = useWallets((s) => s.icp);
-  const wallets = historyWallets({ evm, icp });
+  const sol = useWallets((s) => s.sol);
+  const wallets = historyWallets({ evm, icp, sol });
   const logo = useLogoFor();
   const list = useLiveList({
     queryKey: ['history', wallets.join(',')],

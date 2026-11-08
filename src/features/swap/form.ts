@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { UiToken } from '@/components/ui/token-types';
 import type { OptionTag } from './options';
-import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
+import { isEvmAddress, isIcpPrincipal, isSolanaAddress } from '@/lib/validation';
 
 export interface SwapFormState {
   from: UiToken | null; to: UiToken | null; amountText: string;
@@ -23,5 +23,6 @@ export function recipientError(to: UiToken | null, address: string): string {
   if (!to) return '';
   if (!address) return 'Wallet Address cannot be empty';
   if (to.chain_type === 'ICP') return isIcpPrincipal(address) ? '' : 'ICP Wallet Address is not valid';
+  if (to.chain_type === 'SOLANA') return isSolanaAddress(address) ? '' : 'Solana Wallet Address is not valid';
   return isEvmAddress(address) ? '' : 'EVM Wallet Address is not valid';
 }

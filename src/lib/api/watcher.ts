@@ -4,6 +4,8 @@ import type * as W from './watcher-types';
 const enc = encodeURIComponent;
 
 export const submitGasless = (b: W.GaslessSubmit) => postJson<{ orderId: string; status: 'submitted'; signedTxId?: number }>('/v2/orders', b);
+/** A signed Solana transaction: a burn by its order, a swap inside Solana by its request. */
+export const submitSolana = (b: W.SolanaSubmit) => postJson<W.SolanaSubmitted>('/v2/solana/submit', b);
 export const getOrder = (id: string) => getJson<W.OrderStatusAnswer>(`/v2/orders/${enc(id)}`);
 export const getOrders = (wallets: string[], cursor?: string) =>
   getJson<W.OrdersPage>('/v2/orders', { wallets: wallets.slice(0, 20).join(','), cursor });

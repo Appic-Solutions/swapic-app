@@ -11,8 +11,10 @@
 import { createAppKit } from '@reown/appkit/react-core';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 import { baseAccount, coinbaseWallet } from '@wagmi/connectors';
-import { base } from '@reown/appkit/networks';
+import { SolanaAdapter } from '@reown/appkit-adapter-solana/react';
+import { base, solana } from '@reown/appkit/networks';
 import { config } from '@/config';
+import { SOLANA_CHAIN } from '@/lib/explorer';
 import { networks } from './networks';
 
 export { networks };
@@ -32,9 +34,13 @@ export const wagmiAdapter = new WagmiAdapter({
 });
 export const wagmiConfig = wagmiAdapter.wagmiConfig;
 
+// Solana beside the EVM chains, one wallet window for both (design 5.5): Phantom, Solflare, Backpack and WalletConnect phones
+// through Wallet Standard. Only where this build shows Solana: anywhere else the app loads as it always did.
+const solanaShown = config.chains.includes(SOLANA_CHAIN);
+
 export const appKit = createAppKit({
-  adapters: [wagmiAdapter],
-  networks,
+  adapters: solanaShown ? [wagmiAdapter, new SolanaAdapter()] : [wagmiAdapter],
+  networks: solanaShown ? [...networks, solana] : networks,
   defaultNetwork: base,
   projectId: config.reownProjectId,
   metadata: {

@@ -18,10 +18,10 @@ export function receiveItems({ own, smart }: { own: string | null; smart: boolea
 }
 
 /** "Connect a wallet" chosen: the To token's kind and key, and the address field as it was at that moment. */
-export interface ConnectAsk { kind: 'evm' | 'icp'; toKey: string; address: string }
+export interface ConnectAsk { kind: 'evm' | 'icp' | 'sol'; toKey: string; address: string }
 
 export type AskEvent =
-  | { kind: 'connect'; wallet: 'evm' | 'icp'; toKey: string; address: string }
+  | { kind: 'connect'; wallet: 'evm' | 'icp' | 'sol'; toKey: string; address: string }
   /** Another choice in the menu (Paste an address, Your wallet), or an address typed in the field. */
   | { kind: 'paste' } | { kind: 'own' } | { kind: 'typed' }
   | { kind: 'toChanged'; toKey: string | null }

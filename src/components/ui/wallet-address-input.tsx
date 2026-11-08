@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/cn';
 import React, { useEffect, useState } from 'react';
-import { isEvmAddress, isIcpPrincipal } from '@/lib/validation';
+import { isEvmAddress, isIcpPrincipal, isSolanaAddress } from '@/lib/validation';
 import { Avatar } from '@/components/ui/avatar';
 import type { UiToken } from './token-types';
 
@@ -38,6 +38,11 @@ const WalletAddressInput = ({
       const isValid = isIcpPrincipal(address);
       if (!isValid) {
         onValidationError?.('ICP Wallet Address is not valid');
+        return false;
+      }
+    } else if (token?.chain_type === 'SOLANA') {
+      if (!isSolanaAddress(address)) {
+        onValidationError?.('Solana Wallet Address is not valid');
         return false;
       }
     } else {
@@ -81,7 +86,7 @@ const WalletAddressInput = ({
           <div className="relative w-full">
             <input
               type="text"
-              maxLength={token?.chain_type === 'ICP' ? 63 : 42}
+              maxLength={token?.chain_type === 'ICP' ? 63 : token?.chain_type === 'SOLANA' ? 44 : 42}
               placeholder={token?.chain_type === 'ICP' ? '2vxsx-fae...' : '0x0f70e...65A63'}
               value={address}
               onChange={handleAddressChange}

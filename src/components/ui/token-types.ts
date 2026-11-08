@@ -8,8 +8,8 @@ export interface UiToken {
   chainId: number;
   chainName: string;
   chainLogo: string;
-  chain_type: 'EVM' | 'ICP';
-  /** EVM address (the zero address for the coin) or ICP ledger principal. */
+  chain_type: 'EVM' | 'ICP' | 'SOLANA';
+  /** EVM address (the zero address for the coin), ICP ledger principal, or Solana mint (base58, case exact). */
   address: string;
   contractAddress?: string;
   canisterId?: string;

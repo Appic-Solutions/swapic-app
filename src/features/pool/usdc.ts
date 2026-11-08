@@ -16,11 +16,11 @@ export function useUsdcTokens(): UiToken[] {
   const guard = useGuardContext();
   return React.useMemo(() => chains.flatMap((c) => {
     if (c.chainId === config.icpChain) return [];
-    const usdc = guard?.config.chains.get(chainNumber(c.chainId))?.usdc;
+    const usdc = guard?.config.chains.get(chainNumber(c.chainId) ?? -1)?.usdc;
     if (!usdc) return [];
     const address = usdc.toLowerCase();
     return [{
-      key: `${c.chainId}|${address}`, chain: c.chainId, chainId: chainNumber(c.chainId), chainName: chainName(c.chainId), chainLogo: chainLogo(c.chainId),
+      key: `${c.chainId}|${address}`, chain: c.chainId, chainId: chainNumber(c.chainId) ?? 0, chainName: chainName(c.chainId), chainLogo: chainLogo(c.chainId),
       chain_type: 'EVM' as const, address, contractAddress: address, symbol: 'USDC', name: 'USD Coin', logo: USDC_LOGO,
       decimals: c.usdc.decimals, priceUsd: null, verified: true,
     }];

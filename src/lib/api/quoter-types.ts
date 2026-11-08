@@ -69,6 +69,8 @@ export interface IcpSwapAnswer {
   approve: { ledger: string; spender: string | null; amount: string };
   terms: IcpSwapTermsAnswer;
   planned: IcpSwapPlanned;
+  /** Paid on Solana: the wallet and the mint, base58. */
+  solana?: { recipient: string; mintOut: string };
 }
 
 /** answer/mod.rs IcpCkSwapTermsAnswer: swap_from_icp_ck's argument, sent as is */
@@ -121,6 +123,15 @@ export interface TxRequest { chainId: string; to: string; data: string; value: s
  *  the `nonce` and `deadline` beside the signature, and the approval of Permit2 it still owes (absent once that covers it). */
 export interface Permit2PayRequest { typedData: TypedDataJson; nonce: string; deadline: string; approval?: ApprovalRequest }
 
+/** A burn out of Solana: a v0 message the user signs (answer/mod.rs SolanaPaymentAnswer). */
+export interface SolanaBurnPayment {
+  kind: 'burn'; message: string; feePayer: string; blockhash: string; lastValidBlockHeight: number; lookupTables: string[];
+  version: number; reference: string; memo?: string;
+}
+/** A swap inside Solana: the whole transaction, landed by the swap's own service. */
+export interface SolanaOrderPayment { kind: 'order'; transaction: string; requestId: string; signatureFeePayer?: string; gasless: boolean }
+export type SolanaPayment = SolanaBurnPayment | SolanaOrderPayment;
+
 /** answer/mod.rs:404-497 */
 export interface Route {
   routeId: string; bridge: Bridge; path: string[]; rank: number; slow: boolean;
@@ -132,6 +143,8 @@ export interface Route {
   reason?: string; reasonDetail?: string;
   order?: OrderJson; orderId?: string; envelope?: EnvelopeJson; contracts?: Contracts;
   sign?: SignRequest; tx?: TxRequest; approval?: ApprovalRequest;
+  /** A route out of Solana: what the user signs. */
+  solana?: SolanaPayment;
   /** The other way to send `tx`'s order, beside `tx` and `approval`, which stay as they are (Jeff 2026-11-08). */
   permit2Pay?: Permit2PayRequest;
   /** A gasless route whose wallet must approve Permit2 first: known before a route is named, when the ask names the payer. */

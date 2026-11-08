@@ -25,12 +25,16 @@
 // after the approve; a WalletConnect session says it first. `permit2` absent or false, no field, or a route with no
 // approval: the code below runs exactly as it did, approve, then run(order).
 import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
+import { submitSolana as submitSolanaFn } from '@/lib/api';
 import { ApiError, userMessage, type GaslessSubmit, type Quote, type QuoteQuery, getOrders as getOrdersFn, getQuote as getQuoteFn, submitGasless as submitFn } from '@/lib/api';
 import { config } from '@/config';
 import { PoolErrorFailure, poolErrorMessage, type IcpCaller, type IcpClient } from '@/lib/icp';
-import { chainNumber } from '@/lib/explorer';
+import { chainKind, evmId, SOLANA_CHAIN } from '@/lib/explorer';
+import { readAccount, readTable, type AccountRead, type TableRead } from '@/lib/solana/rpc';
+import { decodeWire, toBase64 } from '@/lib/solana/tx';
 import { captureFailure } from '@/lib/sentry';
 import type { EvmSigner } from '@/lib/wallets';
+import type { SolSigner } from '@/lib/wallets/sol-signer';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
 import { isLostSignerAnswer, isUnsupportedSign, isUserRejection } from '@/lib/wallets/rejection';
 import { AgentError, ErrorKindEnum, HttpErrorCode, TimeoutWaitingForResponseErrorCode } from '@icp-sdk/core/agent';
@@ -41,6 +45,7 @@ import { SWAPIC_PERMIT2_ABI, sameAddress, sameToken } from './guards/abi';
 import { loadGuardContext, type GuardContext } from './guards/context';
 import { routeOffered, verifyEvmRoute, type CheckedEvmRoute } from './guards/evm';
 import { verifyIcpCkSwap, verifyIcpSwap, type CheckedIcp } from './guards/icp';
+import { canReceive, verifySolana, type CheckedSolana } from './guards/solana';
 import { GuardError, GUARD_MESSAGE } from './guards/errors';
 import { forPayer, minOutOf, namedOption, type PickedOption, type RoutePick } from './options';
 import { settleLost } from './lost';
@@ -61,12 +66,12 @@ export type ExecOutcome =
   /** A read of the chain failed. It says nothing about the wallet: nothing was sent, and the same click can go through. */
   | { kind: 'tryAgain'; message: string };
 
-export interface ExecDeps { getQuote: typeof getQuoteFn; getOrders: typeof getOrdersFn; submitGasless: typeof submitFn; icp: IcpClient; nowMs(): number; sleep(ms: number): Promise<void> }
+export interface ExecDeps { submitSolana?: typeof submitSolanaFn; solanaTables?: TableRead; solanaAccount?: AccountRead; getQuote: typeof getQuoteFn; getOrders: typeof getOrdersFn; submitGasless: typeof submitFn; icp: IcpClient; nowMs(): number; sleep(ms: number): Promise<void> }
 export interface ExecInput {
   /** The ask naming the picked route (namedQueryOf), and that route as picked. */
   query: QuoteQuery; pick: RoutePick; shownMin: bigint; amountIn: bigint;
   from: UiToken; to: UiToken; recipient: string;
-  evm: EvmSigner | null; icpCaller: IcpCaller | null;
+  evm: EvmSigner | null; icpCaller: IcpCaller | null; sol?: SolSigner | null;
   onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
   /** The wallet sent the step's transaction (its hash): from here the chain is awaited, not the wallet. */
   onSent?(index: number, hash: Hex): void;
@@ -127,6 +132,8 @@ async function freshRoute(i: ExecInput, d: ExecDeps): Promise<Fresh | ExecOutcom
   }
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
   const named = namedOption(quote, i.pick, accept);
+  // inside Solana with no SOL and under the service's least: the one thing that helps is a little SOL
+  if (!named && [...quote.gasless.routes, ...quote.userPays.routes].some((r) => r.reason === 'solanaBelowGasless')) return failed(ADD_SOL);
   if (!named) return failed('No route found for this amount');
   const option = forPayer(named, i.permit2 === true);
   // the screen's minimum sits a small cushion under the quote's (shownMinOf): a built order a few units lower is no news
@@ -137,7 +144,78 @@ async function freshRoute(i: ExecInput, d: ExecDeps): Promise<Fresh | ExecOutcom
 export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcome> {
   const f = await freshRoute(i, d);
   if ('kind' in f) return f;
+  if (f.option.route.solana) return runSolana(i, d, f);
   return f.option.mode === 'icpPull' ? runIcp(i, d, f.quote, f.option, f.guard) : runEvm(i, d, f);
+}
+
+const ADD_SOL = 'Add a little SOL to swap under $10 on Solana';
+const CANNOT_RECEIVE = 'This address cannot receive on Solana. Check it and try again.';
+
+/** Whether a recipient on Solana can be paid: a read that fails stops the run with nothing sent. */
+async function solanaRecipient(i: ExecInput, d: ExecDeps): Promise<ExecOutcome | null> {
+  if (i.to.chain !== SOLANA_CHAIN) return null;
+  const ok = await canReceive(i.recipient, d.solanaAccount ?? readAccount);
+  return ok === null ? cannotCheck : ok ? null : failed(CANNOT_RECEIVE);
+}
+
+/**
+ * A route out of Solana. Only bytes verifySolana passed reach the wallet; what comes back must be that same message, or it is
+ * not sent. A lost answer from the door is asked again with the identical body: the door answers a second submit the same.
+ */
+async function runSolana(i: ExecInput, d: ExecDeps, f: Fresh): Promise<ExecOutcome> {
+  const sol = i.sol;
+  if (!sol) return failed('Connect wallet');
+  const refused = await solanaRecipient(i, d);
+  if (refused) return refused;
+  let checked: CheckedSolana;
+  try {
+    checked = await verifySolana({
+      quote: f.quote, route: f.option.route, mode: f.option.mode as 'gasless' | 'userPays', user: sol.address, recipient: i.recipient,
+      fromToken: i.from.address, toToken: i.to.address, amountIn: i.amountIn, shownMin: i.shownMin, guard: f.guard,
+      tables: d.solanaTables ?? readTable(), nowSec: Math.floor(d.nowMs() / 1000),
+    });
+  } catch (e) {
+    return guardFailure(e);
+  }
+  let signed: Uint8Array;
+  try {
+    i.onStep(0, 'wait');
+    signed = await sol.signTransaction(checked.wire);
+  } catch (e) {
+    if (isUserRejection(e)) return { kind: 'rejected' };
+    i.onStep(0, 'fail');
+    return failed(userMessage(e));
+  }
+  const back = decodeWire(signed);
+  const asked = decodeWire(checked.wire);
+  if (!back || !asked || toBase64(back.message) !== toBase64(asked.message)) {
+    i.onStep(0, 'fail');
+    captureFailure(new GuardError('solanaWalletChanged'), 'guard:solanaWalletChanged');
+    return failed('Your wallet changed the transaction, so it was not sent. Nothing moved. Try again.');
+  }
+  i.onStep(0, 'done');
+  const body = checked.requestId ? { requestId: checked.requestId, tx: toBase64(signed) } : { orderId: checked.orderId, tx: toBase64(signed) };
+  return submitSolanaOnce(i, d, body, checked);
+}
+
+async function submitSolanaOnce(i: ExecInput, d: ExecDeps, body: Parameters<typeof submitSolanaFn>[0], checked: CheckedSolana): Promise<ExecOutcome> {
+  const send = d.submitSolana ?? submitSolanaFn;
+  try {
+    i.onStep(1, 'wait');
+    const answer = await send(body);
+    if (answer.status === 'failed') {
+      i.onStep(1, 'fail');
+      return failed('The swap did not land. Your tokens stayed in your wallet. Try again.');
+    }
+    i.onStep(1, 'done');
+    return { kind: 'started', activityId: checked.orderId };
+  } catch (e) {
+    if (lostAnswer(e)) {
+      return { kind: 'unknown', message: 'We could not reach Swapic. Try again: your signature is sent as it is.', resume: () => submitSolanaOnce(i, d, body, checked) };
+    }
+    i.onStep(1, 'fail');
+    return failed(userMessage(e));
+  }
 }
 
 /** What the payer's code and wallet say about signing through Permit2 as of now: the outcome that stops the run, or null. */
@@ -158,6 +236,8 @@ function checkEvm(i: ExecInput, d: ExecDeps, f: Fresh, evm: EvmSigner): CheckedE
 async function runEvm(i: ExecInput, d: ExecDeps, f: Fresh): Promise<ExecOutcome> {
   const evm = i.evm;
   if (!evm) return failed('Connect wallet');
+  const cannotReceive = await solanaRecipient(i, d);
+  if (cannotReceive) return cannotReceive;
   let checked: CheckedEvmRoute;
   try {
     checked = checkEvm(i, d, f, evm);
@@ -340,7 +420,8 @@ async function runIcp(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOpt
     const check = option.route.icpCkSwap ? verifyIcpCkSwap : verifyIcpSwap;
     checked = check({
       route: option.route, fromLedger: i.from.address, amountIn: i.amountIn, ledgerFee: fee,
-      recipientEvm: i.recipient as Hex, toToken: i.to.address, toChainId: chainNumber(quote.toChain),
+      recipientEvm: i.recipient as Hex, toToken: i.to.address, toChainId: chainKind(quote.toChain)?.kind === 'evm' ? evmId(quote.toChain) : 0,
+      ...(quote.toChain === SOLANA_CHAIN ? { recipientSolana: i.recipient } : {}),
       canisterId: config.swapicCanisterId, guard, nowNs: BigInt(d.nowMs()) * 1_000_000n,
     });
   } catch (e) {
@@ -418,6 +499,13 @@ async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked:
 
 /** The review's "In your wallet" list, in the order of onStep indexes (review-screens.tsx:60-73). */
 export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigint, native: NativeCoin): { label: string; sub: string }[] {
+  if (option.route.solana) {
+    // the wallet signs once, and Swapic sends it
+    const sign = option.mode === 'gasless'
+      ? { label: 'Sign in your wallet (no gas)', sub: 'Swapic sends it and pays the Solana fees' }
+      : { label: 'Sign in your wallet', sub: 'You pay a small Solana network cost' };
+    return [sign, { label: 'Swapic sends it', sub: 'It lands in a few seconds' }];
+  }
   if (option.mode === 'icpPull') {
     return [
       { label: `Approve ${from.symbol}`, sub: `Lets Swapic take ${formatAmount(amountIn, from.decimals)} ${from.symbol} from your wallet` },

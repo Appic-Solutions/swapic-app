@@ -8,6 +8,10 @@ export interface ChainRow { id: string; name: string; logo: string; explorer: st
 
 export const CHAINS: readonly ChainRow[] = table;
 export const CHAIN_IDS: readonly string[] = CHAINS.map((c) => c.id);
+/** Solana is known to every build and offered only by the one its release turns on (design 6, step 13). */
+export const SHOWN_CHAIN_IDS: readonly string[] = CHAIN_IDS.filter(
+  (id) => !id.startsWith('solana:') || process.env.NEXT_PUBLIC_SWAPIC_SOLANA === '1' || process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e',
+);
 /** The pool's chain: payouts leave from it, so it is the quickest place to receive. */
 export const POOL_CHAIN = 'eip155:8453';
 /** Stake From's chain when the wallet's own chain holds no USDC the pool takes (stake-from.ts). */

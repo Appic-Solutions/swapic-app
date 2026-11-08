@@ -94,7 +94,7 @@ export function checkWithdrawQuote(i: WithdrawCheckInput): CheckedWithdraw {
     queued: !!a.queue, queueEtaAt: a.queue?.etaAt ?? null,
     candid: {
       staker: r.staker, usdc: i.usdc, max_shares: maxShares, move_fee: BigInt(r.moveFee), network_fee: BigInt(r.networkFee),
-      payout: { dst_chain: BigInt(r.payout.dstChain), recipient: r.payout.recipient, token_out: r.payout.tokenOut, min_out: minOut, deadline_ns: BigInt(r.payout.deadlineNs) },
+      payout: { dst_chain: BigInt(r.payout.dstChain), recipient: r.payout.recipient, solana: [], token_out: r.payout.tokenOut, min_out: minOut, deadline_ns: BigInt(r.payout.deadlineNs) },
       nonce: BigInt(r.nonce),
     },
   };

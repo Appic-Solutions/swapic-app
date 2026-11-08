@@ -33,11 +33,11 @@ import { ClockIcon, WarningIcon } from '@/components/icons';
 import { MorphFrame } from '@/components/motion/parts';
 import { getOrders, getQuote, submitGasless, userMessage, type OrderStatusAnswer, type PayoutAnswer, type Quote } from '@/lib/api';
 import { tokenAmountText } from '@/lib/copy/format';
-import { chainLogo, chainName, chainNumber } from '@/lib/explorer';
+import { chainLogo, chainName, evmId } from '@/lib/explorer';
 import { icpClient } from '@/lib/icp';
 import { formatUsd, parseUnits, usdMicro } from '@/lib/money';
 import { MS, useFirstRender, useReducedMotion } from '@/lib/motion';
-import { useEvmSigner, useIcpCaller, useWallets } from '@/lib/wallets';
+import { useEvmSigner, useIcpCaller, useSolSigner, useWallets } from '@/lib/wallets';
 import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
 import { executeSwap, type ExecOutcome } from '../execute';
@@ -89,6 +89,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   const router = useRouter();
   const f = useSwapForm();
   const signer = useEvmSigner();
+  const solSigner = useSolSigner();
   const wallet = useWallets((s) => s.evm);
   const caller = useIcpCaller();
   const logo = useLogoFor();
@@ -124,12 +125,12 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   // the wallets that showed they cannot sign through Permit2: today's steps for them, for the rest of this visit
   const cannotSign = React.useRef(new Set<string>());
   /** Whether this route of this From token could go through Permit2 for this wallet, as far as is known before any read. */
-  const mayPermit2 = (o: PickedOption, from: UiToken) => o.mode === 'userPays' && !isNative(from.address) && wallet?.smartWallet === false && !cannotSign.current.has(wallet.address);
+  const mayPermit2 = (o: PickedOption, from: UiToken) => from.chain_type === 'EVM' && o.mode === 'userPays' && !isNative(from.address) && wallet?.smartWallet === false && !cannotSign.current.has(wallet.address);
   /** Whether this review's payer can sign through Permit2: an answer is kept for the review, a read that failed never is. */
   const readSigns = async (cur: Review): Promise<boolean | null> => {
     if (cur.signs !== null) return cur.signs;
     if (!signer || !mayPermit2(cur.option, cur.from)) return wallet?.smartWallet === null ? null : false;
-    const read = await signer.payerOn(chainNumber(cur.from.chain), REVIEW_READ_MS);
+    const read = await signer.payerOn(evmId(cur.from.chain), REVIEW_READ_MS);
     return read === 'plain' ? true : read === 'unread' ? null : false;
   };
 
@@ -142,7 +143,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
 
   const start = (s: ReviewStart) => {
     if (!f.from || !f.to || !s.query.recipient) return;
-    const recipientLabel = f.recipient.show ? 'Wallet you entered' : f.to.chain_type === 'ICP' ? 'Your ICP wallet' : 'Your EVM wallet';
+    const recipientLabel = f.recipient.show ? 'Wallet you entered' : f.to.chain_type === 'ICP' ? 'Your ICP wallet' : f.to.chain_type === 'SOLANA' ? 'Your Solana wallet' : 'Your EVM wallet';
     // a route already built says its steps; a priced one of a payer who may pay through Permit2 cannot yet
     const pending = !s.option.route.order && mayPermit2(s.option, f.from);
     const data = reviewData({ option: s.option, quote: s.quote, from: f.from, to: f.to, amountIn: s.amountIn, native: s.native, recipient: { label: recipientLabel, address: s.query.recipient, chain: f.to.chain }, pending });
@@ -298,7 +299,7 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
     handle(await executeSwap(
       {
         query: rv.query, pick: pickOf(rv.option), shownMin, amountIn: rv.amountIn, from: rv.from, to: rv.to, recipient: rv.recipient,
-        evm: signer, icpCaller: caller,
+        evm: signer, icpCaller: caller, sol: solSigner,
         permit2: rv.signs === true,
         shown: { permit2: !!rv.option.route.permit2Pay, approval: !!rv.option.route.permit2Pay?.approval },
         onStep: (i, st) => { if (st !== 'wait') setApproving(false); setStates((s) => (s ?? rv.data.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x))); },

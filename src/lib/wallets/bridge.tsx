@@ -11,11 +11,18 @@ type ChainId = (typeof wagmiConfig)['chains'][number]['id'];
 
 /** Copies what the wallet SDKs report into the one store every screen reads. */
 export function WalletBridge() {
-  const { address, isConnected } = useAppKitAccount();
+  // each namespace read on its own: with no namespace AppKit answers whichever is active, and a base58 address is no 0x
+  const { address, isConnected } = useAppKitAccount({ namespace: 'eip155' });
+  const { address: solAddress, isConnected: solConnected } = useAppKitAccount({ namespace: 'solana' });
   const { chainId } = useAppKitNetwork();
   const { user } = useAuth();
   const signer = useSigner();
-  const { setEvm, setIcp } = useWallets.getState();
+  const { setEvm, setIcp, setSol } = useWallets.getState();
+
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') return;
+    setSol(solConnected && solAddress ? { address: solAddress } : null);
+  }, [solAddress, solConnected, setSol]);
 
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e') {
@@ -23,8 +30,9 @@ export function WalletBridge() {
       const w = (require('./e2e') as typeof import('./e2e')).e2eWallets();
       setEvm(w.evm ? { address: w.evm, chainId: 8453, smartWallet: !!w.evmSmart } : null);
       setIcp(w.icp ? { principal: w.icp, signer: 'OISY' } : null);
+      setSol(w.sol ? { address: w.sol } : null);
     }
-  }, [setEvm, setIcp]);
+  }, [setEvm, setIcp, setSol]);
 
   // The connect-time guard (guard.ts): a wallet reaches the store once judged, a smart one flagged (never disconnected).
   useEffect(() => {
@@ -34,7 +42,8 @@ export function WalletBridge() {
       return;
     }
     const wallet = address as `0x${string}`;
-    const chain = typeof chainId === 'number' ? chainId : Number(chainId) || null;
+    // with Solana the active network, AppKit's chain id is no EVM id: wagmi still knows the EVM wallet's
+    const chain = typeof chainId === 'number' ? chainId : Number(chainId) || getAccount(wagmiConfig).chainId || null;
     let live = true;
     void (async () => {
       const connectorId = getAccount(wagmiConfig).connector?.id;
@@ -89,16 +98,25 @@ export function useEvmConnect() {
 export function useEvmModalOpen(): boolean {
   return useAppKitState().open;
 }
+/** The same wallet window, on its Solana wallets. */
+export function useSolConnect() {
+  const { open } = useAppKit();
+  return async () => {
+    const loaded = await loadEvmList().then(() => true, () => false);
+    return open({ view: loaded ? 'Connect' : 'ConnectingWalletConnectBasic', namespace: 'solana' });
+  };
+}
 export function useIcpConnect() {
   const { connect } = useAuth();
   return (signer?: IcpSignerId) => connect(signer && kitIdOf(signer));
 }
 export function useDisconnectWallets() {
-  const { disconnect: evm } = useAppKitDisconnect();
+  const { disconnect } = useAppKitDisconnect();
   const { disconnect: icp } = useAuth();
-  const { setEvm, setIcp } = useWallets.getState();
+  const { setEvm, setIcp, setSol } = useWallets.getState();
   return {
-    evm: async () => { await evm(); setEvm(null); },
+    evm: async () => { await disconnect({ namespace: 'eip155' }); setEvm(null); },
     icp: async () => { await icp(); setIcp(null); },
+    sol: async () => { await disconnect({ namespace: 'solana' }); setSol(null); },
   };
 }

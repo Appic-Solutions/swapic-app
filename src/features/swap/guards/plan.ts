@@ -7,6 +7,7 @@ import type { GuardContext } from './context';
 import type { ChainView } from '@/lib/icp';
 import { decodeEnvelope, type Envelope } from './envelope';
 import { GuardError, must } from './errors';
+import { readSolanaBurn, SOLANA_DOMAIN, type SolanaDelivery } from './solana';
 
 export interface PlanContext extends GuardContext { sourceChainId: number; payer: Hex; orderDeadline: bigint; nowSec: number }
 export interface Delivery { chainId: number; recipient: Hex; token: Hex; minOut: bigint }
@@ -18,6 +19,8 @@ export interface Plan {
   rail: 'local' | 'burn' | 'fill' | 'ck';
   delivery: Delivery | null;
   envelope: Envelope | null;
+  /** A burn into Solana: nothing is delivered on any EVM chain, the program or the Forwarder pays this. */
+  solana?: SolanaDelivery;
   /** Set on `rail: 'ck'`: nothing is delivered on any EVM chain, the minter mints to this account. */
   ck?: CkDeposit;
 }
@@ -44,6 +47,7 @@ type EcoRoute = { salt: Hex; deadline: bigint; portal: Hex; nativeAmount: bigint
 type KyberExecution = { callTarget: Hex; desc: { srcToken: Hex; srcReceivers: readonly Hex[]; feeReceivers: readonly Hex[]; dstReceiver: Hex; permit: Hex } };
 type Read =
   | { kind: 'fee'; to: Hex; amount: bigint }
+  | { kind: 'solanaBurn'; solana: SolanaDelivery }
   | { kind: 'burn'; destination: number; envelope: Envelope; mintRecipient: Hex; caller: Hex; maxFee: bigint; min: bigint }
   | { kind: 'fill'; destination: number; token: Hex; deliver: Hex | null; envelope: Envelope | null; fee: bigint; min: bigint }
   | { kind: 'ck'; principal: Hex; subaccount: Hex; min: bigint }
@@ -105,6 +109,10 @@ function readStep(step: Step, ctx: PlanContext): Read {
       must(same(encodeFunctionData({ abi: STEP_ABI, functionName: 'depositForBurnWithHook', args: [0n, a[1], a[2], a[3], a[4], a[5], a[6], a[7]] }), step.data), 'stepNotCanonical');
       must(sameAddress(step.token, source!.usdc) && sameWrites(step.writes, [{ at: 4, minus: 0n }]), 'stepNotCanonical');
       must(sameAddress(a[3], source!.usdc), 'burnToken');
+      if (a[1] === SOLANA_DOMAIN) {
+        must(!!ctx.solana, 'noAnchor');
+        return { kind: 'solanaBurn', solana: readSolanaBurn({ mintRecipient: a[2], caller: a[4], hook: a[7], maxFee: a[5], min: step.min }, ctx.solana!.programId) };
+      }
       const destination = [...ctx.config.cctpDomains].find(([, domain]) => domain === a[1])?.[0];
       must(destination !== undefined && destination !== ctx.sourceChainId && ctx.config.chains.has(destination), 'burnDestination');
       return { kind: 'burn', destination: destination!, envelope: decodeEnvelope(a[7]), mintRecipient: a[2], caller: a[4], maxFee: a[5], min: step.min };
@@ -211,7 +219,15 @@ export function readPlan(o: OrderValue, ctx: PlanContext): Plan {
   const burns = reads.filter((r): r is Extract<Read, { kind: 'burn' }> => r.kind === 'burn');
   const intents = reads.filter((r): r is Extract<Read, { kind: 'fill' }> => r.kind === 'fill');
   const cks = reads.filter((r): r is Extract<Read, { kind: 'ck' }> => r.kind === 'ck');
-  must(burns.length + intents.length + cks.length <= 1, 'twoRails');
+  const solanaBurns = reads.filter((r): r is Extract<Read, { kind: 'solanaBurn' }> => r.kind === 'solanaBurn');
+  must(burns.length + intents.length + cks.length + solanaBurns.length <= 1, 'twoRails');
+  if (solanaBurns.length) {
+    const burn = solanaBurns[0]!.solana;
+    if (burn.ref) must(burn.ref === o.ref.toLowerCase(), 'envelopeRef');
+    // all of it into the burn: nothing is paid beside it
+    must(sameAddress(o.payout.token, ZERO), 'twoRails');
+    return { fees, rail: 'burn', delivery: null, envelope: null, solana: burn };
+  }
   const payout: Delivery | null = sameAddress(o.payout.token, ZERO) ? null
     : { chainId: ctx.sourceChainId, recipient: o.payout.recipient, token: o.payout.token, minOut: o.payout.minOut };
   if (cks.length) {

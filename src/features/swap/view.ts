@@ -16,7 +16,7 @@ export interface NativeCoin {
 /** The gasless card's line under the amount (Jeff 2026-11-04): a wallet with none of the From chain's coin is told it
  *  needs none; any other wallet reads "Just sign". Only EVM sources: an ICP wallet pays no gas coin anyway. */
 export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin): string | undefined {
-  if (p.mode === 'userPays' || from.chain_type !== 'EVM' || !native.symbol) return undefined;
+  if (p.mode === 'userPays' || from.chain_type === 'ICP' || !native.symbol) return undefined;
   return native.held === false ? `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway` : `Just sign, no ${native.symbol} needed`;
 }
 
@@ -41,6 +41,8 @@ export function gasText(p: PickedOption, native: NativeCoin): string {
   const price = parseDecimal(native.priceUsd, 18);
   if (price === 0n) return 'You pay it';
   const amount = (dollarsToMicro(usd) * 10n ** BigInt(native.decimals + 12)) / price;
+  // on Solana it is the fees and the account a burn opens: one line, part of the cost, called what it is
+  if (native.symbol === 'SOL') return `~ ${formatAmount(amount, native.decimals)} SOL Solana network cost, you pay it`;
   return `~ ${formatAmount(amount, native.decimals)} ${native.symbol}, you pay it`;
 }
 

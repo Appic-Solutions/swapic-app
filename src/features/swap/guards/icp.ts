@@ -17,10 +17,13 @@ import { ORDER_TUPLE, orderIdOf, sameAddress, sameToken, type OrderValue } from 
 import type { GuardContext } from './context';
 import { GuardError, must } from './errors';
 import { readPlan } from './plan';
+import { checkSolanaDelivery } from './solana';
 
 export interface IcpCheckInput {
   route: Route; fromLedger: string; amountIn: bigint; ledgerFee: bigint;
   recipientEvm: Hex; toToken: string; toChainId: number;
+  /** Paid on Solana: the wallet the screen shows. `recipientEvm` and `toChainId` then mean nothing. */
+  recipientSolana?: string;
   canisterId: string; guard: GuardContext | undefined; nowNs: bigint;
 }
 export interface CheckedIcpSwap {
@@ -49,9 +52,16 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   must(terms.fromSubaccount === null, 'fromSubaccount');
   must(terms.refundTo === null, 'refundTo');
 
-  must(sameAddress(planned.recipient, i.recipientEvm), 'recipient');
-  must(sameToken(planned.tokenOut, i.toToken), 'tokenOut');
-  must(planned.dstChain === i.toChainId, 'dstChain');
+  must(!!s!.solana === !!i.recipientSolana, 'recipient');
+  if (i.recipientSolana) {
+    // paid on Solana: the canister's terms name the wallet and the mint, the EVM fields its zeroes, the plan runs on the pool chain
+    must(s!.solana!.recipient === i.recipientSolana && s!.solana!.mintOut === i.toToken, 'recipient');
+    must(planned.dstChain === poolChain, 'dstChain');
+  } else {
+    must(sameAddress(planned.recipient, i.recipientEvm), 'recipient');
+    must(sameToken(planned.tokenOut, i.toToken), 'tokenOut');
+    must(planned.dstChain === i.toChainId, 'dstChain');
+  }
   const minOut = BigInt(planned.minOut);
   must(BigInt(i.route.amountOutMin) === minOut, 'minOut');
 
@@ -66,8 +76,14 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   must(sameAddress(order.payer, g!.canisterEvm), 'planPayer');
   must(order.memo === '0x', 'planMemo');
   const plan = readPlan(order, { ...g!, sourceChainId: poolChain!, payer: getAddress(g!.canisterEvm!), orderDeadline: order.deadline, nowSec: Number(i.nowNs / 1_000_000_000n) });
-  const d = plan.delivery;
-  must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');
+  if (i.recipientSolana) {
+    must(!!plan.solana, 'dstChain');
+    checkSolanaDelivery(plan.solana!, i.recipientSolana, i.toToken, minOut);
+  } else {
+    must(!plan.solana, 'dstChain');
+    const d = plan.delivery;
+    must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');
+  }
 
   return {
     door: 'pool',

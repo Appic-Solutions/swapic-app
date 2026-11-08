@@ -10,6 +10,8 @@
 // the copy button really copies; the invisible trigger over the pill became the pill itself (Menu's `trigger`).
 import * as React from 'react';
 import { getAddress } from 'viem';
+import { config } from '@/config';
+import { normalizeAddress, SOLANA_CHAIN } from '@/lib/explorer';
 import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTrigger } from '@/components/ui/drawer';
 import WalletCard from '@/components/ui/wallet-card';
@@ -17,7 +19,7 @@ import { Avatar } from '@/components/ui/avatar';
 import Spinner from '@/components/ui/spinner';
 import { ChevronDownIcon, CloseIcon, CopyIcon, BackIcon } from '@/components/icons';
 import {
-  loadEvmList, PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useIcpConnect, useWallets, type IcpSignerId,
+  loadEvmList, PLUG_INSTALL_URL, PLUG_PRESENT, useDisconnectWallets, useEvmConnect, useEvmModalOpen, useSolConnect, useIcpConnect, useWallets, type IcpSignerId,
 } from '@/lib/wallets';
 import { useWalletMenu } from '@/lib/wallets/menu';
 import { AnimatePresence, motion } from 'motion/react';
@@ -32,6 +34,7 @@ const ICP_WALLETS: [IcpWallet, string, IcpSignerId][] = [
 ];
 const EVM_LOGO = '/images/logo/chains-logos/ethereum.svg';
 const ICP_LOGO = '/images/logo/wallet_logos/icp.svg';
+const SOLANA_LOGO = '/images/logo/chains-logos/solana.svg';
 /** A connected ICP wallet whose signer IdentityKit did not name. */
 const UNKNOWN_ICP: [string, string] = ['ICP wallet', ICP_LOGO];
 const byName = (w: IcpWallet) => ICP_WALLETS.find(([n]) => n === w)!;
@@ -44,6 +47,8 @@ export interface Wallets {
   evm: null | 'connecting' | string;
   /** No principal yet while the wallet's window is open. */
   icp: null | { name: string; logo: string; principal?: string };
+  /** The address, or 'connecting'; undefined where this build shows no Solana. */
+  sol?: null | 'connecting' | string;
 }
 
 const Label = ({ children }: { children: React.ReactNode }) => <p className="px-2 text-sm text-secondary">{children}</p>;
@@ -90,7 +95,7 @@ function Connected({ logo, name, address, onDisconnect }: { logo: string; name: 
       <div className="min-w-0 flex-1">
         <p className="font-semibold text-white">{name}</p>
         <div className="flex items-center gap-x-1.5 text-sm text-white">
-          <span className="font-mono">{short(address.toLowerCase())}</span>
+          <span className="font-mono">{short(normalizeAddress(address))}</span>
           <button className="relative rounded-xl p-0.5 transition-colors hover:bg-white/10 active:scale-90" onClick={copy}>
             <CopyIcon width={16} height={16} />
             {copied && <div className="absolute -left-5 -top-8 animate-fade rounded-xl border border-line bg-[#1c1c1e] px-2 py-1 text-white">Copied!</div>}
@@ -127,15 +132,16 @@ export interface WalletMenuProps {
   /** Plug's extension answered at load; false shows its row as a link to Plug's site. */
   plug?: boolean;
   onEvm?: () => void;
+  onSol?: () => void;
   /** ICP wallet: open the ICP wallets' step. */
   onIcpList?: () => void;
   onIcp?: (w: IcpWallet) => void;
-  onDisconnect?: (side: 'evm' | 'icp') => void;
+  onDisconnect?: (side: 'evm' | 'icp' | 'sol') => void;
 }
 
 /** Body of the wallet menu: an EVM section and an ICP section, each either its one choice or the connected wallet;
  *  or, on the 'icp' step, the ICP wallets. */
-export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, onIcpList, onIcp, onDisconnect }: WalletMenuProps) {
+export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, onSol, onIcpList, onIcp, onDisconnect }: WalletMenuProps) {
   if (step === 'icp') {
     return (
       <div data-testid="wallet-menu" className="flex animate-fade flex-col gap-1">
@@ -159,6 +165,21 @@ export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, on
           <Choice logo={EVM_LOGO} name="EVM wallet" note="MetaMask, Rabby, WalletConnect and others" onClick={onEvm} />
         )}
       </div>
+      {w.sol !== undefined && (
+        <>
+          <hr className="border-line" />
+          <div className="flex flex-col gap-1">
+            <Label>Solana</Label>
+            {w.sol && w.sol !== 'connecting' ? (
+              <Connected logo={SOLANA_LOGO} name="Your Solana wallet" address={w.sol} onDisconnect={() => onDisconnect?.('sol')} />
+            ) : w.sol === 'connecting' ? (
+              <Connecting logo={SOLANA_LOGO} name="Solana wallet" />
+            ) : (
+              <Choice logo={SOLANA_LOGO} name="Solana wallet" note="Phantom, Solflare, Backpack and others" onClick={onSol} />
+            )}
+          </div>
+        </>
+      )}
       <hr className="border-line" />
       <div className="flex flex-col gap-1">
         <Label>ICP</Label>
@@ -170,7 +191,7 @@ export function WalletMenu({ wallets: w, step = 'choose', plug = true, onEvm, on
           <Choice logo={ICP_LOGO} name="ICP wallet" note="OISY, NFID, Internet Identity and Plug" onClick={onIcpList} />
         )}
       </div>
-      <p className="px-2 text-xs text-secondary">You can connect one EVM wallet and one ICP wallet at the same time.</p>
+      <p className="px-2 text-xs text-secondary">{w.sol !== undefined ? 'You can connect one wallet of each kind at the same time.' : 'You can connect one EVM wallet and one ICP wallet at the same time.'}</p>
     </div>
   );
 }
@@ -237,14 +258,15 @@ function Menu({ title, open, onOpenChange, onBack, trigger, children }: { title:
 
 /** The wallet menu wired to the wallet store: what the Header mounts with its pill as the trigger. */
 export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
-  const { evm, icp } = useWallets();
+  const { evm, icp, sol } = useWallets();
   const openEvm = useEvmConnect();
+  const openSol = useSolConnect();
   const evmModalOpen = useEvmModalOpen();
   const connectIcp = useIcpConnect();
   const disconnect = useDisconnectWallets();
   // shared, so a page's own "Connect wallet" opens this menu too
   const { open, setOpen } = useWalletMenu();
-  const [connecting, setConnecting] = React.useState<'evm' | IcpWallet | null>(null);
+  const [connecting, setConnecting] = React.useState<'evm' | 'sol' | IcpWallet | null>(null);
   // every opening starts on the two choices; set while rendering, so the old step never shows for a frame
   const [step, setStep] = React.useState<MenuStep>('choose');
   const [wasOpen, setWasOpen] = React.useState(open);
@@ -261,13 +283,13 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
   // "Check your wallet" ends when the wallet connects, or when AppKit's list closes without one.
   const evmListSeen = React.useRef(false);
   React.useEffect(() => {
-    if (connecting !== 'evm') return;
-    if (evm) { setConnecting(null); return; }
+    if (connecting !== 'evm' && connecting !== 'sol') return;
+    if (connecting === 'evm' ? evm : sol) { setConnecting(null); return; }
     if (evmModalOpen) evmListSeen.current = true;
     else if (evmListSeen.current) { evmListSeen.current = false; setConnecting(null); }
-  }, [connecting, evm, evmModalOpen]);
+  }, [connecting, evm, sol, evmModalOpen]);
   React.useEffect(() => {
-    if (icp && connecting && connecting !== 'evm') setConnecting(null);
+    if (icp && connecting && connecting !== 'evm' && connecting !== 'sol') setConnecting(null);
   }, [icp, connecting]);
 
   const icpView = (): Wallets['icp'] => {
@@ -276,7 +298,7 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
       const [name, logo] = known ? [known[0], known[1]] : UNKNOWN_ICP;
       return { name, logo, principal: icp.principal };
     }
-    if (connecting && connecting !== 'evm') {
+    if (connecting && connecting !== 'evm' && connecting !== 'sol') {
       const [name, logo] = byName(connecting);
       return { name, logo };
     }
@@ -285,12 +307,20 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
 
   const props: WalletMenuProps = {
     // the store keeps addresses lower case; people see the checksum form, as their wallet shows it
-    wallets: { evm: evm ? getAddress(evm.address) : connecting === 'evm' ? 'connecting' : null, icp: icpView() },
+    wallets: {
+      evm: evm ? getAddress(evm.address) : connecting === 'evm' ? 'connecting' : null,
+      icp: icpView(),
+      ...(config.chains.includes(SOLANA_CHAIN) ? { sol: sol ? sol.address : connecting === 'sol' ? 'connecting' as const : null } : {}),
+    },
     step,
     plug: PLUG_PRESENT,
     onEvm: () => {
       setConnecting('evm');
       void openEvm();
+    },
+    onSol: () => {
+      setConnecting('sol');
+      void openSol();
     },
     onIcpList: () => setStep('icp'),
     onIcp: (name) => {
@@ -302,7 +332,7 @@ export function WalletMenuButton({ trigger }: { trigger: React.ReactElement }) {
         () => setConnecting((c) => (c === name ? null : c)),
       );
     },
-    onDisconnect: (side) => void (side === 'evm' ? disconnect.evm() : disconnect.icp()),
+    onDisconnect: (side) => void (side === 'evm' ? disconnect.evm() : side === 'sol' ? disconnect.sol() : disconnect.icp()),
   };
 
   return (

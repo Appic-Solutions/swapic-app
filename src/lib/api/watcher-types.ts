@@ -37,6 +37,8 @@ export interface ActivityRow extends ChainTimes, HoldFlag {
 /** contract 5.8, plus today's fields (api/mod.rs:801-817) */
 export interface OrderStatusAnswer extends ChainTimes, HoldFlag {
   orderId: string; status: string; srcTx: string | null; dstTx: string | null; amountOut: string | null;
+  /** A Solana transaction is named by its signature, base58. */
+  srcSignature?: string; dstSignature?: string;
   token: string | null; refunded: boolean; reason?: string; signedTxId?: number;
   pool?: { kind: string; status: string; arrived: string | null; paid: string | null; sharesMinted: string | null };
   outcome: Outcome; stage: string; fromChain: string; toChain: string; etaAt: number | null; refund: Refund | null;
@@ -80,6 +82,9 @@ export interface GaslessSubmit {
   auth: { door: 'auth3009' | 'permit2612' | 'permit2'; validAfter: string; validBefore: string; nonce: string; deadline: string; signature: string; acceptance: string };
   signedAt: number;
 }
+/** POST /v2/solana/submit (watcher solana/door.rs): `tx` base64, signed. */
+export type SolanaSubmit = { orderId: string; tx: string } | { requestId: string; tx: string };
+export interface SolanaSubmitted { orderId?: string; status: string; signature?: string | null; amountOut?: string | null }
 /** POST /v2/deposits/find (watcher find.rs): a paid transaction the history does not show, asked for by chain and hash.
  *  `queued`: it started an order of ours (or paid the pool) and is being filed; `filed`: done, `orders` filed from it;
  *  `nothing`: no order of ours in it (or no such transaction yet). `why` is the backend's own text and never shown. */

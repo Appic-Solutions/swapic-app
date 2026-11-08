@@ -4,6 +4,7 @@
 // the balance and the wallets. Desktop: inputs left; the route column takes the left column's height and scrolls, so the
 // panel ends at Review swap and grows when Send To Wallet opens. Phones: stacked, routes in a sideways row.
 import * as React from 'react';
+import { WSOL_MINT } from '@/lib/solana/pda';
 import Link from 'next/link';
 import { motion } from 'motion/react';
 import { PanelBox } from '@/components/motion/parts';
@@ -19,7 +20,7 @@ import { CountdownLabel } from '@/components/ui/countdown-label';
 import { ArrowsUpDownIcon, HistoryIcon } from '@/components/icons';
 import { formatAmount, formatUnits, formatUsd, formatUsdWhole, maxIcp, maxNative, nativeReserve, parseUnits, usdMicro } from '@/lib/money';
 import { icpClient } from '@/lib/icp';
-import { useEvmConnect, useEvmModalOpen, useEvmSigner, useIcpConnect, useWallets } from '@/lib/wallets';
+import { useEvmConnect, useEvmModalOpen, useEvmSigner, useIcpConnect, useSolConnect, useWallets } from '@/lib/wallets';
 import { swapButton } from '../button';
 import { recipientError, useSwapForm } from '../form';
 import { ICP_PAUSED, smartWalletTypesRecipient, useSwapQuote } from '../quote';
@@ -43,14 +44,18 @@ const FALLBACK_FEE_PER_GAS = 50_000_000_000n;
 /** `quotedAt`: when that quote was fetched (ms), so Review swap's timer goes on from where the Swap panel's was. */
 export interface ReviewStart { option: PickedOption; quote: Quote; query: QuoteQuery; native: NativeCoin; amountIn: bigint; quotedAt: number }
 
+/** What Max leaves of SOL: a swap's fees and the accounts it may open. */
+const SOL_RESERVE = 15_000_000n;
+
 /** A shared link whose tokens are still loading: the sides it names, and whether it carries an amount. */
 export interface LinkLoading { from: boolean; to: boolean; amount: boolean }
 
 export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from' | 'to') => void; onReview: (start: ReviewStart) => void; linking?: LinkLoading | null }) {
   const f = useSwapForm();
-  const { evm, icp } = useWallets();
+  const { evm, icp, sol } = useWallets();
   const signer = useEvmSigner();
   const openEvm = useEvmConnect();
+  const openSol = useSolConnect();
   const openIcp = useIcpConnect();
   const { query, quote, state, options, picked, error, cap, covers, refill, updatedAt, fetching, settling } = useSwapQuote();
   const { from, to, recipient } = f;
@@ -83,13 +88,13 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const column = both && state !== 'none' && amount !== null && amount > 0n;
   const { balance, loading: balanceLoading } = useBalance(from);
   const overBalance = amount !== null && balance !== undefined && amount > balance;
-  const fromWallet = from ? (from.chain_type === 'ICP' ? !!icp : !!evm) : false;
+  const fromWallet = from ? (from.chain_type === 'ICP' ? !!icp : from.chain_type === 'SOLANA' ? !!sol : !!evm) : false;
   const usd = from && amount !== null ? usdMicro(amount, from.decimals, from.priceUsd) : null;
 
   // the From chain's coin, priced by its row in the token list (the gas row of the route cards)
   const { chains } = useChains();
   const fromChain = chains.find((c) => c.chainId === from?.chain);
-  const coinRow = useTokenList(from && from.chain_type === 'EVM' ? from.chain : '', '').tokens.find((t) => t.address === ZERO);
+  const coinRow = useTokenList(from && from.chain_type !== 'ICP' ? from.chain : '', '').tokens.find((t) => t.address === ZERO || t.address === WSOL_MINT);
   // the wallet's coin on the From chain: the gasless card says "You have no ETH on Arbitrum" when it is zero
   const { balance: coinBalance } = useBalance(coinRow ?? null);
   const native: NativeCoin = {
@@ -105,7 +110,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   // one. With no From wallet, "Connect wallet" comes first (spec 5.1; plan 2 Task 12's no wallet test).
   // A smart wallet sending to another EVM chain: the field opens EMPTY and stays required (never its own address there).
   const smartTyped = smartWalletTypesRecipient(f, { evm, icp });
-  const ownRecipient = to ? (to.chain_type === 'ICP' ? !!icp : !!evm && !smartTyped) : true;
+  const ownRecipient = to ? (to.chain_type === 'ICP' ? !!icp : to.chain_type === 'SOLANA' ? !!sol : !!evm && !smartTyped) : true;
   React.useEffect(() => {
     if (fromWallet && to && !ownRecipient && !recipient.show && (smartTyped || !recipient.address)) {
       f.set({ recipient: { show: true, address: recipient.address, error: recipientError(to, recipient.address) } });
@@ -116,7 +121,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   // connects, the swap pays out to it and the field closes) or "Paste an address" (the field opens, focused). A smart wallet
   // crossing EVM chains is offered Paste an address alone. The payout target never changes without the person choosing it:
   // the connect ask ends with any later choice, an address typed, another To token, or the connect flow ending with no wallet.
-  const ownAddress = to ? (to.chain_type === 'ICP' ? icp?.principal ?? null : smartTyped ? null : evm?.address ?? null) : null;
+  const ownAddress = to ? (to.chain_type === 'ICP' ? icp?.principal ?? null : to.chain_type === 'SOLANA' ? sol?.address ?? null : smartTyped ? null : evm?.address ?? null) : null;
   const items = receiveItems({ own: ownAddress, smart: smartTyped });
   const ask = React.useRef<ConnectAsk | null>(null);
   const askEvent = (e: AskEvent) => { ask.current = nextAsk(ask.current, e); };
@@ -136,7 +141,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const evmListSeen = React.useRef(false);
   React.useEffect(() => {
     const a = ask.current;
-    if (!a || a.kind !== 'evm') { evmListSeen.current = false; return; }
+    if (!a || a.kind === 'icp') { evmListSeen.current = false; return; }
     if (evmModalOpen) evmListSeen.current = true;
     else if (evmListSeen.current) { evmListSeen.current = false; endAsk(a); }
   }, [evmModalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -147,10 +152,11 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const pickOwn = () => { askEvent({ kind: 'own' }); f.set({ recipient: { ...recipient, show: false } }); };
   const connectTo = () => {
     if (!to) return;
-    const wallet = to.chain_type === 'ICP' ? 'icp' : 'evm';
+    const wallet = to.chain_type === 'ICP' ? 'icp' : to.chain_type === 'SOLANA' ? 'sol' : 'evm';
     askEvent({ kind: 'connect', wallet, toKey: to.key, address: recipient.address });
     const a = ask.current!;
     if (wallet === 'icp') void openIcp().then(() => endAsk(a), () => { if (ask.current === a) askEvent({ kind: 'ended' }); });
+    else if (wallet === 'sol') void openSol();
     else void openEvm();
   };
   const paste = () => {
@@ -176,6 +182,9 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
     let max = balance;
     if (from.chain_type === 'ICP') {
       max = maxIcp(balance, await icpClient().ledgerFee(from.address));
+    } else if (from.chain_type === 'SOLANA') {
+      // SOL: its fees and the account rents stay in the wallet
+      if (from.address === WSOL_MINT) max = balance > SOL_RESERVE ? balance - SOL_RESERVE : 0n;
     } else if (from.address === ZERO) {
       const feePerGas = signer ? await signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS;
       max = maxNative(balance, nativeReserve(feePerGas));
@@ -185,6 +194,7 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const onButton = () => {
     if (button.text === 'Connect wallet') {
       if (from?.chain_type === 'ICP') void openIcp();
+      else if (from?.chain_type === 'SOLANA') void openSol();
       else void openEvm();
       return;
     }

@@ -7,11 +7,12 @@ import { Principal } from '@icp-sdk/core/principal';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { IcpCaller } from '@/lib/icp';
 import type { EvmSigner, SignableTypedData } from './evm-signer';
+import type { SolSigner } from './sol-signer';
 import { normalizedSignature, ownSignature, within, type PayerRead } from './guard';
 
 export const E2E_MARKER = 'E2E-FAKE-MARKER';
 export interface E2eWallets {
-  evm: `0x${string}` | null; icp: string | null; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean;
+  evm: `0x${string}` | null; icp: string | null; /** A Solana wallet, case exact. */ sol?: string; /** Every transaction the fake Solana wallet signed, base64. */ solSigned?: string[]; rejectNext?: boolean; evmKey?: `0x${string}`; /** a smart wallet (plan 2 Smart wallets) */ evmSmart?: boolean;
   /** the address holds code a key still signs for (an EIP-7702 delegation): regular in the store, never through Permit2 */
   evmCode?: boolean;
   /** the code at the address cannot be read */
@@ -86,6 +87,20 @@ export function e2eEvmSigner(address: `0x${string}`): EvmSigner {
     allowanceOf: async () => { const w = e2eWallets(); return w.allowanceUnread ? null : BigInt(w.permit2Allowance ?? '0'); },
     // the fixed signature is nobody's: only a wallet with a key can be asked whose it is
     ownSignature: async (td, signature) => (e2eWallets().evmKey ? ownSignature(address, td, signature) : normalizedSignature(signature)),
+  };
+}
+
+/** A wallet that signs by filling its slot with a fixed signature: the fake backend checks none. */
+export function e2eSolSigner(address: string): SolSigner {
+  return {
+    address,
+    signTransaction: async (wire) => {
+      const w = e2eWallets();
+      if (w.delayMs) await new Promise((r) => setTimeout(r, w.delayMs));
+      if (w.rejectNext) { w.rejectNext = false; throw reject(); }
+      (w.solSigned ??= []).push(btoa(String.fromCharCode(...wire)));
+      return wire;
+    },
   };
 }
 

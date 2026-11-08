@@ -10,10 +10,10 @@ import { ArrowRightIcon, CloseIcon, ScannerIcon } from '@/components/icons';
 import { config } from '@/config';
 import { short } from '@/lib/copy/format';
 import { FIELD } from '@/components/ui/styles';
-import { chainLogo } from '@/lib/explorer';
+import { chainLogo, SOLANA_CHAIN } from '@/lib/explorer';
 import { classify } from './search';
 
-export type Chip = { kind: 'evm' | 'icp'; value: string };
+export type Chip = { kind: 'evm' | 'icp' | 'solana'; value: string };
 
 /** `onSubmit(text)`: search this text (a paste hands its own, before the field has redrawn). */
 export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: Chip[]; text: string; onText: (s: string) => void; onSubmit: (text: string) => void; onRemove: (c: Chip) => void }) {
@@ -40,7 +40,7 @@ export function SearchBox({ chips, text, onText, onSubmit, onRemove }: { chips: 
           transition={{ layout: T.enter }}
           className="flex items-center gap-x-1.5 rounded-full bg-white/10 py-0.5 pl-0.5 pr-1.5 text-xs font-medium"
         >
-          <Avatar src={c.kind === 'icp' ? chainLogo(config.icpChain) : chainLogo('eip155:1')} className="h-5 w-5" />
+          <Avatar src={c.kind === 'icp' ? chainLogo(config.icpChain) : c.kind === 'solana' ? chainLogo(SOLANA_CHAIN) : chainLogo('eip155:1')} className="h-5 w-5" />
           <span className="font-mono">{short(c.value)}</span>
           <span onClick={() => onRemove(c)} className={'cursor-pointer rounded-full p-0.5 text-secondary hover:bg-white/10 hover:text-white ' + tw.quick + ' ' + tw.pressIcon}>
             <CloseIcon width={16} height={16} />
