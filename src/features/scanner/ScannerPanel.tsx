@@ -1,7 +1,8 @@
 'use client';
 // The Scanner: moved from the design's scanner-screens.tsx ScannerPanel (the approved static look), wired to data: the
-// 24 hour tiles and the live feed every 10 s while visible (new ids slide in), search by wallet (chips; their rows from ONE
-// GET /v2/orders call for all chips, every 30 s, contract 5.13 and 1.6), by order id or transaction hash (GET
+// 24 hour tiles and the live feed every 10 s while visible, 5 s while a row is in progress (new ids slide in), search by
+// wallet (chips; their rows from ONE GET /v2/orders call for all chips, every 30 s, 10 s while a row is in progress,
+// contract 5.13 and 1.6), by order id or transaction hash (GET
 // /v2/scanner/search, one row opens its order page), and "Nothing found" without any call for a text that is none of the
 // four forms. The URL keeps the chips (`?q=a,b`) so a search can be shared.
 // Motion (approved 2026-10-29, part 2): tiles lift on hover, chips pop in and out, the heading and the results or "Nothing
@@ -16,7 +17,7 @@ import { ApiError, getOrders, getScannerLatest, getScannerStats, searchScanner, 
 import { T, fade, tw } from '@/lib/motion';
 import { cn } from '@/lib/cn';
 import { QUIET } from '@/components/ui/styles';
-import { mergeRows, orderView } from '@/features/activity/rows';
+import { listInterval, mergeRows, orderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { LiveDot } from './LiveDot';
 import { NotFound } from './NotFound';
@@ -84,7 +85,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
     queryFn: ({ pageParam }) => getScannerLatest(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (p) => p.nextCursor ?? undefined,
-    refetchInterval: () => (visible() ? 10_000 : false),
+    refetchInterval: (q) => (visible() ? listInterval((q.state.data?.pages ?? []).flatMap((p) => p.items), 5_000, 10_000) : false),
     enabled: !searching,
   });
   const feedRows = mergeRows((feed.data?.pages ?? []).map((p) => p.items));
@@ -92,7 +93,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
     queryKey: ['scanner-wallets', chips.map((c) => c.value).join(',')],
     queryFn: () => getOrders(chips.map((c) => c.value)),
     enabled: searching,
-    refetchInterval: () => (visible() ? 30_000 : false),
+    refetchInterval: (q) => (visible() ? listInterval(q.state.data?.orders ?? [], 10_000, 30_000) : false),
   });
 
   // ids not seen before slide in; the first answer marks everything seen

@@ -30,6 +30,11 @@ describe('status words', () => {
     const line = { kind: 'swap', stage: 'minting', to: { chain: 'icp:737ba355e855bd4b61279056603e0550' } };
     expect(stageText({ ...line, etaAt: 1_300 }, 100)).toBe('Minting ckUSDC on ICP, about 20 min');
     expect(stageText({ ...line, etaAt: null }, 100)).toBe('Minting ckUSDC on ICP');
+    // past the estimate the number goes, never a frozen "about 1 sec"
+    const way = { kind: 'swap', stage: 'bridging', to: { chain: 'eip155:143' } };
+    expect(stageText({ ...way, etaAt: 112 }, 100)).toBe('On its way to Monad, about 12 sec');
+    expect(stageText({ ...way, etaAt: 100 }, 100)).toBe('On its way to Monad');
+    expect(stageText({ ...way, etaAt: 90 }, 100)).toBe('On its way to Monad');
     expect(problems(['Minting ckUSDC on ICP', 'Takes about 20 minutes'])).toEqual([]);
   });
   it('writes the refund from the data (spec 5.2)', () => {

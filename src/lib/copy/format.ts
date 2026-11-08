@@ -23,7 +23,8 @@ export function dayText(ms: number, nowMs: number): string {
 }
 export const tookText = (ms: number) => (ms < 60_000 ? `${(Math.round(ms / 100) / 10).toString()} sec` : `${Math.round(ms / 60_000)} min`);
 export function etaLeftText(etaAt: number | null, nowSec: number): string | null {
-  if (etaAt === null) return null;
-  const left = Math.max(etaAt - nowSec, 1);
+  // past the estimate no number: a frozen "about 1 sec" reads as stuck
+  if (etaAt === null || etaAt <= nowSec) return null;
+  const left = etaAt - nowSec;
   return left < 90 ? `About ${left} sec left` : `About ${Math.round(left / 60)} min left`;
 }

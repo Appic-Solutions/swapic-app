@@ -1,12 +1,13 @@
 'use client';
 // History's data: every connected wallet's rows in one call (contract 5.9 takes both kinds of wallet), merged and newest
-// first, refreshed every 30 s while visible and never faster (the 20 a minute wallet lookup bucket is shared with the
-// Scanner's wallet chips and search, contract 1.6).
+// first, refreshed while visible every 30 s, or every 10 s while a row is still in progress (so a delivery shows within
+// seconds of the steps), never faster: the 20 a minute wallet lookup bucket is shared with the Scanner's wallet chips and
+// search, contract 1.6.
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { getOrders, type ActivityRow } from '@/lib/api';
 // the store only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
 import { useWallets, type EvmWallet, type IcpWallet } from '@/lib/wallets/store';
-import { mergeRows, orderView, type OrderView } from '@/features/activity/rows';
+import { listInterval, mergeRows, orderView, type OrderView } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 
 export type Filter = 'All' | 'Swaps' | 'Pool';
@@ -25,7 +26,7 @@ export function useHistory() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (p) => p.nextCursor ?? undefined,
     enabled: wallets.length > 0,
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 30_000 : false),
+    refetchInterval: (q) => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? listInterval((q.state.data?.pages ?? []).flatMap((p) => p.orders), 10_000, 30_000) : false),
   });
   const now = Math.floor(Date.now() / 1000);
   const raw: ActivityRow[] = mergeRows((q.data?.pages ?? []).map((p) => p.orders));

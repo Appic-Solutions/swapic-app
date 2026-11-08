@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { endFlags, endText, mergeRows, orderView, tookOf } from './rows';
+import { endFlags, endText, listInterval, mergeRows, orderView, tookOf } from './rows';
 
 const c = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const logo = () => '/x.png';
@@ -43,6 +43,10 @@ describe('orderView', () => {
   it('keeps one row when both wallets see the same order (Review Focus 5)', () => {
     const r = c('scanner-search-tx.json').items[0];
     expect(mergeRows([[r], [{ ...r, direction: 'self' }]]).length).toBe(1);
+    // a list refreshes faster only while one of its rows is still in progress
+    expect(listInterval([{ outcome: 'delivered' }, { outcome: 'pending' }], 10_000, 30_000)).toBe(10_000);
+    expect(listInterval([{ outcome: 'delivered' }, { outcome: 'refunded' }], 10_000, 30_000)).toBe(30_000);
+    expect(listInterval([], 10_000, 30_000)).toBe(30_000);
   });
 });
 

@@ -118,6 +118,9 @@ export function mergeRows(pages: ActivityRow[][]): ActivityRow[] {
   return [...by.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** A list's refresh period: `live` while any of its rows is still in progress, else `idle`. */
+export const listInterval = (rows: Pick<ActivityRow, 'outcome'>[], live: number, idle: number) => (rows.some((r) => r.outcome === 'pending') ? live : idle);
+
 /** The token a step names, from the row's own sides (rows carry symbol and decimals, contract 5.7): stepViews' `token`. */
 export const tokenMetaOf = (r: ActivityRow) => (chain: string | null, token: string | null) => {
   for (const x of [r.from, r.to, ...(r.refund ? [r.refund] : [])]) {
