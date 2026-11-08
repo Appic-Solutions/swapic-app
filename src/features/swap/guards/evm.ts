@@ -24,8 +24,18 @@
 // is at most the least USDC the plan delivers to the canister's own Base address, and a stake's move fee below it; any
 // other order carries an empty memo. The memo is inside the EIP-712 struct hash, so the order id recomputed here binds it.
 // Tests: memo.test.ts (the golden memos) and the pool tests in evm.test.ts.
+// You pay gas through Permit2 (Jeff 2026-11-08). Must never happen: a signature over anything but this order's exact input to
+// this chain's Swapic under Permit2's domain on this chain, or one that outlives the order; an approval of Permit2 for
+// another token or below the maximum, the exact approval of Swapic sent on this path or the maximum of Permit2 on the other
+// (two approvals for one swap); the transaction's order differing from the one checked. How the design proves it: the typed data
+// is rebuilt here by the gasless Permit2 door's own builder from the order id, this chain and the anchored Swapic, with the
+// field's nonce and the order's deadline, and must equal the quoter's field by field (an `owner`, or any other extra
+// field, is refused; the owner is the order's payer, the witness binds it, and runWithPermit2 takes only msg.sender as the
+// payer); what is signed is the rebuilt one; each path's approval is checked by its own rule and only the chosen path's is
+// returned; run(order) stays checked in `tx`, and the order checked comes back for the calldata (execute.ts encodes it).
+// A stake and a native input never take this path. Tests: the Permit2 tests in evm.test.ts, one per tampered field.
 import { decodeAbiParameters, decodeFunctionData, getAddress, maxUint256, type Hex } from 'viem';
-import type { Authorization, Door, Quote, Route, TypedDataJson } from '@/lib/api';
+import type { ApprovalRequest, Authorization, Door, Quote, Route, TypedDataJson } from '@/lib/api';
 import type { SignableTypedData } from '@/lib/wallets';
 import { chainNumber } from '@/lib/explorer';
 import { ORDER_TUPLE, PERMIT2, SWAPIC_RUN_ABI, isNative, orderIdOf, orderValue, sameAddress, sameToken, type OrderValue } from './abi';
@@ -51,6 +61,9 @@ export interface CheckedEvmRoute {
   approval: { token: Hex; spender: Hex; amount: bigint; resetFirst: boolean } | null;
   sign: { door: Door; typedData: SignableTypedData[]; auth: Authorization } | null;
   tx: { to: Hex; data: Hex; value: bigint } | null;
+  /** You pay gas through Permit2: what the wallet signs and the order the transaction carries, to `tx.to`, instead of `tx`.
+   *  `approval` is then this path's, the maximum to Permit2 (Jeff 2026-11-08). */
+  permit2Pay: { typedData: SignableTypedData; nonce: bigint; deadline: bigint; order: OrderValue } | null;
 }
 
 const lower = (h: string) => h.toLowerCase();
@@ -91,10 +104,14 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
 
   if (i.mode === 'gasless') {
     must(!!r.sign && !r.tx, 'gaslessShape');
-    return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: permit2Approval(i, r), sign: checkSign(i, r, o, id, chainId, swapic), tx: null };
+    return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: gaslessApproval(i, r), sign: checkSign(i, r, o, id, chainId, swapic), tx: null, permit2Pay: null };
   }
   must(!!r.tx && !r.sign, 'userPaysShape');
-  return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: swapicApproval(i, r, swapic), sign: null, tx: checkTx(i, r, id, chainId, swapic) };
+  // both ways are checked whichever one runs; only the chosen one's approval goes on
+  const tx = checkTx(i, r, id, chainId, swapic);
+  const exact = swapicApproval(i, r, swapic);
+  const viaPermit2 = r.permit2Pay && !i.stakeOwner && !isNative(i.fromToken) ? checkPermit2Pay(i, r.permit2Pay, o, id, chainId, swapic) : null;
+  return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: viaPermit2 ? viaPermit2.approval : exact, sign: null, tx, permit2Pay: viaPermit2 && viaPermit2.pay };
 }
 
 /** Whether a quoted route may be a card (lead's call, 2026-10-28: decode, or do not offer). With a wallet, a recipient and the
@@ -254,14 +271,34 @@ function checkSign(i: EvmCheckInput, r: Route, o: OrderValue, id: Hex, chainId: 
   return { door: s.door, typedData: mine, auth: s.auth };
 }
 
-function permit2Approval(i: EvmCheckInput, r: Route) {
+/** An approval only ever to Permit2, for the token paid. */
+function permit2Approval(i: EvmCheckInput, a: ApprovalRequest) {
+  must(sameAddress(a.spender, PERMIT2) && sameToken(a.token, i.fromToken), 'approvalSpender');
+  return { token: getAddress(a.token), spender: PERMIT2 as Hex, amount: BigInt(a.amount), resetFirst: a.resetFirst === true };
+}
+
+function gaslessApproval(i: EvmCheckInput, r: Route) {
   const a = r.sign!.approval;
   if (!a) return null;
-  must(r.sign!.door === 'permit2' && sameAddress(a.spender, PERMIT2) && sameToken(a.token, i.fromToken), 'approvalSpender');
+  must(r.sign!.door === 'permit2', 'approvalSpender');
+  const checked = permit2Approval(i, a);
   // the maximum (Jeff 2026-11-06); the exact amount still passes, so the app and the quoter can deploy in either order
-  const amount = BigInt(a.amount);
-  must(amount === maxUint256 || amount === i.amountIn, 'approvalAmount');
-  return { token: getAddress(a.token), spender: PERMIT2 as Hex, amount, resetFirst: a.resetFirst === true };
+  must(checked.amount === maxUint256 || checked.amount === i.amountIn, 'approvalAmount');
+  return checked;
+}
+
+/** The field as the gasless Permit2 door's is checked: rebuilt from the order and the anchors, then equal field by field. */
+function checkPermit2Pay(i: EvmCheckInput, p: NonNullable<Route['permit2Pay']>, o: OrderValue, id: Hex, chainId: number, swapic: Hex) {
+  const nonce = BigInt(p.nonce);
+  const deadline = BigInt(p.deadline);
+  // valid exactly as long as the order it pays
+  must(deadline === o.deadline, 'typedData');
+  const typedData = doorTypedData.permit2({ chainId, token: getAddress(i.fromToken), swapic, amountIn: i.amountIn, nonce, deadline, orderId: id });
+  must(equalTyped(p.typedData, typedData), 'typedData');
+  const approval = p.approval ? permit2Approval(i, p.approval) : null;
+  // always the maximum: this field never had a quoter that asked less, and "once" on screen must be true
+  if (approval) must(approval.amount === maxUint256, 'approvalAmount');
+  return { approval, pay: { typedData, nonce, deadline, order: o } };
 }
 
 function swapicApproval(i: EvmCheckInput, r: Route, swapic: Hex) {

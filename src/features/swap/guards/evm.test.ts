@@ -2,11 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { concat, decodeAbiParameters, decodeFunctionData, encodeAbiParameters, encodeFunctionData, maxUint256, pad, type Hex } from 'viem';
 import type { Quote, Route } from '@/lib/api';
-import { ECO_ROUTE, STEP_ABI, orderValue, type OrderValue } from './abi';
+import { ECO_ROUTE, PERMIT2, STEP_ABI, orderValue, type OrderValue } from './abi';
 import { decodeEnvelope, principalWord } from './envelope';
 import type { GuardError } from './errors';
 import { routeOffered, verifyEvmRoute, type EvmCheckInput } from './evm';
-import { ATTACKER, CANISTER, GUARD, ICP_ME, PAYER, clone, executable, forge, load } from './forge.fixture';
+import { ATTACKER, CANISTER, GUARD, ICP_ME, PAYER, SWAPIC, clone, executable, forge, load, maxToPermit2, permit2PayOf } from './forge.fixture';
 import { memoRef, type MemoTerms } from './memo';
 import { readPlan } from './plan';
 import { encodeMemo, poolTerms } from './memo.fixture';
@@ -291,6 +291,112 @@ describe('the gasless doors, the transaction, the screen', () => {
   });
 });
 
+describe('You pay gas through Permit2 (permit2Pay): every field checked before any wallet popup', () => {
+  const q = load('arb-usdc-to-pol-wbtc');
+  const u = executable(q, 'userPays')[0]!;
+  type Msg = { permitted: { token: string; amount: string }; spender: string; nonce: string; deadline: string; witness: { orderId: string } };
+  const pay = (approval = maxToPermit2(q)) => { const r = clone(u); r.permit2Pay = permit2PayOf(q, r, approval); return r; };
+  const check = (r: Route, over: Partial<EvmCheckInput> = {}) => rule(() => verifyEvmRoute(input(q, r, 'userPays', over)));
+  const tamper = (edit: (m: Msg, p: NonNullable<Route['permit2Pay']>) => void) => { const r = pay(); edit(r.permit2Pay!.typedData.message as unknown as Msg, r.permit2Pay!); return check(r); };
+
+  it('the field as the quoter answers it passes, and what comes back is the rebuilt typed data and the checked order', () => {
+    const r = pay();
+    const c = verifyEvmRoute(input(q, r, 'userPays'));
+    expect(c.permit2Pay!.nonce).toBe(BigInt(r.permit2Pay!.nonce));
+    expect(c.permit2Pay!.deadline).toBe(BigInt(u.order!.deadline));
+    expect(c.permit2Pay!.typedData.primaryType).toBe('PermitWitnessTransferFrom');
+    expect(c.permit2Pay!.typedData.domain).toEqual({ name: 'Permit2', chainId: 42161, verifyingContract: PERMIT2 });
+    expect(c.permit2Pay!.typedData.message).toMatchObject({ spender: expect.stringMatching(new RegExp(`^${SWAPIC}$`, 'i')), witness: { orderId: c.orderId } });
+    expect(c.permit2Pay!.order).toEqual(orderValue(u.order!));
+    // the transaction is still checked, to the anchored Swapic
+    expect(c.tx!.to.toLowerCase()).toBe(SWAPIC.toLowerCase());
+  });
+  it('refuses the domain of another contract, name or chain, and an extra domain field', () => {
+    const domain = (edit: (d: Record<string, unknown>) => void) => { const r = pay(); edit(r.permit2Pay!.typedData.domain); return check(r); };
+    expect(domain((d) => { d.name = 'Permit3'; })).toBe('typedData');
+    expect(domain((d) => { d.chainId = 1; })).toBe('typedData');
+    expect(domain((d) => { d.verifyingContract = ATTACKER; })).toBe('typedData');
+    expect(domain((d) => { d.version = '1'; })).toBe('typedData');
+  });
+  it('refuses another primary type', () => {
+    const r = pay(); r.permit2Pay!.typedData.primaryType = 'PermitTransferFrom';
+    expect(check(r)).toBe('typedData');
+  });
+  it('refuses another token, another amount, another spender', () => {
+    expect(tamper((m) => { m.permitted.token = ATTACKER; })).toBe('typedData');
+    expect(tamper((m) => { m.permitted.amount = '5000001'; })).toBe('typedData');
+    expect(tamper((m) => { m.permitted.amount = '115792089237316195423570985008687907853269984665640564039457584007913129639935'; })).toBe('typedData');
+    expect(tamper((m) => { m.spender = ATTACKER; })).toBe('typedData');
+    expect(tamper((m) => { m.spender = PERMIT2; })).toBe('typedData');
+  });
+  it('refuses a deadline or a nonce other than the field\'s, and a deadline other than the order\'s', () => {
+    expect(tamper((m) => { m.deadline = '4102444800'; })).toBe('typedData');
+    expect(tamper((m) => { m.nonce = '1'; })).toBe('typedData');
+    expect(tamper((_m, p) => { p.nonce = '1'; })).toBe('typedData');
+    expect(tamper((_m, p) => { p.deadline = '4102444800'; })).toBe('typedData');
+    // both moved together: the signature would outlive the order
+    expect(tamper((m, p) => { m.deadline = '4102444800'; p.deadline = '4102444800'; })).toBe('typedData');
+  });
+  it('refuses a witness for another order, and any extra field such as an owner', () => {
+    expect(tamper((m) => { m.witness.orderId = `0x${'00'.repeat(32)}`; })).toBe('typedData');
+    expect(tamper((m) => { (m as unknown as Record<string, string>).owner = ATTACKER; })).toBe('typedData');
+    expect(tamper((m) => { (m.witness as unknown as Record<string, string>).payer = ATTACKER; })).toBe('typedData');
+  });
+  it('refuses a payer other than the one connected, and an order changed under the field', () => {
+    expect(check(pay(), { payer: ATTACKER })).toBe('payer');
+    const r = pay(); r.order!.amountIn = '4000000';
+    expect(check(r)).toBe('orderId');
+    // the order forged with its id recomputed: the field's witness is still the old order's
+    const forged = forge(q, pay(), (o) => ({ ...o, deadline: o.deadline + 1n }));
+    expect(check(forged)).toBe('typedData');
+  });
+  it('the approval: the maximum to Permit2 for this token, and nothing else', () => {
+    expect(verifyEvmRoute(input(q, pay(), 'userPays')).approval).toEqual({ token: expect.any(String), spender: PERMIT2, amount: maxUint256, resetFirst: false });
+    const edited = (a: Partial<NonNullable<Route['approval']>>) => pay({ ...maxToPermit2(q), ...a });
+    expect(check(edited({ spender: ATTACKER }))).toBe('approvalSpender');
+    expect(check(edited({ token: ATTACKER }))).toBe('approvalSpender');
+    expect(check(edited({ amount: q.amountIn }))).toBe('approvalAmount');
+    expect(check(edited({ amount: (maxUint256 - 1n).toString() }))).toBe('approvalAmount');
+    expect(verifyEvmRoute(input(q, edited({ resetFirst: true }), 'userPays')).approval).toMatchObject({ amount: maxUint256, resetFirst: true });
+  });
+  it('one approval per path: the other path\'s approval is refused, and only the chosen path\'s comes back', () => {
+    // Swapic's exact approval dressed as this path's
+    expect(check(pay({ token: q.fromToken.address, spender: SWAPIC, amount: q.amountIn }))).toBe('approvalSpender');
+    // Permit2's maximum dressed as the old path's, with the field beside it or not
+    const other = pay(); other.approval = maxToPermit2(q);
+    expect(check(other)).toBe('approvalSpender');
+    const alone = clone(u); alone.approval = maxToPermit2(q);
+    expect(check(alone)).toBe('approvalSpender');
+    // with the field the top level approval is checked yet not the one returned; no field, it is the one
+    expect(u.approval).toBeTruthy();
+    expect(verifyEvmRoute(input(q, pay(), 'userPays')).approval!.spender).toBe(PERMIT2);
+    const later = clone(u); later.permit2Pay = permit2PayOf(q, later);
+    expect(verifyEvmRoute(input(q, later, 'userPays')).approval).toBeNull();
+    const none = verifyEvmRoute(input(q, u, 'userPays'));
+    expect(none.approval!.amount).toBe(BigInt(q.amountIn));
+    expect(none.approval!.spender.toLowerCase()).toBe(SWAPIC.toLowerCase());
+    expect(none.permit2Pay).toBeNull();
+  });
+  it('refuses the transaction to another address, with the field or without', () => {
+    const r = pay(); r.tx!.to = ATTACKER;
+    expect(check(r)).toBe('txTo');
+  });
+  it('offers no card with a tampered field', () => {
+    const r = pay(); (r.permit2Pay!.typedData.message as unknown as Msg).spender = ATTACKER;
+    const who = { payer: PAYER, recipient: u.envelope!.recipient, guard: GUARD };
+    expect(routeOffered(q, pay(), 'userPays', who)).toBe(true);
+    expect(routeOffered(q, r, 'userPays', who)).toBe(false);
+  });
+  it('a native input and a stake never take this path, whatever the field says', () => {
+    const nq = load('base-eth-to-arb-arb');
+    const native = clone(executable(nq, 'userPays')[0]!);
+    native.permit2Pay = { ...permit2PayOf(nq, native), nonce: '1' };
+    const c = verifyEvmRoute(input(nq, native, 'userPays'));
+    expect(c.permit2Pay).toBeNull();
+    expect(c.tx!.value).toBe(BigInt(nq.amountIn));
+  });
+});
+
 describe('verifyEvmRoute, stake (a real Base order made into a stake, its memo and ref recomputed)', () => {
   const q = load('base-usdc-to-base-eth');
   const base = executable(q, 'userPays')[0]!;
@@ -312,4 +418,11 @@ describe('verifyEvmRoute, stake (a real Base order made into a stake, its memo a
     expect(check(route(), { stakeOwner: undefined })).toBe('stakeOwner');
   });
   it('refuses the USDC sent anywhere but the canister', () => expect(check(route(terms, ATTACKER))).toBe('poolDelivery'));
+  it('keeps today\'s approval and run(order), even with a permit2Pay on the route', () => {
+    const r = route();
+    r.permit2Pay = { ...permit2PayOf(stakeQuote, r), nonce: '1' };
+    const c = verifyEvmRoute(input(stakeQuote, r, 'userPays', { recipient: PAYER, toToken: CKUSDC, stakeOwner: PAYER }));
+    expect(c.permit2Pay).toBeNull();
+    expect(c.approval?.spender.toLowerCase()).toBe(SWAPIC.toLowerCase());
+  });
 });
