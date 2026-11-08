@@ -14,6 +14,7 @@ import { TwoColumn } from '@/components/design/TwoColumn';
 import { statCard } from '@/components/design/stat-card';
 import { CopyButton, useCopied } from '@/components/orders/CopyButton';
 import { Steps } from '@/components/orders/Steps';
+import Skeleton, { SkeletonText } from '@/components/ui/skeleton';
 import type { SideView, StepView } from '@/components/orders/types';
 import { ArrowDownIcon } from '@/components/icons';
 import { ConfirmButton, MotionCard, routeLayoutId } from '@/components/motion/parts';
@@ -60,6 +61,21 @@ export interface ReviewPanelProps {
   onSign: () => void;
 }
 
+/** The wallet list while its steps are not known yet (Steps, row for row): nothing to read, nothing that later turns out wrong. */
+const StepsWaiting = () => (
+  <div className="flex flex-col gap-y-4" data-testid="wallet-steps-waiting">
+    {[0, 1].map((i) => (
+      <div key={i} className="flex min-w-0 items-center gap-x-4 text-sm font-medium md:gap-x-5">
+        <Skeleton className="h-9 w-9 shrink-0" />
+        <div className="min-w-0">
+          <SkeletonText className="w-44 max-w-full" />
+          <SkeletonText className="w-52 max-w-full text-xs font-normal" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 export function ReviewPanel({ data, pay, get, toToken, states, disabled, button, note, wasMinText, waiting, confirming, approving, cancelled, routeRef, timer, marks, onBack, onSign }: ReviewPanelProps) {
   const [copied, copy] = useCopied();
   const { recipient } = data;
@@ -105,9 +121,16 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
           <motion.div variants={rise} className={cn(statCard, 'gap-y-4 lg:flex-1')}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-xl font-semibold text-white">In your wallet</p>
-              <p className="text-sm text-secondary">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>
+              {!data.pending && <p className="text-sm text-secondary">{steps.length === 1 ? '1 step' : `${steps.length} steps`}</p>}
             </div>
-            <Steps steps={steps} numbered animated />
+            {/* the steps fade in once the named quote says them; a note in their place says why they never came */}
+            <AnimatePresence mode="wait" initial={false}>
+              {!data.pending ? (
+                <motion.div key="steps" variants={fade} initial="hidden" animate="shown" exit="gone"><Steps steps={steps} numbered animated /></motion.div>
+              ) : !note ? (
+                <motion.div key="waiting" variants={fade} initial="hidden" animate="shown" exit="gone"><StepsWaiting /></motion.div>
+              ) : null}
+            </AnimatePresence>
           </motion.div>
           {note && <motion.div variants={fade}>{note}</motion.div>}
         </>

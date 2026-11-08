@@ -16,6 +16,18 @@ export const cushioned = (min: bigint): bigint => (min > 0n ? min - min / 2000n 
 /** The swap's "You get at least": the route's least, cushioned. Every quote on screen (a refresh too) shows its own. */
 export const shownMinOf = (o: PickedOption): bigint => cushioned(minOutOf(o));
 
+/**
+ * The route as this payer runs it: `permit2Pay` stays only for a payer who can sign through Permit2 (`signs`: guard.ts in the
+ * wallets folder) and only when it is not worse. A route with no approval (a native input, or an allowance to Swapic that
+ * already covers this swap) is one transaction as run(order), with nothing to approve or sign. Anyone else has the route as
+ * if the field were never there, so every later reader (the review's steps, the check, the send) takes today's approval
+ * and run(order) by the same one test: is the field there.
+ */
+export function forPayer(o: PickedOption, signs: boolean): PickedOption {
+  const { permit2Pay, ...route } = o.route;
+  return permit2Pay && (!signs || !o.route.approval) ? { ...o, route } : o;
+}
+
 /** Routes priced only: no wallet yet, or (since the quoter builds only a named route) not named. */
 const WAITS_FOR_WALLET = new Set(['payerNotGiven', 'recipientNotGiven', 'routeNotNamed']);
 const usable = (indicative: boolean) => (r: Route) => r.executable || (indicative && !!r.reason && WAITS_FOR_WALLET.has(r.reason));

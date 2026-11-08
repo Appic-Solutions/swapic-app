@@ -53,6 +53,7 @@ describe('Review stake from an EVM chain, on a route the real check accepts (a r
       const evm: EvmSigner = {
         address: PAYER, ensureChain: vi.fn(async () => {}), signTypedData: vi.fn(async () => `0x${'ab'.repeat(65)}` as const),
         sendTransaction: vi.fn(async () => `0x${'cd'.repeat(32)}` as const), waitForReceipt: vi.fn(async () => 'success' as const), maxFeePerGas: vi.fn(async () => 1n),
+        payerOn: vi.fn(async () => 'plain' as const), allowanceOf: vi.fn(async () => 0n), ownSignature: vi.fn(async (_td, signature) => signature),
       };
       const icp = { getConfig: async () => GUARD.config, ecoProver: async () => GUARD.ecoProver, ckHelper: async () => GUARD.ckHelper, canisterEvmAddress: async () => GUARD.canisterEvm } as unknown as IcpClient;
       const deps = { getQuote: vi.fn(), getOrders: vi.fn(), submitGasless: vi.fn(), postStakeQuote: vi.fn(async () => stake), icp, nowMs: () => (q.quotedAt + 3) * 1000, sleep: vi.fn(async () => {}) };

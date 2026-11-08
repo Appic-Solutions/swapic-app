@@ -14,6 +14,16 @@
 // A lost answer is any of: the API's network, edge or timeout codes, a TypeError, agent 5's AgentError of kind Transport
 // or with TimeoutWaitingForResponseErrorCode or an HTTP 5xx, and an ICP signer's closed channel or network error
 // (isLostSignerAnswer, ICRC-25 4001 and 4000), which is never a "no" (lead's ruling 2026-10-29). Tests: execute.test.ts.
+// You pay gas through Permit2 (Jeff 2026-11-08). Must never happen: two approvals for one swap (the path's own is the only
+// one verifyEvmRoute returns); gas spent on a signature Permit2 will refuse (a payer with code, read before the approve and
+// again after it; a signature that is not its key's: the wallets folder's guard.ts); gas spent on a maximum approve already
+// in place (the quoter's read can fail or lag: the chain is read first); a read that failed taken as a wallet that cannot
+// sign (tryAgain: nothing sent, nothing remembered); a wallet step the person was not shown (another path, one more approve
+// than Review swap shows: stepsChanged, nothing sent, never called a new price); a dead end for a wallet that cannot sign
+// (noPermit2: back to Review swap with today's steps, where the person sees the new approve before any wallet asks for
+// it). An injected wallet cannot say it has no typed data method without a popup, so one learns that at the signature,
+// after the approve; a WalletConnect session says it first. `permit2` absent or false, no field, or a route with no
+// approval: the code below runs exactly as it did, approve, then run(order).
 import { encodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { ApiError, userMessage, type GaslessSubmit, type Quote, type QuoteQuery, getOrders as getOrdersFn, getQuote as getQuoteFn, submitGasless as submitFn } from '@/lib/api';
 import { config } from '@/config';
@@ -22,17 +32,17 @@ import { chainNumber } from '@/lib/explorer';
 import { captureFailure } from '@/lib/sentry';
 import type { EvmSigner } from '@/lib/wallets';
 // the rejection rules only: the @/lib/wallets barrel creates AppKit at import, which unit tests cannot load
-import { isLostSignerAnswer, isUserRejection } from '@/lib/wallets/rejection';
+import { isLostSignerAnswer, isUnsupportedSign, isUserRejection } from '@/lib/wallets/rejection';
 import { AgentError, ErrorKindEnum, HttpErrorCode, TimeoutWaitingForResponseErrorCode } from '@icp-sdk/core/agent';
 import type { UiToken } from '@/components/ui/token-types';
 import { formatAmount } from '@/lib/money';
 import { gasText, networkFeeText, type NativeCoin } from './view';
-import { sameAddress, sameToken } from './guards/abi';
+import { SWAPIC_PERMIT2_ABI, sameAddress, sameToken } from './guards/abi';
 import { loadGuardContext, type GuardContext } from './guards/context';
 import { routeOffered, verifyEvmRoute, type CheckedEvmRoute } from './guards/evm';
 import { verifyIcpCkSwap, verifyIcpSwap, type CheckedIcp } from './guards/icp';
 import { GuardError, GUARD_MESSAGE } from './guards/errors';
-import { minOutOf, namedOption, type PickedOption, type RoutePick } from './options';
+import { forPayer, minOutOf, namedOption, type PickedOption, type RoutePick } from './options';
 import { settleLost } from './lost';
 
 export type ExecOutcome =
@@ -42,7 +52,14 @@ export type ExecOutcome =
   | { kind: 'newPrice'; quote: Quote; option: PickedOption }
   | { kind: 'rejected' }
   | { kind: 'failed'; message: string }
-  | { kind: 'unknown'; message: string; resume: (() => Promise<ExecOutcome>) | null };
+  | { kind: 'unknown'; message: string; resume: (() => Promise<ExecOutcome>) | null }
+  /** This payer cannot pay through Permit2: its address holds code on this chain, or (`wallet`, remembered for the visit) the
+   *  wallet has no such method or its signature is not its key's. No swap was sent: Review swap comes back with today's steps. */
+  | { kind: 'noPermit2'; wallet: boolean }
+  /** What this run would ask is not what Review swap shows, at a price it still shows: back to it, with no word of a new price. */
+  | { kind: 'stepsChanged'; quote: Quote; option: PickedOption }
+  /** A read of the chain failed. It says nothing about the wallet: nothing was sent, and the same click can go through. */
+  | { kind: 'tryAgain'; message: string };
 
 export interface ExecDeps { getQuote: typeof getQuoteFn; getOrders: typeof getOrdersFn; submitGasless: typeof submitFn; icp: IcpClient; nowMs(): number; sleep(ms: number): Promise<void> }
 export interface ExecInput {
@@ -57,6 +74,10 @@ export interface ExecInput {
    *  ('network'). A token that is set to 0 first goes through both twice. */
   onApproval?(index: number, on: 'wallet' | 'network'): void;
   onNote?(text: string): void;
+  /** Review swap read this payer as able to sign through Permit2. Absent or false: a route's `permit2Pay` is not looked at. */
+  permit2?: boolean;
+  /** The Permit2 steps Review swap shows. A run that would ask another path or one more approve goes back to it. */
+  shown?: { permit2: boolean; approval: boolean };
 }
 
 const failed = (message: string): ExecOutcome => ({ kind: 'failed', message });
@@ -88,6 +109,10 @@ const TX_REVERTED = 'The transaction failed on the network. Your tokens stayed i
 const TX_NOT_CONFIRMED = 'The transaction was not confirmed in time. Your tokens stayed in your wallet. Try again.';
 /** The API's own sentence for an expired quote (lib/api/errors.ts `expired`). */
 const EXPIRED = 'This quote expired. Get a new one.';
+/** A read of the chain, with the person waiting on a click. */
+const SEND_READ_MS = 8_000;
+const CANNOT_CHECK = "Couldn't check your wallet, try again.";
+const cannotCheck: ExecOutcome = { kind: 'tryAgain', message: CANNOT_CHECK };
 
 /** The picked route asked by name (the only route the quoter builds and stores) and the canister's anchors, both fresh;
  *  that route picked again among the ones routeOffered allows; less out than the review showed is a new price. */
@@ -101,8 +126,9 @@ async function freshRoute(i: ExecInput, d: ExecDeps): Promise<Fresh | ExecOutcom
     return failed(userMessage(e));
   }
   const accept = (r: Parameters<typeof routeOffered>[1], mode: PickedOption['mode']) => routeOffered(quote, r, mode, { payer: i.query.payer, recipient: i.query.recipient, guard });
-  const option = namedOption(quote, i.pick, accept);
-  if (!option) return failed('No route found for this amount');
+  const named = namedOption(quote, i.pick, accept);
+  if (!named) return failed('No route found for this amount');
+  const option = forPayer(named, i.permit2 === true);
   // the screen's minimum sits a small cushion under the quote's (shownMinOf): a built order a few units lower is no news
   if (minOutOf(option) < i.shownMin) return { kind: 'newPrice', quote, option };
   return { quote, option, guard };
@@ -112,6 +138,13 @@ export async function executeSwap(i: ExecInput, d: ExecDeps): Promise<ExecOutcom
   const f = await freshRoute(i, d);
   if ('kind' in f) return f;
   return f.option.mode === 'icpPull' ? runIcp(i, d, f.quote, f.option, f.guard) : runEvm(i, d, f);
+}
+
+/** What the payer's code and wallet say about signing through Permit2 as of now: the outcome that stops the run, or null. */
+async function payerStop(evm: EvmSigner, chainId: number): Promise<ExecOutcome | null> {
+  const read = await evm.payerOn(chainId, SEND_READ_MS);
+  if (read === 'plain') return null;
+  return read === 'unread' ? cannotCheck : { kind: 'noPermit2', wallet: read === 'noTypedData' };
 }
 
 /** Task 1 at the real clock: only what this returns reaches the wallet. */
@@ -141,7 +174,26 @@ async function runEvm(i: ExecInput, d: ExecDeps, f: Fresh): Promise<ExecOutcome>
       return guardFailure(e);
     }
   };
-  return sendCheckedEvm(checked, evm, d, i, refresh);
+  if (checked.permit2Pay) {
+    // before any gas: a signature Permit2 would refuse is known now, not after the approve
+    const stop = await payerStop(evm, checked.chainId);
+    if (stop) return stop;
+    // the quoter's read of the allowance can fail or lag and name a new maximum: the chain says whether it is owed
+    if (checked.approval) {
+      const allowed = await evm.allowanceOf(checked.chainId, checked.approval.token, checked.approval.spender, SEND_READ_MS);
+      if (allowed === null) return cannotCheck;
+      if (allowed >= checked.amountIn) checked = { ...checked, approval: null };
+    }
+  }
+  // the Permit2 steps on screen against what this run would ask (today's path never comes here)
+  const shown = i.shown;
+  let startAt = 0;
+  if (shown && (shown.permit2 || checked.permit2Pay)) {
+    if (shown.permit2 !== !!checked.permit2Pay || (!shown.approval && checked.approval)) return { kind: 'stepsChanged', quote: f.quote, option: f.option };
+    // the approve on screen is no longer asked (already in place): its row is done, the rest light up in order
+    if (shown.approval && !checked.approval) { i.onStep(0, 'done'); startAt = 1; }
+  }
+  return sendCheckedEvm(checked, evm, d, i, refresh, startAt);
 }
 
 /** A fresh route's approval this run already made: the same token and spender, for as much or more. */
@@ -157,11 +209,11 @@ const covered = (made: CheckedEvmRoute['approval'], wanted: NonNullable<CheckedE
  */
 export async function sendCheckedEvm(
   first: CheckedEvmRoute, evm: EvmSigner, d: ExecDeps, i: Pick<ExecInput, 'onStep' | 'onSent' | 'onApproval'>,
-  refresh?: () => Promise<Refreshed | ExecOutcome>,
+  refresh?: () => Promise<Refreshed | ExecOutcome>, startAt = 0,
 ): Promise<ExecOutcome> {
   let checked = first;
   const chainId = checked.chainId;
-  let step = 0;
+  let step = startAt;
   let approved: CheckedEvmRoute['approval'] = null;
   try {
     await evm.ensureChain(chainId);
@@ -191,8 +243,8 @@ export async function sendCheckedEvm(
           if (fresh.kind !== 'newPrice') i.onStep(step, 'fail');
           return fresh;
         }
-        // an approval this run did not make is a wallet step the review never showed: back to it, nothing sent
-        if (fresh.checked.approval && !covered(approved, fresh.checked.approval)) return { kind: 'newPrice', quote: fresh.quote, option: fresh.option };
+        // an approval this run did not make, or the other path, is a wallet step the review never showed: back to it, nothing sent
+        if ((fresh.checked.approval && !covered(approved, fresh.checked.approval)) || !!fresh.checked.permit2Pay !== !!checked.permit2Pay) return { kind: 'stepsChanged', quote: fresh.quote, option: fresh.option };
         checked = fresh.checked;
       }
     }
@@ -208,7 +260,30 @@ export async function sendCheckedEvm(
       };
       return await submit(i, d, body, step, deadline);
     }
-    const hash = await evm.sendTransaction({ chainId, to: checked.tx!.to, data: checked.tx!.data, value: checked.tx!.value });
+    let tx = checked.tx!;
+    if (checked.permit2Pay) {
+      const p = checked.permit2Pay;
+      // Permit2 reads a signature by the payer's code as it is now, and an approve went out since it was read
+      if (approved) {
+        const stop = await payerStop(evm, chainId);
+        if (stop) return stop;
+      }
+      let answer: Hex;
+      try {
+        answer = await evm.signTypedData(p.typedData);
+      } catch (e) {
+        if (isUnsupportedSign(e)) return { kind: 'noPermit2', wallet: true };
+        throw e;
+      }
+      const signature = await evm.ownSignature(p.typedData, answer);
+      if (!signature) return { kind: 'noPermit2', wallet: true };
+      // the time spent in the wallet came off the order, and a fresh order would need a new signature: asked for on Review swap
+      if (checked.deadline < BigInt(Math.floor(d.nowMs() / 1000) + MIN_SEND_S)) { i.onStep(step, 'fail'); return failed(EXPIRED); }
+      i.onStep(step++, 'done');
+      i.onStep(step, 'wait');
+      tx = { to: tx.to, value: 0n, data: encodeFunctionData({ abi: SWAPIC_PERMIT2_ABI, functionName: 'runWithPermit2', args: [p.order as never, { nonce: p.nonce, deadline: p.deadline, signature }] }) };
+    }
+    const hash = await evm.sendTransaction({ chainId, to: tx.to, data: tx.data, value: tx.value });
     i.onSent?.(step, hash);
     const seen = await receiptBy(evm, d, chainId, hash, (deadline + RECEIPT_GRACE_S) * 1000);
     if (seen === 'success') { i.onStep(step, 'done'); return { kind: 'started', activityId: checked.orderId }; }
@@ -349,17 +424,29 @@ export function walletSteps(option: PickedOption, from: UiToken, amountIn: bigin
       { label: 'Confirm swap', sub: option.route.icpCkSwap ? `${networkFeeText(option)} comes out of the swap, and the ledger fees with it` : 'No gas, only a small ledger fee' },
     ];
   }
+  // the one approve of Permit2, a wallet's first swap of this token (gasless, and You pay gas through Permit2)
+  const once = (resetFirst?: boolean) => {
+    const first = `Lets Swapic use your ${from.symbol}. Only the first time.`;
+    return { label: `Approve ${from.symbol} (once, you pay gas)`, sub: resetFirst ? `${first} Your wallet asks twice: first it sets your ${from.symbol} approval to 0.` : first };
+  };
   if (option.mode === 'gasless') {
     const sign = { label: 'Sign in your wallet (no gas)', sub: 'Swapic sends it and pays the gas' };
     const approval = option.route.sign?.approval;
     // before the named quote comes, the priced route's needsApproval says the same
     if (!approval && !option.route.needsApproval) return [sign];
-    const first = `Lets Swapic use your ${from.symbol}. Only the first time.`;
-    return [{ label: `Approve ${from.symbol} (once, you pay gas)`, sub: approval?.resetFirst ? `${first} Your wallet asks twice: first it sets your ${from.symbol} approval to 0.` : first }, sign];
+    return [once(approval?.resetFirst), sign];
   }
   const g = gasText(option, native);
   const confirm = { label: 'Confirm swap (you pay gas)', sub: g.startsWith('~ ') ? `About ${g.slice(2).replace(', you pay it', '')}` : 'You pay the network fee' };
-  // the exact amount (Jeff 2026-11-06): this step comes back on every swap
-  const each = { label: `Approve ${from.symbol} (you pay gas)`, sub: `Lets Swapic use ${formatAmount(amountIn, from.decimals)} ${from.symbol} for this swap` };
+  const forThisSwap = `Lets Swapic use ${formatAmount(amountIn, from.decimals)} ${from.symbol} for this swap`;
+  const permit2 = option.route.permit2Pay;
+  if (permit2) {
+    // through Permit2 (Jeff 2026-11-08): the maximum approve once per token, then a free signature for this amount on every swap
+    const sign = { label: 'Sign in your wallet (no gas)', sub: forThisSwap };
+    return permit2.approval ? [once(permit2.approval.resetFirst), sign, confirm] : [sign, confirm];
+  }
+  // the old path, a payer who cannot sign through Permit2 (a smart wallet) or a route with no such field: the exact amount
+  // (Jeff 2026-11-06), so this step comes back on every swap
+  const each = { label: `Approve ${from.symbol} (you pay gas)`, sub: forThisSwap };
   return option.route.approval ? [each, confirm] : [confirm];
 }

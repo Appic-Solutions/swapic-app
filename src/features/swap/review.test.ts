@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
-import { cushioned, pickOptions } from './options';
-import { minOutOf, reviewData, reviewRefresh } from './review';
+import { cushioned, forPayer, pickOptions } from './options';
+import { minOutOf, reviewData, reviewRefresh, sameSteps } from './review';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, chain: string, address: string) => ({ key: '', chain, chainId: Number(chain.split(':')[1]), chainName: '', chainLogo: '', chain_type: 'EVM' as const, address, symbol, name: symbol, logo: '', decimals, priceUsd: null, verified: true });
@@ -47,6 +47,67 @@ describe('reviewData', () => {
     const option = { ...gasless!, route: { ...gasless!.route, sign: { ...gasless!.route.sign!, approval } } };
     const d = reviewData({ option, quote: q, from, to, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: '3920.10', held: true }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' } });
     expect(d.steps.map((s) => s.sub)).toEqual(['Lets Swapic use your USDC. Only the first time. Your wallet asks twice: first it sets your USDC approval to 0.', 'Swapic sends it and pays the gas']);
+  });
+});
+
+describe('You pay gas through Permit2: the steps say what is really asked', () => {
+  const [, paid] = pickOptions(q, { indicative: false });
+  const typedData = { types: {}, primaryType: 'PermitWitnessTransferFrom', domain: { chainId: 42161, verifyingContract: '0x1' }, message: {} };
+  const maximum = { token: '0x1', spender: '0x2', amount: '1' };
+  const withField = (approval?: typeof maximum & { resetFirst?: boolean }) => ({ ...paid!, route: { ...paid!.route, permit2Pay: { typedData, nonce: '1', deadline: '2', ...(approval ? { approval } : {}) } } });
+  const review = (option: ReturnType<typeof withField>, pending?: boolean) => reviewData({ option, quote: q, from, to, amountIn: 5_000_000n, native: { symbol: 'ETH', decimals: 18, priceUsd: '3920.10', held: true }, recipient: { label: 'Your EVM wallet', address: '0xf00e', chain: 'eip155:137' }, pending });
+  it('first time: approve once, sign, confirm', () => {
+    const d = review(withField(maximum));
+    expect(d.steps).toEqual([
+      { label: 'Approve USDC (once, you pay gas)', sub: 'Lets Swapic use your USDC. Only the first time.' },
+      { label: 'Sign in your wallet (no gas)', sub: 'Lets Swapic use 5 USDC for this swap' },
+      { label: 'Confirm swap (you pay gas)', sub: 'About 0.00000429 ETH' },
+    ]);
+    expect(d.button).toBe('Approve and swap');
+    expect(d.blocked).toBe(false);
+  });
+  it('later swaps: sign, confirm', () => {
+    const d = review(withField());
+    expect(d.steps.map((s) => s.label)).toEqual(['Sign in your wallet (no gas)', 'Confirm swap (you pay gas)']);
+    expect(d.button).toBe('Sign and swap');
+  });
+  it('a token whose allowance is set to 0 first says the wallet asks twice, on the one step', () => {
+    expect(review(withField({ ...maximum, resetFirst: true })).steps[0]!.sub).toBe('Lets Swapic use your USDC. Only the first time. Your wallet asks twice: first it sets your USDC approval to 0.');
+  });
+  it('the old text stays on the old path alone: a payer who cannot sign has the exact approve, on every swap', () => {
+    const d = review(forPayer(withField(maximum), false) as ReturnType<typeof withField>);
+    expect(d.steps.map((s) => s.label)).toEqual(['Approve USDC (you pay gas)', 'Confirm swap (you pay gas)']);
+    expect(d.steps[0]!.sub).toBe('Lets Swapic use 5 USDC for this swap');
+    expect(d.button).toBe('Approve and swap');
+    expect(review(forPayer(withField(), true) as ReturnType<typeof withField>).steps.map((s) => s.label)).toEqual(['Sign in your wallet (no gas)', 'Confirm swap (you pay gas)']);
+  });
+  it('a native input keeps today\'s one step, whatever the route carries (it has no approval)', () => {
+    const native = { ...withField(maximum), route: { ...withField(maximum).route, approval: undefined, order: { ...paid!.route.order!, tokenIn: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE' } } };
+    expect(review(forPayer(native, true) as ReturnType<typeof withField>).steps.map((s) => s.label)).toEqual(['Confirm swap (you pay gas)']);
+  });
+  it('the priced route before its named quote claims no steps, and nothing can be read as one', () => {
+    const d = review(paid! as ReturnType<typeof withField>, true);
+    expect(d.pending).toBe(true);
+    expect(d.steps).toEqual([]);
+    // no step named yet: the button promises none of them
+    expect(d.button).toBe('Getting your swap ready');
+    expect(review(withField()).pending).toBe(false);
+  });
+  it('the allowance to Swapic already covers this swap: run(order) alone, whatever Permit2 would ask', () => {
+    const covered = (approval?: typeof maximum) => { const o = withField(approval); const { approval: _a, ...route } = o.route; return { ...o, route }; };
+    const d = review(forPayer(covered(maximum), true) as ReturnType<typeof withField>);
+    expect(d.steps.map((s) => s.label)).toEqual(['Confirm swap (you pay gas)']);
+    expect(d.button).toBe('Confirm swap');
+    expect(review(forPayer(covered(), true) as ReturnType<typeof withField>).steps.map((s) => s.label)).toEqual(['Confirm swap (you pay gas)']);
+  });
+  it('sameSteps goes by label and place: a count or a label changed starts the list over, a fresher gas line does not', () => {
+    const first = review(withField(maximum)).steps;
+    const later = review(withField()).steps;
+    const today = review(forPayer(withField(maximum), false) as ReturnType<typeof withField>).steps;
+    expect(sameSteps(first, later)).toBe(false);
+    // two rows each, and the first is another step: an approve's done must not stay on an unsigned Sign row
+    expect(sameSteps(today, later)).toBe(false);
+    expect(sameSteps(later, later.map((s) => ({ ...s, sub: 'About 1 ETH' })))).toBe(true);
   });
 });
 

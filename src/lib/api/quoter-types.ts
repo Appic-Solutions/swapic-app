@@ -117,6 +117,9 @@ export interface TypedDataJson {
 }
 export interface SignRequest { door: Door; typedData: TypedDataJson[]; auth: Authorization; approval?: ApprovalRequest }
 export interface TxRequest { chainId: string; to: string; data: string; value: string }
+/** The payer's own `runWithPermit2` of a named route with a token in (answer/mod.rs Permit2PayRequest): what the wallet signs,
+ *  the `nonce` and `deadline` beside the signature, and the approval of Permit2 it still owes (absent once that covers it). */
+export interface Permit2PayRequest { typedData: TypedDataJson; nonce: string; deadline: string; approval?: ApprovalRequest }
 
 /** answer/mod.rs:404-497 */
 export interface Route {
@@ -129,6 +132,8 @@ export interface Route {
   reason?: string; reasonDetail?: string;
   order?: OrderJson; orderId?: string; envelope?: EnvelopeJson; contracts?: Contracts;
   sign?: SignRequest; tx?: TxRequest; approval?: ApprovalRequest;
+  /** The other way to send `tx`'s order, beside `tx` and `approval`, which stay as they are (Jeff 2026-11-08). */
+  permit2Pay?: Permit2PayRequest;
   /** A gasless route whose wallet must approve Permit2 first: known before a route is named, when the ask names the payer. */
   needsApproval?: boolean;
 }

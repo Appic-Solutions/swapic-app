@@ -378,3 +378,266 @@ test.describe('Swap, approve then confirm (you pay gas)', () => {
     expect(await page.evaluate(() => window.__SWAPIC_E2E__!.sent ?? [])).toEqual([]);
   });
 });
+
+test.describe('Swap, you pay gas through Permit2', () => {
+  const SWAPIC = '0xf0ba68cbc87c31ecaa9654eb14daf3632eaca406';
+  const USDC = '0xaf88d065e77c8cc2239327c5edb3a432268e5831';
+  const PERMIT2 = '0x000000000022d473030f116ddee9f6b43ac78ba3';
+  const RUN_WITH_PERMIT2 = '0x21be144a';
+  const MAX = (1n << 256n) - 1n;
+  const word = (data: string, k: number) => data.slice(10 + 64 * k, 10 + 64 * (k + 1));
+  const approved = (tx: { data: string }) => ({ selector: tx.data.slice(0, 10), spender: `0x${word(tx.data, 0).slice(24)}`, amount: BigInt(`0x${word(tx.data, 1)}`) });
+  const steps = (page: Page) => page.locator('[data-step-state]').filter({ visible: true });
+  const sent = (page: Page) => page.evaluate(() => window.__SWAPIC_E2E__!.sent ?? []);
+  const signed = (page: Page) => page.evaluate(() => window.__SWAPIC_E2E__!.signed ?? []) as Promise<{ primaryType: string; message: { spender: string; permitted: { token: string; amount: string } } }[]>;
+  async function toReview(page: Page) {
+    await pickTokens(page);
+    await button(page, 'Review swap').click();
+  }
+  /** The steps today's path shows: the exact approve, on every swap, and run(order). */
+  async function expectTodaysPath(page: Page) {
+    await expect(page.getByText('Approve USDC (you pay gas)')).toBeVisible();
+    await expect(page.getByText('Lets Swapic use 5 USDC for this swap')).toBeVisible();
+    await expect(page.getByText('Confirm swap (you pay gas)')).toBeVisible();
+    await expect(page.getByText('Sign in your wallet (no gas)')).toHaveCount(0);
+    await expect(page.getByText('Only the first time')).toHaveCount(0);
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+  }
+  async function expectTodaysSends(page: Page) {
+    const txs = await sent(page);
+    expect(txs).toHaveLength(2);
+    expect(txs[0]!.to.toLowerCase()).toBe(USDC);
+    expect(approved(txs[0]!)).toEqual({ selector: '0x095ea7b3', spender: SWAPIC, amount: 5_000_000n });
+    expect(txs[1]!.to.toLowerCase()).toBe(SWAPIC);
+    expect(txs[1]!.data.slice(0, 10)).not.toBe(RUN_WITH_PERMIT2);
+    expect(await signed(page)).toEqual([]);
+  }
+
+  test('first time: approve once, sign, confirm, each lighting up in turn, to Delivered', async ({ page }) => {
+    await open(page, 'permit2-pay-first');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.delayMs = 1200; });
+    await toReview(page);
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await expect(page.getByText('Lets Swapic use your USDC. Only the first time.')).toBeVisible();
+    await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible();
+    await expect(page.getByText('Lets Swapic use 5 USDC for this swap')).toBeVisible();
+    await expect(page.getByText('Confirm swap (you pay gas)')).toBeVisible();
+    await expect(page.getByText('3 steps')).toBeVisible();
+    await button(page, 'Approve and swap').click();
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'wait');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'todo');
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'done');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'wait');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'done');
+    await expect(steps(page).nth(2)).toHaveAttribute('data-step-state', 'wait');
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    const txs = await sent(page);
+    expect(txs).toHaveLength(2);
+    // one approval: the maximum to Permit2, never Swapic's exact one on the same route
+    expect(txs[0]!.to.toLowerCase()).toBe(USDC);
+    expect(approved(txs[0]!)).toEqual({ selector: '0x095ea7b3', spender: PERMIT2, amount: MAX });
+    expect(txs[1]!.to.toLowerCase()).toBe(SWAPIC);
+    expect(txs[1]!.data.slice(0, 10)).toBe(RUN_WITH_PERMIT2);
+    expect(txs[1]!.value).toBe('0');
+    const typed = await signed(page);
+    expect(typed).toHaveLength(1);
+    expect(typed[0]!.primaryType).toBe('PermitWitnessTransferFrom');
+    expect(typed[0]!.message.spender.toLowerCase()).toBe(SWAPIC);
+    expect(typed[0]!.message.permitted).toMatchObject({ amount: '5000000' });
+  });
+  test('later swaps: sign, confirm, with no approve anywhere', async ({ page }) => {
+    await open(page, 'permit2-pay-later');
+    await toReview(page);
+    await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible();
+    await expect(page.getByText('2 steps')).toBeVisible();
+    await expect(page.getByText(/^Approve USDC/)).toHaveCount(0);
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    const txs = await sent(page);
+    expect(txs).toHaveLength(1);
+    expect(txs[0]!.to.toLowerCase()).toBe(SWAPIC);
+    expect(txs[0]!.data.slice(0, 10)).toBe(RUN_WITH_PERMIT2);
+  });
+  test('a token cleared first says the wallet asks twice, and sends 0 then the maximum', async ({ page }) => {
+    await open(page, 'permit2-pay-reset');
+    await toReview(page);
+    const twice = page.getByText('Your wallet asks twice: first it sets your USDC approval to 0.');
+    await expect(twice).toBeVisible();
+    // readable in full, never cut off at the end of the line
+    expect(await twice.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    const txs = await sent(page);
+    expect(txs.slice(0, 2).map((t) => approved(t).amount)).toEqual([0n, MAX]);
+    expect(txs.slice(0, 2).map((t) => approved(t).spender)).toEqual([PERMIT2, PERMIT2]);
+    expect(txs).toHaveLength(3);
+  });
+  test('a "no" to the signature keeps the review and sends nothing', async ({ page }) => {
+    await open(page, 'permit2-pay-later');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.rejectNext = true; });
+    await toReview(page);
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
+    await expect(button(page, 'Sign and swap')).toBeEnabled();
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'todo');
+    expect(await sent(page)).toEqual([]);
+  });
+  test('a wallet with no way to sign comes back to Review swap with today\'s steps, and goes through them', async ({ page }) => {
+    await open(page, 'permit2-pay-cannot-sign');
+    await toReview(page);
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText("Your wallet can't sign this, so the steps changed. Check them and try again.")).toBeVisible();
+    await expectTodaysPath(page);
+    expect(await sent(page)).toEqual([]);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    await expectTodaysSends(page);
+  });
+  test('an address with code keeps today\'s approve and run(order), never a signature (an EIP-7702 delegation here)', async ({ page }) => {
+    await open(page, 'permit2-pay-code');
+    await toReview(page);
+    await expectTodaysPath(page);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    await expectTodaysSends(page);
+  });
+  test('a flagged smart wallet keeps today\'s approve and run(order) too', async ({ page }) => {
+    await open(page, 'permit2-pay-smart');
+    await pickTokens(page);
+    await page.getByPlaceholder(/0x0f70e/).fill('0xf00EBA8E5Fd231b526ADFAAa68B4d0ede72A89AC');
+    await button(page, 'Review swap').click();
+    await expectTodaysPath(page);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+    await expectTodaysSends(page);
+  });
+  test('until the named quote comes the wallet list claims no step, and nothing can be signed', async ({ page }) => {
+    await open(page, 'permit2-pay-slow');
+    await toReview(page);
+    await expect(page.getByTestId('wallet-steps-waiting').filter({ visible: true })).toBeVisible();
+    await expect(page.locator('[data-step-state]')).toHaveCount(0);
+    await expect(page.getByText(/steps?$/)).toHaveCount(0);
+    await expect(button(page, 'Getting your swap ready')).toBeDisabled();
+    await expect(button(page, 'Confirm swap')).toHaveCount(0);
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('wallet-steps-waiting')).toHaveCount(0);
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+  });
+  const CHECK = "Couldn't check your wallet, try again.";
+  const CANNOT = "Your wallet can't sign this, so the steps changed. Check them and try again.";
+  const delivered = (page: Page) => expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
+  test('a code read that fails shows today\'s steps for now, is never remembered, and is read again at the next refresh', async ({ page }) => {
+    await open(page, 'permit2-pay-unread');
+    await toReview(page);
+    await expectTodaysPath(page);
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.evmCodeUnread = false; });
+    await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible({ timeout: 30_000 });
+    await expect(button(page, 'Sign and swap')).toBeEnabled();
+  });
+  test('a code read that fails at the click: try again, nothing sent, the same steps, and the same click goes through', async ({ page }) => {
+    await open(page, 'permit2-pay-later');
+    await toReview(page);
+    await expect(button(page, 'Sign and swap')).toBeEnabled();
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.evmCodeUnread = true; });
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText(CHECK)).toBeVisible();
+    await expect(page.getByText(CANNOT)).toHaveCount(0);
+    expect(await sent(page)).toEqual([]);
+    expect(await signed(page)).toEqual([]);
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'todo');
+    await expect(page.getByText('Sign in your wallet (no gas)')).toBeVisible();
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.evmCodeUnread = false; });
+    await button(page, 'Sign and swap').click();
+    await delivered(page);
+    expect(await signed(page)).toHaveLength(1);
+  });
+  test('a code read too slow never holds the quote: today\'s steps after about 3 s, and the quote\'s timer started when it came', async ({ page }) => {
+    await page.clock.install({ time: new Date(1792336073 * 1000) });
+    await open(page, 'permit2-pay-slow-read');
+    await toReview(page);
+    await expectTodaysPath(page);
+    const left = Number((await page.getByTestId('quote-timer').filter({ visible: true }).innerText()).match(/(\d+)\s*s/)![1]);
+    expect(left).toBeLessThanOrEqual(18);
+  });
+  test('code at the address by the click: back to today\'s steps before the approve, no gas spent', async ({ page }) => {
+    await open(page, 'permit2-pay-first');
+    await toReview(page);
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.evmCode = true; });
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByText(CANNOT)).toBeVisible();
+    await expectTodaysPath(page);
+    expect(await sent(page)).toEqual([]);
+  });
+  test('a session that names no typed data method has today\'s steps from the start, never a signature', async ({ page }) => {
+    await open(page, 'permit2-pay-no-method');
+    await toReview(page);
+    await expectTodaysPath(page);
+    await button(page, 'Approve and swap').click();
+    await delivered(page);
+    await expectTodaysSends(page);
+  });
+  test('after a cancel, a refresh with one step less starts the list over: an unsigned Sign row never shows done', async ({ page }) => {
+    await open(page, 'permit2-pay-approved-later');
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.rejectSign = true; });
+    await toReview(page);
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByText('You cancelled in your wallet.').filter({ visible: true })).toBeVisible();
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'done');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'todo');
+    await expect(page.getByText('2 steps')).toBeVisible({ timeout: 30_000 });
+    await expect(steps(page)).toHaveCount(2);
+    await expect(steps(page).nth(0)).toHaveAttribute('data-step-state', 'todo');
+    await expect(steps(page).nth(1)).toHaveAttribute('data-step-state', 'todo');
+  });
+  test('the maximum the quote names is already in place on chain: no approve, its row done, sign and send', async ({ page }) => {
+    await open(page, 'permit2-pay-first');
+    await toReview(page);
+    await expect(page.getByText('Approve USDC (once, you pay gas)')).toBeVisible();
+    await page.evaluate((max) => { window.__SWAPIC_E2E__!.permit2Allowance = max; }, MAX.toString());
+    await button(page, 'Approve and swap').click();
+    await delivered(page);
+    const txs = await sent(page);
+    expect(txs).toHaveLength(1);
+    expect(txs[0]!.data.slice(0, 10)).toBe(RUN_WITH_PERMIT2);
+  });
+  test('the allowance cannot be read: try again, nothing sent', async ({ page }) => {
+    await open(page, 'permit2-pay-first');
+    await toReview(page);
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+    await page.evaluate(() => { window.__SWAPIC_E2E__!.allowanceUnread = true; });
+    await button(page, 'Approve and swap').click();
+    await expect(page.getByText(CHECK)).toBeVisible();
+    expect(await sent(page)).toEqual([]);
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+  });
+  test('a newly asked approve says the steps changed, with no word of a new price', async ({ page }) => {
+    await open(page, 'permit2-pay-steps-change');
+    await toReview(page);
+    await expect(page.getByText('2 steps')).toBeVisible();
+    await button(page, 'Sign and swap').click();
+    await expect(page.getByText('The steps for this swap changed. Check them and try again.')).toBeVisible();
+    await expect(page.getByText('3 steps')).toBeVisible();
+    await expect(page.getByText(/The price moved/)).toHaveCount(0);
+    await expect(page.getByText(/^was /)).toHaveCount(0);
+    await expect(button(page, 'Accept new price')).toHaveCount(0);
+    await expect(button(page, 'Approve and swap')).toBeEnabled();
+    expect(await sent(page)).toEqual([]);
+    expect(await signed(page)).toEqual([]);
+  });
+  test('the allowance to Swapic already covers the swap: today\'s run(order) alone, one transaction, nothing to sign', async ({ page }) => {
+    await open(page, 'permit2-pay-swapic-covered');
+    await toReview(page);
+    await expect(page.getByText('1 step', { exact: true })).toBeVisible();
+    await expect(page.getByText('Confirm swap (you pay gas)')).toBeVisible();
+    await expect(page.getByText(/^Approve USDC/)).toHaveCount(0);
+    await expect(page.getByText('Sign in your wallet (no gas)')).toHaveCount(0);
+    await button(page, 'Confirm swap').click();
+    await delivered(page);
+    const txs = await sent(page);
+    expect(txs).toHaveLength(1);
+    expect(txs[0]!.to.toLowerCase()).toBe(SWAPIC);
+    expect(txs[0]!.data.slice(0, 10)).not.toBe(RUN_WITH_PERMIT2);
+    expect(await signed(page)).toEqual([]);
+  });
+});
