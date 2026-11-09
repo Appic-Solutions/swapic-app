@@ -39,6 +39,7 @@ import type { SolSigner } from '@/lib/wallets/sol-signer';
 import { isLostSignerAnswer, isUnsupportedSign, isUserRejection } from '@/lib/wallets/rejection';
 import { AgentError, ErrorKindEnum, HttpErrorCode, TimeoutWaitingForResponseErrorCode } from '@icp-sdk/core/agent';
 import type { UiToken } from '@/components/ui/token-types';
+import type { PayoutTerms } from '@/lib/icp/declarations/swapic.did';
 import { formatAmount } from '@/lib/money';
 import { gasText, networkFeeText, type NativeCoin } from './view';
 import { SWAPIC_PERMIT2_ABI, sameAddress, sameToken } from './guards/abi';
@@ -412,6 +413,8 @@ async function submit(i: Pick<ExecInput, 'onStep'>, d: ExecDeps, body: GaslessSu
 async function runIcp(i: ExecInput, d: ExecDeps, quote: Quote, option: PickedOption, guard: GuardContext | undefined): Promise<ExecOutcome> {
   const caller = i.icpCaller;
   if (!caller) return failed('Connect wallet');
+  const cannotReceive = await solanaRecipient(i, d);
+  if (cannotReceive) return cannotReceive;
   let checked: CheckedIcp;
   let fee: bigint;
   try {
@@ -485,6 +488,17 @@ async function afterLostSwap(i: ExecInput, d: ExecDeps, caller: IcpCaller, check
   return CANNOT_TELL;
 }
 
+/** Whether a payout's terms are what the screen asked. Into Solana they name base58 keys, and their EVM fields are the pool's. */
+export function payoutIsThisSwap(
+  terms: Pick<PayoutTerms, 'recipient' | 'token_out' | 'dst_chain' | 'solana'>,
+  recipient: string,
+  to: Pick<UiToken, 'address' | 'chainId'>,
+): boolean {
+  const solana = terms.solana[0];
+  if (solana) return solana.recipient === recipient && solana.mint_out === to.address;
+  return sameAddress(terms.recipient, recipient) && sameToken(terms.token_out, to.address) && terms.dst_chain === BigInt(to.chainId);
+}
+
 /** The payout the pull opened: History names it (one wallet lookup), the canister's own record confirms it is this swap. */
 async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked: CheckedIcp, sentAtMs: number): Promise<bigint | null> {
   const page = await d.getOrders([caller.principal.toText()]);
@@ -492,7 +506,7 @@ async function findPayout(i: ExecInput, d: ExecDeps, caller: IcpCaller, checked:
     if (!row.id.startsWith('payout-') || row.createdAt < Math.floor(sentAtMs / 1000) - 60 || row.from.amount !== checked.amountIn.toString()) continue;
     const id = BigInt(row.id.slice('payout-'.length));
     const p = await d.icp.payout(id);
-    if (p && 'IcpSwap' in p.kind && sameAddress(p.terms.recipient, i.recipient) && sameToken(p.terms.token_out, i.to.address) && p.terms.dst_chain === BigInt(i.to.chainId)) return id;
+    if (p && 'IcpSwap' in p.kind && payoutIsThisSwap(p.terms, i.recipient, i.to)) return id;
   }
   return null;
 }

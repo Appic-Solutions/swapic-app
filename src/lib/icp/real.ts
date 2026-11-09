@@ -39,7 +39,11 @@ export function realIcpClient(): IcpClient {
   return {
     async getConfig(): Promise<SwapicConfigView> {
       const actor = swapic(await anon());
-      const [c, keys] = await Promise.all([actor.get_config(), actor.solana_addresses()]);
+      // read only for Solana: a canister that cannot answer it leaves Solana off, and every other chain as it was
+      const [c, keys] = await Promise.all([
+        actor.get_config(),
+        actor.solana_addresses().catch((): Awaited<ReturnType<typeof actor.solana_addresses>> => []),
+      ]);
       const sol = c.solana[0];
       const chains = new Map(
         c.evm_chains.map(([id, ch]) => [Number(id), {

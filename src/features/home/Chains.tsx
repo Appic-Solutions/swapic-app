@@ -1,6 +1,6 @@
 // Moved from the design's home-screens.tsx (sha 04ec3f6bf50c).
 import { Avatar } from '@/components/ui/avatar';
-import { CHAINS } from '@/lib/chains';
+import { SHOWN_CHAINS } from '@/lib/chains';
 import { chainLogo } from '@/lib/explorer';
 import { ICP_CHAIN } from '@/config';
 import { Title, section } from './Title';
@@ -12,7 +12,7 @@ export function Chains() {
     <section className={section}>
       <Title title="Every chain, one swap" sub="Swap between any of these chains in one step. More chains are on the way." />
       <div className="flex flex-wrap items-center justify-center gap-3 md:gap-4">
-        {CHAINS.map(({ name, logo }) => (
+        {SHOWN_CHAINS.map(({ name, logo }) => (
           <div key={name} className="flex items-center gap-x-3 rounded-full border border-line bg-input-fields py-1.5 pl-1.5 pr-4 text-white md:py-2 md:pl-2 md:pr-5">
             <Avatar src={logo} className="h-8 w-8" />
             <span className="text-sm font-medium md:text-base">{name}</span>

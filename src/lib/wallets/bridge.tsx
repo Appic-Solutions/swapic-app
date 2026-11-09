@@ -91,7 +91,8 @@ export function useEvmConnect() {
   const { open } = useAppKit();
   return async () => {
     const loaded = await loadEvmList().then(() => true, () => false);
-    return open({ view: loaded ? 'Connect' : 'ConnectingWalletConnectBasic' });
+    // on its EVM wallets: the window also knows Solana's
+    return open({ view: loaded ? 'Connect' : 'ConnectingWalletConnectBasic', namespace: 'eip155' });
   };
 }
 /** True while AppKit's own wallet list is open (the menu shows "Check your wallet" until it closes). */

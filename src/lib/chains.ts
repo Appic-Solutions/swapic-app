@@ -12,6 +12,7 @@ export const CHAIN_IDS: readonly string[] = CHAINS.map((c) => c.id);
 export const SHOWN_CHAIN_IDS: readonly string[] = CHAIN_IDS.filter(
   (id) => !id.startsWith('solana:') || process.env.NEXT_PUBLIC_SWAPIC_SOLANA === '1' || process.env.NEXT_PUBLIC_SWAPIC_ENV === 'e2e',
 );
+export const SHOWN_CHAINS: readonly ChainRow[] = CHAINS.filter((c) => SHOWN_CHAIN_IDS.includes(c.id));
 /** The pool's chain: payouts leave from it, so it is the quickest place to receive. */
 export const POOL_CHAIN = 'eip155:8453';
 /** Stake From's chain when the wallet's own chain holds no USDC the pool takes (stake-from.ts). */

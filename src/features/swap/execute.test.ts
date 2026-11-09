@@ -12,7 +12,7 @@ import { PoolErrorFailure } from '@/lib/icp';
 import type { EvmSigner } from '@/lib/wallets';
 import type { SignableTypedData } from '@/lib/wallets';
 import type { UiToken } from '@/components/ui/token-types';
-import { executeSwap, sendCheckedEvm, walletSteps, type ExecDeps, type ExecInput } from './execute';
+import { executeSwap, sendCheckedEvm, walletSteps, type ExecDeps, type ExecInput, payoutIsThisSwap } from './execute';
 import { ATTACKER, GUARD, ICP_ME, PAYER, SWAPIC, clone, forge, load, maxToPermit2, permit2PayOf } from './guards/forge.fixture';
 import { PERMIT2, SWAPIC_PERMIT2_ABI, orderIdOf, type OrderValue } from './guards/abi';
 import { verifyEvmRoute } from './guards/evm';
@@ -763,7 +763,7 @@ describe('executeSwap, ICP', () => {
     const s = icpSetup({
       swapFromIcp: vi.fn(async () => { throw lost(); }),
       balance: vi.fn().mockResolvedValueOnce(5_000_000n).mockResolvedValueOnce(4_990_000n).mockResolvedValue(3_980_000n),
-      payout: vi.fn(async () => ({ kind: { IcpSwap: null }, terms: { recipient: ICP_FIXTURE.recipient, token_out: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', dst_chain: 8453n } }) as never),
+      payout: vi.fn(async () => ({ kind: { IcpSwap: null }, terms: { solana: [], recipient: ICP_FIXTURE.recipient, token_out: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', dst_chain: 8453n } }) as never),
     });
     s.deps.getOrders = vi.fn(async () => ({ orders: [{ id: 'payout-41', createdAt: ICP_FIXTURE.nowMs / 1000, from: { amount: '1000000' } }], nextCursor: null }) as never);
     expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'started', activityId: 'payout-41' });
@@ -801,13 +801,31 @@ describe('executeSwap, ICP', () => {
       const s = icpSetup({
         swapFromIcp: vi.fn(async () => { throw error(); }),
         balance: vi.fn().mockResolvedValueOnce(5_000_000n).mockResolvedValueOnce(4_990_000n).mockResolvedValue(3_980_000n),
-        payout: vi.fn(async () => ({ kind: { IcpSwap: null }, terms: { recipient: ICP_FIXTURE.recipient, token_out: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', dst_chain: 8453n } }) as never),
+        payout: vi.fn(async () => ({ kind: { IcpSwap: null }, terms: { solana: [], recipient: ICP_FIXTURE.recipient, token_out: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE', dst_chain: 8453n } }) as never),
       });
       s.deps.getOrders = vi.fn(async () => ({ orders: [{ id: 'payout-41', createdAt: ICP_FIXTURE.nowMs / 1000, from: { amount: '1000000' } }], nextCursor: null }) as never);
       expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'started', activityId: 'payout-41' });
       expect(s.icpc.swapFromIcp).toHaveBeenCalledTimes(1);
     });
   }
+  it('an ICP swap to a Solana address that cannot receive stops before the wallet is asked', async () => {
+    const s = icpSetup({});
+    s.input.to = { ...s.input.to, chain: 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp' };
+    s.input.recipient = '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM';
+    // a token mint: on the curve or not, nothing sent to it can be spent
+    s.deps.solanaAccount = async () => ({ owner: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', executable: false, data: new Uint8Array(82) });
+    expect(await executeSwap(s.input, s.deps)).toEqual({ kind: 'failed', message: 'This address cannot receive on Solana. Check it and try again.' });
+    expect(s.icpc.approve).not.toHaveBeenCalled();
+  });
+  it('a lost answer finds its payout into Solana by the keys the payout names', () => {
+    const WALLET = '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM';
+    const MINT = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
+    const terms = { recipient: '0x0000000000000000000000000000000000000000', token_out: '0x0000000000000000000000000000000000000000', dst_chain: 8453n };
+    const paid = { ...terms, solana: [{ recipient: WALLET, mint_out: MINT }] as [{ recipient: string; mint_out: string }] };
+    expect(payoutIsThisSwap(paid, WALLET, { address: MINT, chainId: 0 })).toBe(true);
+    expect(payoutIsThisSwap(paid, MINT, { address: MINT, chainId: 0 })).toBe(false);
+    expect(payoutIsThisSwap(paid, WALLET, { address: WALLET, chainId: 0 })).toBe(false);
+  });
   it('an ICP signer saying no (ICRC-25 3001) returns rejected', async () => {
     const { deps, input } = icpSetup({ swapFromIcp: vi.fn(async () => { throw new SignerError({ code: 3001, message: 'The user has canceled the action' }); }) });
     expect(await executeSwap(input, deps)).toEqual({ kind: 'rejected' });

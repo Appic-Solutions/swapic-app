@@ -121,6 +121,8 @@ export interface JupiterRoute {
   inAmount: bigint; minimumOut: bigint;
   /** Where the route holds its parties, by account slot. */
   authority: number; source: number; destination: number; sourceMint: number; destinationMint: number;
+  /** `route_v2`'s optional receiver: when it names an account, the output goes there and not to `destination`. */
+  receiver: number | null;
 }
 
 /** One of the two Jupiter routes, its amounts read where the wire crate reads them; any other instruction is refused. */
@@ -136,7 +138,7 @@ export function readJupiterRoute(data: Uint8Array): JupiterRoute {
   return {
     inAmount,
     minimumOut: (quoted * (10_000n - slippage)) / 10_000n,
-    authority: shared ? 1 : 0, source: shared ? 2 : 1, destination: shared ? 5 : 2, sourceMint: shared ? 6 : 3, destinationMint: shared ? 7 : 4,
+    authority: shared ? 1 : 0, source: shared ? 2 : 1, destination: shared ? 5 : 2, sourceMint: shared ? 6 : 3, destinationMint: shared ? 7 : 4, receiver: shared ? null : 7,
   };
 }
 
@@ -326,6 +328,7 @@ export async function verifySolanaBurn(i: SolanaCheckInput): Promise<CheckedSola
     must(ownAccounts(i.user, i.fromToken).includes(slot(route.source)!), 'solanaSource');
     must(slot(route.sourceMint) === i.fromToken && slot(route.destinationMint) === USDC_MINT, 'tokenIn');
     must(slot(route.destination) === own.vault, 'solanaDestination');
+    must(route.receiver === null || slot(route.receiver) === JUPITER || slot(route.receiver) === own.vault, 'solanaDestination');
   }
   return {
     kind: 'burn',
@@ -336,6 +339,11 @@ export async function verifySolanaBurn(i: SolanaCheckInput): Promise<CheckedSola
     minOut: BigInt(i.route.amountOutMin),
   };
 }
+
+/** What a swap inside Solana may charge its signer in priority fee: 0.005 SOL. Real orders asked at most 11,022 lamports. */
+const MAX_ORDER_PRIORITY_MICRO = 5_000_000n * 1_000_000n;
+/** The runtime's limit where a transaction names none. */
+const MAX_COMPUTE_UNITS = 1_400_000;
 
 /** The destination of a swap inside Solana: the user's own account of the mint, or the placeholder JupiterZ writes for SOL. */
 function isOwnOutput(address: string | undefined, user: string, mint: string): boolean {
@@ -368,9 +376,14 @@ export async function verifySolanaOrder(i: SolanaCheckInput): Promise<CheckedSol
   must(!!accounts, 'solanaTable');
   const all = accounts!;
   const mints = [i.fromToken, i.toToken, WSOL_MINT];
+  // a gasless card never charges the user
+  must(i.mode !== 'gasless' || payer !== i.user, 'solanaFeePayer');
+  // the screen shows its recipient: an order pays only the wallet that signs it
+  must(i.recipient === i.user, 'recipient');
   let swaps = 0;
+  const budget: { limit?: number; price?: bigint } = {};
   for (const ix of msg.instructions) {
-    if (ix.program === COMPUTE_BUDGET) { readComputeBudget(ix); continue; }
+    if (ix.program === COMPUTE_BUDGET) { Object.assign(budget, readComputeBudget(ix)); continue; }
     if (ix.program === JUPITER) {
       const route = readJupiterRoute(ix.data);
       const slot = (n: number) => all[ix.accounts[n]!];
@@ -379,6 +392,8 @@ export async function verifySolanaOrder(i: SolanaCheckInput): Promise<CheckedSol
       must(ownAccounts(i.user, i.fromToken).includes(slot(route.source)!), 'solanaSource');
       must(slot(route.sourceMint) === i.fromToken && slot(route.destinationMint) === i.toToken, 'tokenIn');
       must(isOwnOutput(slot(route.destination), i.user, i.toToken), 'recipient');
+      // the program's own key is how a transaction leaves this optional account empty
+      must(route.receiver === null || slot(route.receiver) === JUPITER || ownAccounts(i.user, i.toToken).includes(slot(route.receiver)!), 'recipient');
       must(route.minimumOut >= i.shownMin, 'minOut');
       swaps++;
       continue;
@@ -402,6 +417,9 @@ export async function verifySolanaOrder(i: SolanaCheckInput): Promise<CheckedSol
     readSideInstruction(ix, all, i.user, mints);
   }
   must(swaps === 1, 'solanaJupiter');
+  if (payer === i.user) {
+    must(BigInt(budget.limit ?? MAX_COMPUTE_UNITS) * (budget.price ?? 0n) <= MAX_ORDER_PRIORITY_MICRO, 'solanaCompute');
+  }
   return {
     kind: 'order',
     wire,

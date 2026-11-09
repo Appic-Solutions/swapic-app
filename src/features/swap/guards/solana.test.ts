@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { encodeFunctionData, type Hex } from 'viem';
 import type { Quote, Route, SolanaBurnPayment, SolanaOrderPayment } from '@/lib/api';
 import { encode58 } from '@/lib/solana/base58';
-import { ataOf, COMPUTE_BUDGET, shardsOf, USDC_MINT, WSOL_MINT, findProgramAddress } from '@/lib/solana/pda';
+import { ataOf, COMPUTE_BUDGET, JUPITER, shardsOf, USDC_MINT, WSOL_MINT, findProgramAddress } from '@/lib/solana/pda';
 import { decodeV0, fromBase64, toBase64 } from '@/lib/solana/tx';
 import type { SolanaAnchors } from '@/lib/icp';
 import type { GuardContext } from './context';
@@ -88,6 +88,14 @@ describe('a burn out of Solana', () => {
     expect(checked.wire[0]).toBe(2);
     expect(checked.wire.slice(1, 129).every((b) => b === 0)).toBe(true);
     expect(toBase64(checked.wire.slice(129))).toBe(g.gaslessBurn.message);
+  });
+
+  it('refuses a swap burn whose optional receiver is not the vault', async () => {
+    const bytes = fromBase64(g.userSwap.message);
+    const burn = decodeV0(bytes)!.instructions.find((x) => x.program === g.programId)!;
+    // the route's accounts start at slot 22, its optional receiver is the eighth: the user's own key, here
+    bytes[indexOf(bytes, Uint8Array.from(burn.accounts)) + 22 + 7] = burn.accounts[0]!;
+    await refused(verifySolanaBurn(burnInput({ ...g.userSwap, message: toBase64(bytes) }, 'userPays')), 'solanaDestination');
   });
 
   it('refuses a fee payer that is not the user or the canister', async () => {
@@ -188,19 +196,32 @@ function orderInput(name: string, over: Partial<SolanaCheckInput> = {}): SolanaC
   const quote = { fromChain: SOLANA, toChain: SOLANA, quotedAt: NOW } as unknown as Quote;
   return {
     quote, route, mode: o.gasless ? 'gasless' : 'userPays', user: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM', recipient: '9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM',
-    fromToken: o.inputMint, toToken: o.outputMint, amountIn: BigInt(o.inAmount), shownMin: BigInt(o.otherAmountThreshold), guard, tables: tablesFor(o.transaction), nowSec: NOW, ...over,
+    fromToken: o.inputMint, toToken: o.outputMint, amountIn: BigInt(o.inAmount), shownMin: BigInt(o.otherAmountThreshold), guard, tables: tablesFor(o), nowSec: NOW, ...over,
   };
 }
 
-/** A real answer's tables are not in the sample: stand-ins that hold the mints where its route names them, nothing else. */
-function tablesFor(transaction: string) {
-  const wire = fromBase64(transaction);
+/**
+ * A real answer's tables are not in the sample: stand-ins that hold nothing of use, but for the route's two mints, which a real
+ * order keeps in its tables, written where the route names them.
+ */
+function tablesFor(o: { transaction: string; inputMint: string; outputMint: string }) {
+  const wire = fromBase64(o.transaction);
   const message = decodeV0(wire.slice(1 + wire[0]! * 64))!;
-  const size = 256;
-  return async (table: string) => {
-    if (!message.lookups.some((l) => l.table === table)) return null;
-    return Array.from({ length: size }, (_, i) => encode58(Uint8Array.from({ length: 32 }, (_, j) => (j === 0 ? 200 : i % 251))));
-  };
+  const held = new Map(message.lookups.map((l) => [l.table, Array.from({ length: 256 }, (_, i) => encode58(Uint8Array.from({ length: 32 }, (_, j) => (j === 0 ? 200 : i % 251))))]));
+  // the order resolveAccounts reads them in: every table's writable entries, then every table's readonly ones
+  const places = [
+    ...message.lookups.flatMap((l) => l.writable.map((at) => ({ table: l.table, at }))),
+    ...message.lookups.flatMap((l) => l.readonly.map((at) => ({ table: l.table, at }))),
+  ];
+  const route = message.instructions.find((x) => x.program === JUPITER);
+  if (route) {
+    const { sourceMint, destinationMint } = readJupiterRoute(route.data);
+    for (const [slot, mint] of [[sourceMint, o.inputMint], [destinationMint, o.outputMint]] as const) {
+      const place = places[route.accounts[slot]! - message.keys.length];
+      if (place) held.get(place.table)![place.at] = mint;
+    }
+  }
+  return async (table: string) => held.get(table) ?? null;
 }
 
 describe('a swap inside Solana, on real answers', () => {
@@ -235,6 +256,37 @@ describe('a swap inside Solana, on real answers', () => {
     const i = orderInput('rfqBonk');
     const pay = i.route.solana as SolanaOrderPayment;
     await refused(verifySolanaOrder({ ...i, route: { ...i.route, solana: { ...pay, signatureFeePayer: g.user } } }), 'solanaFeePayer');
+  });
+
+  it('refuses a route whose optional receiver pays someone else', async () => {
+    const i = orderInput('metisSol');
+    const wire = fromBase64(orders.metisSol.transaction);
+    const message = decodeV0(wire.slice(1 + wire[0]! * 64))!;
+    const route = message.instructions.find((x) => x.program === JUPITER)!;
+    // the honest order leaves it empty, and this writes the taker's source account there: not its own output
+    wire[indexOf(wire, Uint8Array.from(route.accounts)) + 7] = route.accounts[1]!;
+    const pay = i.route.solana as SolanaOrderPayment;
+    await refused(verifySolanaOrder({ ...i, route: { ...i.route, solana: { ...pay, transaction: toBase64(wire) } } }), 'recipient');
+  });
+
+  it('caps the priority fee an order charges its signer, and passes what real orders ask', async () => {
+    const i = orderInput('metisSol');
+    expect(await verifySolanaOrder(i)).toBeTruthy();
+    expect(await verifySolanaOrder(orderInput('metisShared'))).toBeTruthy();
+    const wire = fromBase64(orders.metisSol.transaction);
+    const message = decodeV0(wire.slice(1 + wire[0]! * 64))!;
+    const price = message.instructions.find((x) => x.program === COMPUTE_BUDGET && x.data[0] === 3)!;
+    new DataView(wire.buffer, wire.byteOffset).setBigUint64(indexOf(wire, Uint8Array.from(price.data)) + 1, 1_000_000_000n, true);
+    const pay = i.route.solana as SolanaOrderPayment;
+    await refused(verifySolanaOrder({ ...i, route: { ...i.route, solana: { ...pay, transaction: toBase64(wire) } } }), 'solanaCompute');
+  });
+
+  it('never shows a gasless card over an order the user pays for', async () => {
+    await refused(verifySolanaOrder(orderInput('metisSol', { mode: 'gasless' })), 'solanaFeePayer');
+  });
+
+  it('refuses an order when the screen names another recipient: it pays the wallet that signs', async () => {
+    await refused(verifySolanaOrder(orderInput('metisSol', { recipient: g.user })), 'recipient');
   });
 
   it('refuses an instruction it does not know', async () => {
