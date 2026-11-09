@@ -48,8 +48,8 @@ test.describe('Swap', () => {
     }
     await expect(page.getByText('via Swapic')).toHaveCount(2);
     await expect(page.getByText('You pay gas')).toHaveCount(1);
-    // only the You pay gas card has a fee row in the Swap list
-    await expect(page.getByTestId('swap-routes').getByText('Fee', { exact: true })).toHaveCount(1);
+    // both cards can be compared on their network fee (Jeff 2026-11-09)
+    await expect(page.getByTestId('swap-routes').getByText('Network fee', { exact: true })).toHaveCount(2);
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
@@ -243,9 +243,9 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await open(page, 'default');
     await pickTokens(page);
     await button(page, 'Review swap').click();
-    // the left side and the route card both say it; Review swap shows the fee on every route, gasless too
+    // the left side and the route card both say it; Review swap shows the network fee on every route, gasless too
     await expect(page.getByText('You get at least').first()).toBeVisible();
-    await expect(page.getByTestId('col-right').getByText('Fee', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('col-right').getByText('Network fee', { exact: true })).toBeVisible();
     await button(page, 'Sign and swap').click();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
     await expect(page.getByText('Delivered', { exact: true }).first()).toBeVisible();
@@ -308,6 +308,10 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await expect(page.getByText("Swap didn't start", { exact: true })).toBeVisible();
     await expect(page.getByText("Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.")).toBeVisible();
     await expect(button(page, 'Try again')).toBeVisible();
+    // Try again: the same swap once more, its tokens and amount kept
+    await button(page, 'Try again').click();
+    await expect(amountField(page)).toHaveValue('5');
+    await expect(page.getByText('WBTC', { exact: true }).first()).toBeVisible();
   });
   test('reduce motion: exactly one view after each change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -328,6 +332,10 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await button(page, 'Make another swap').click();
     await expect(swapTitle).toHaveCount(1);
     await expect(statusTitle).toHaveCount(0);
+    // a fresh Swap card (Jeff 2026-11-09): no tokens, no amount, and the address bar names none
+    await expect(amountField(page)).toHaveCount(0);
+    await expect(page.getByText('WBTC', { exact: true })).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).search).toBe('');
   });
 });
 

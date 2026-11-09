@@ -73,7 +73,7 @@ import type { CheckedEvmRoute } from '@/features/swap/guards/evm';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { cushioned, type PickedOption } from '@/features/swap/options';
 import { etaText } from '@/features/swap/view';
-import { checkWithdrawQuote, normalizeSignature, type CheckedWithdraw } from './withdraw-sig';
+import { checkWithdrawQuote, MAX_POOL_FEE, normalizeSignature, type CheckedWithdraw } from './withdraw-sig';
 import type { usedNonces } from './used-nonces';
 import { realClock, settleLost, type Clock } from '@/features/swap/lost';
 
@@ -103,13 +103,22 @@ export const usdcText = (micro: bigint) => `${tokenAmountText(micro, 6, 'USDC')}
  *  minted on the rest); Added to your stake on screen is that, cushioned like a swap's minimum (`shownAdded`, 0.05% under
  *  it), so a fresh quote a few units lower still adds what the screen said; the fee is the route's gas and carriers plus
  *  that move fee, one line in USDC. */
-export function stakeView(o: PickedOption, checked: CheckedEvmRoute): { added: bigint; shownAdded: bigint; addedText: string; moveFee: bigint; feeText: string; readyText: string } {
+export function stakeView(o: PickedOption, checked: CheckedEvmRoute, poolFee = 0n): { added: bigint; shownAdded: bigint; addedText: string; moveFee: bigint; feeText: string; readyText: string } {
   const moveFee = checked.terms?.kind === 'stake' ? checked.terms.moveFee : 0n;
-  const added = checked.minOut > moveFee ? checked.minOut - moveFee : 0n;
+  const taken = moveFee + poolFee;
+  const added = checked.minOut > taken ? checked.minOut - taken : 0n;
   const shownAdded = cushioned(added);
   const f = o.route.fees;
-  const fee = BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + moveFee;
+  const fee = BigInt(f.network) + BigInt(f.bridge) + BigInt(f.platform) + taken;
   return { added, shownAdded, addedText: formatUsd(shownAdded).slice(1), moveFee, feeText: usdcText(fee), readyText: etaText(o.route.etaSeconds) };
+}
+
+/** What every use of the pool leaves in it, micro USDC, as the quoter charges it: zero from one before it, and never above
+ *  the canister's ceiling. */
+export function poolFeeOf(pool: PoolAnswer | undefined): bigint {
+  const raw = pool?.poolFee;
+  const fee = typeof raw === 'string' && /^\d{1,30}$/.test(raw) ? BigInt(raw) : 0n;
+  return fee <= MAX_POOL_FEE ? fee : 0n;
 }
 
 /** The move fee an ICP stake (one ICP to Base move) or an ICP withdrawal (one Base to ICP move) pays Swapic, micro USDC,
@@ -152,6 +161,8 @@ const asQuote = (q: StakeQuote): Quote => ({ ...q, toChain: ICP_CHAIN, toToken: 
 export async function executeStakeEvm(
   i: {
     from: UiToken; amount: bigint; evm: EvmSigner; shownAdded: bigint; onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
+    /** The pool fee the review took off what is added (poolFeeOf). */
+    poolFee?: bigint;
     /** Review stake showed an approval step (or not): a fresh route that differs comes back as new terms, never signed. */
     shownApproval?: boolean;
   } & Pick<ExecInput, 'onSent' | 'onApproval'>,
@@ -170,7 +181,7 @@ export async function executeStakeEvm(
     const guard = await loadGuardContext(d.icp);
     const checked = checkStakeRoute({ quote: q, option, from: i.from, amount: i.amount, owner: i.evm.address, guard, nowSec: Math.floor(d.nowMs() / 1000) });
     // less added than the screen shows (its cushioned number), or other wallet steps than shown: new terms, never signed
-    if (stakeView(option, checked).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
+    if (stakeView(option, checked, i.poolFee ?? 0n).added < i.shownAdded) return { kind: 'newPrice', quote: asQuote(q), option };
     if (i.shownApproval !== undefined && !!checked.approval !== i.shownApproval) return { kind: 'newPrice', quote: asQuote(q), option };
     return await sendCheckedEvm(checked, i.evm, d, i);
   } catch (e) {
@@ -243,7 +254,7 @@ async function callStake(i: IcpStakeInput, icp: IcpClient, approveAmount: bigint
 }
 
 export async function executeWithdrawIcp(
-  i: { wanted: bigint; moveFee: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
+  i: { wanted: bigint; moveFee: bigint; poolFee?: bigint; caller: IcpCaller; onStep(index: number, state: 'wait' | 'done' | 'fail'): void },
   icp: IcpClient,
   clock: Clock = realClock,
   retried = false,
@@ -253,7 +264,7 @@ export async function executeWithdrawIcp(
   const owner = { Icp: { owner: i.caller.principal, subaccount: [] as [] } };
   const holding = await icp.poolAccount(owner);
   if (holding.shares === 0n) return { kind: 'failed', message: 'This wallet holds no stake' };
-  const plan = planIcpWithdraw(i.wanted, holding, pool.totalAssets, pool.totalShares);
+  const plan = planIcpWithdraw(i.wanted, holding, pool.totalAssets, pool.totalShares, i.poolFee ?? 0n);
   const costs = i.moveFee + 2n * fee;
   if (plan.usdc <= costs) return { kind: 'failed', message: 'Amount too small to cover the fee' };
   const minOut = plan.usdc - costs;
@@ -293,6 +304,8 @@ export interface WithdrawNewTerms { kind: 'newTerms'; checked: CheckedWithdraw }
 export async function executeWithdrawEvm(
   i: {
     usdc: bigint; dstChain: string; evm: EvmSigner; onStep(index: number, state: 'wait' | 'done' | 'fail'): void;
+    /** The pool fee whose shares are burned beside the withdrawal's (poolFeeOf). */
+    poolFee?: bigint;
     /** The least the review showed (the checked record's minOut): a fresh record under it is never signed. */
     shownMinOut?: bigint;
   },
@@ -311,6 +324,7 @@ export async function executeWithdrawEvm(
       answer, staker: i.evm.address, usdc: i.usdc, dstChainId: chainNumber(i.dstChain), dstUsdc,
       poolChain: cfg.poolChain, swapic: cfg.poolChain === null ? undefined : cfg.chains.get(cfg.poolChain)?.swapic,
       totalAssets: pool.totalAssets, totalShares: pool.totalShares, nowSec: Math.floor(d.nowMs() / 1000), used: d.used.has,
+      poolFee: i.poolFee,
     });
   } catch (e) {
     if (e instanceof GuardError) { captureFailure(e, `guard:${e.rule}`); return { kind: 'failed', message: GUARD_MESSAGE }; }

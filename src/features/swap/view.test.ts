@@ -16,7 +16,7 @@ describe('routeView', () => {
     const [gasless, paid] = pickOptions(q, { indicative: false });
     const eth = { symbol: 'ETH', decimals: 18, priceUsd: '3920.10' };
     const g = routeView(gasless!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
-    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 sec', amountOutText: '0.00005976', totalFeeText: '$0.15', gasText: 'None, Swapic pays it' });
+    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 sec', amountOutText: '0.00005976', networkFeeText: '$0.15', gasText: 'None, Swapic pays it' });
     expect(g.usdOutText).toBe('$6.20');
     // the least the user receives: the quote's amountOutMin (5946 sats) less the cushion (2 sats)
     expect(g.minOutText).toBe('0.00005944 WBTC');
@@ -68,6 +68,37 @@ describe('routeView', () => {
       routeView(gasless!, { from: arc, to: tok('WETH', 18, '2240'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { symbol: 'USDC', decimals: 18, priceUsd: '1', held } });
     expect(onArc(true).gaslessNote).toBe('Just sign, no gas to pay');
     expect(onArc(false).gaslessNote).toBe('You have no USDC on Arc. Gasless works anyway');
+  });
+  it('the fee rows hold all the swap costs, and a You pay gas card that owes an approve adds up to a Total', () => {
+    const [gasless, paid] = pickOptions(q, { indicative: false });
+    const coin = { symbol: 'ETH', decimals: 18, priceUsd: '2135.86', held: true };
+    const view = (p: typeof gasless) => routeView(p!, { from: tok('XAUt', 6, '4102.19'), to: tok('ckBTC', 8, '75000'), amountIn: 1627n, sameChainNoUsdc: false, native: coin });
+    const fees = { network: '53480', bridge: '2048', platform: '0', premium: '20887', icpFees: '30000' };
+    // the gas and the fees taken from the swap are one Network fee; with no approve a Total would only repeat it
+    const you = { ...paid!, route: { ...paid!.route, fees, userGasUsd: '1.009841' } };
+    expect(view(you)).toMatchObject({ gasless: false, networkFeeText: '~ $1.11', gasText: '~ 0.0004728 ETH, you pay it' });
+    expect(view(you).approvalFeeText).toBeUndefined();
+    expect(view(you).totalText).toBeUndefined();
+    // the rows as shown add up: $1.11 + $0.08, though the exact sum would floor to $1.19 either way
+    const youOwe = { ...you, route: { ...you.route, approvalGasUsd: '0.082400' } };
+    expect(view(youOwe)).toMatchObject({ networkFeeText: '~ $1.11', approvalFeeText: '~ $0.08', totalText: '~ $1.19' });
+    // gasless: all of it comes out of the swap, no estimate; an approve is said in the box, with no Total
+    const free = { ...gasless!, route: { ...gasless!.route, fees: { network: '1938146', bridge: '1860', platform: '0', premium: '18965', icpFees: '30000' } } };
+    expect(view(free)).toMatchObject({ gasless: true, networkFeeText: '$1.98' });
+    const freeOwe = { ...free, route: { ...free.route, needsApproval: true, approvalGasUsd: '0.082400' } };
+    expect(view(freeOwe)).toMatchObject({ approve: 'once', networkFeeText: '$1.98', approvalFeeText: '~ $0.08' });
+    expect(view(freeOwe).totalText).toBeUndefined();
+  });
+  it('rows always add up as shown: cents dropped from each, then added', () => {
+    const [, paid] = pickOptions(q, { indicative: false });
+    const coin = { symbol: 'ETH', decimals: 18, priceUsd: '2135.86' };
+    const fees = { network: '0', bridge: '0', platform: '0' };
+    // $1.109 and $0.089 show as $1.10 and $0.08: the Total says $1.18, not the exact sum's $1.19
+    const owe = { ...paid!, route: { ...paid!.route, fees, userGasUsd: '1.109000', approvalGasUsd: '0.089000' } };
+    expect(routeView(owe, { from: tok('XAUt', 6, '4102.19'), to: tok('ckBTC', 8, '75000'), amountIn: 1627n, sameChainNoUsdc: false, native: coin })).toMatchObject({ networkFeeText: '~ $1.10', approvalFeeText: '~ $0.08', totalText: '~ $1.18' });
+    // a fee under a cent still shows
+    const tiny = { ...paid!, route: { ...paid!.route, fees, userGasUsd: '0.001200' } };
+    expect(routeView(tiny, { from: tok('XAUt', 6, '4102.19'), to: tok('ckBTC', 8, '75000'), amountIn: 1627n, sameChainNoUsdc: false, native: coin }).networkFeeText).toBe('~ <$0.01');
   });
   it('writes times the way the design does', () => {
     expect(etaText(12)).toBe('12 sec');

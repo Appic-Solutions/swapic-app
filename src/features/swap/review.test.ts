@@ -195,9 +195,23 @@ describe('refundRows (Jeff\'s short rows, 2026-11-09)', () => {
     // a CCTP route's notSwapped entry changes nothing yet
     expect(refundRows(route([{ when: 'notSwapped', ...usdc('eip155:137', '1') }]), q, from)).toEqual([{ k: "If it can't finish", text: 'Refunded as USDC' }]);
   });
-  it('shows an ICP route today\'s row whatever it names, and never breaks on an amount that is no number', () => {
+  it('shows an ICP route today\'s row but for its last swap, and never breaks on an amount that is no number', () => {
     const icp = { ...from, chain_type: 'ICP' as const };
     expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:42161', '1000000000') }]), q, icp)).toEqual([{ k: "If it can't finish", text: 'Refunded as ckUSDC' }]);
     expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:42161', 'lots') }]), q, from)).toEqual([{ k: "If it can't finish", text: 'Refunded as USDC' }]);
+    expect(refundRows(route([{ when: 'lastSwapFails', ...usdc('eip155:56', 'lots', 18) }]), q, icp)).toEqual([{ k: "If it can't finish", text: 'Refunded as ckUSDC' }]);
+  });
+  it('names the last swap\'s fallback of an ICP sale paid out on BNB Chain through Across (wave 2)', () => {
+    const icp = { ...from, chain_type: 'ICP' as const };
+    expect(refundRows(route([{ when: 'lastSwapFails', ...usdc('eip155:56', '98500000000000000000', 18) }]), q, icp)).toEqual([
+      { k: 'If the last swap fails', text: 'All as USDC on BNB Chain, at least 98.50' },
+      { k: "If it can't be delivered", text: 'Refunded as ckUSDC' },
+    ]);
+  });
+  it('names the way back of BNB Chain\'s USDC into the pool: on BNB Chain, at least what was deposited', () => {
+    const bscUsdc = tok('USDC', 18, 'eip155:56', '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d');
+    const toIcp = { ...q, fromChain: 'eip155:56', toChain: 'icp:737ba355e855bd4b61279056603e0550' };
+    expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:56', '10000000000000000000', 18) }]), toIcp, bscUsdc))
+      .toEqual([{ k: "If it can't finish", text: 'Back to you as USDC on BNB Chain, at least 10.00' }]);
   });
 });

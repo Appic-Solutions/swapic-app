@@ -2,13 +2,15 @@
 // person signed on Base, deposited through Across's periphery, filled on Arbitrum into the Runner and delivered as ARB.
 // One tamper test per rule of BSC design 7.4, each a hostile quoter's edit of that real order.
 import { readFileSync } from 'node:fs';
-import { decodeFunctionData, encodeFunctionData, toFunctionSelector, type Hex } from 'viem';
+import { decodeFunctionData, encodeAbiParameters, encodeFunctionData, getAddress, toFunctionSelector, type Hex } from 'viem';
 import { describe, expect, it } from 'vitest';
 import type { ChainView, SwapicConfigView } from '@/lib/icp';
-import { SWAPIC_RUN_ABI, STEP_ABI, type OrderValue } from './abi';
+import type { Route } from '@/lib/api';
+import { ORDER_TUPLE, SWAPIC_RUN_ABI, STEP_ABI, orderIdOf, type OrderValue } from './abi';
 import { acrossCalldata, integratorSuffix, readAcrossStep, txTailAllowed, type AcrossDeposit } from './across';
 import { readPlan, type PlanContext } from './plan';
 import { checkFallbacks } from './evm';
+import { verifyIcpSwap } from './icp';
 
 const t0 = JSON.parse(readFileSync('tests/fixtures/real/across/t0_2026_11_08.json', 'utf8'));
 const lower = (h: string) => h.toLowerCase() as Hex;
@@ -108,6 +110,20 @@ describe('Across, read as the canister reads it', () => {
     expect(plan.fallbacks?.lastSwapFails).toBeNull();
   });
 
+  it('reads a deposit to the canister on the pool chain with a memo as a pool deposit, and nothing else (AX7 c)', () => {
+    // T0 filled on Arbitrum: that chain is the pool's here
+    const pool = ctx((c) => { c.poolChain = 42161; });
+    const toCanister = { message: '0x' as Hex, recipient: lower(t0.canister) };
+    const memo = `0x${'ab'.repeat(40)}` as Hex;
+    const plan = readPlan({ ...withDeposit(toCanister), memo }, pool);
+    expect(plan.delivery).toEqual({ chainId: 42161, recipient: lower(t0.canister), token: lower(t0.arbitrum.usdc), minOut: 2_930_727n });
+    expect(plan.fallbacks?.lastSwapFails).toBeNull();
+    // no memo, another pool chain, or a message: one of ours, refused
+    expect(refusal(withDeposit(toCanister), pool)).toBe('recipient');
+    expect(refusal({ ...withDeposit(toCanister), memo }, ctx())).toBe('recipient');
+    expect(refusal({ ...withDeposit({ recipient: lower(t0.canister) }), memo }, pool)).toBe('recipient');
+  });
+
   it('refuses an arrival that is not a sealed swap of this order by the fill deadline (AM3)', () => {
     const fill = BigInt(DEPOSIT.fillDeadline);
     const moved = DEPOSIT.message.replace(deadlineWord(fill), deadlineWord(fill + 1n)) as Hex;
@@ -187,5 +203,70 @@ describe('the fallbacks a Review screen shows', () => {
     expect(rule(answer(), cctp)).toBe('fallbacks');
     expect(rule({ fallbacks: [{ when: 'notSwapped', chain: 'eip155:42161', token: t0.arbitrum.usdc, symbol: 'USDC', decimals: 6, min: '1' }] } as never, cctp)).toBe('ok');
     expect(rule({ fallbacks: undefined } as never, cctp)).toBe('ok');
+  });
+});
+
+// An ICP sale paid out through Across (BSC design 4.5), checked before anything is approved: T0's order made the
+// canister's plan (the canister its payer and the deposit's depositor), its id under the pool chain's Swapic.
+describe('an ICP payout plan through Across', () => {
+  const CANISTER_ID = 'hfisl-ayaaa-aaaar-qch3q-cai';
+  const CKUSDC = 'xevnm-gaaaa-aaaar-qafnq-cai';
+  const NOW_NS = (ORDER.deadline - 600n) * 1_000_000_000n;
+  const canister = lower(t0.canister);
+  type Shown = { when: string; chain: string; token: string; symbol: string; decimals: number; min: string };
+  const LAST_SWAP: Shown = { when: 'lastSwapFails', chain: 'eip155:42161', token: t0.arbitrum.usdc, symbol: 'USDC', decimals: 6, min: '2930727' };
+
+  function icpPlanRoute(edit: Partial<AcrossDeposit> = {}, fallbacks: Shown[] = [LAST_SWAP]) {
+    const order: OrderValue = { ...withDeposit({ depositor: canister, ...edit }), payer: canister };
+    const delivery = readPlan(ORDER, ctx()).delivery!;
+    const direct = edit.message === '0x';
+    const minOut = direct ? DEPOSIT.outputAmount : delivery.minOut;
+    const recipient = direct ? lower(edit.recipient!) : delivery.recipient;
+    const token = direct ? lower(t0.arbitrum.usdc) : delivery.token;
+    const route = {
+      amountOutMin: minOut.toString(), fallbacks,
+      icpSwap: {
+        canister: CANISTER_ID,
+        approve: { ledger: CKUSDC, spender: CANISTER_ID, amount: '1010000' },
+        terms: {
+          tokenIn: CKUSDC, amountIn: '1000000', fromSubaccount: null, refundTo: null, slippageBps: 100,
+          deadlineNs: (NOW_NS + 600_000_000_000n).toString(), plan: { order: encodeAbiParameters([ORDER_TUPLE], [order as never]), gasLimit: 450000 },
+        },
+        planned: {
+          planned: '990000', expectedSale: '1000000', saleFloor: '995000', premium: '1000', premiumBps: 10, networkFee: '9000', leastPayout: '985000',
+          delivery: 'across', dstChain: 42161, recipient, tokenOut: token, expectedOut: minOut.toString(), minOut: minOut.toString(),
+          orderId: orderIdOf(order, 8453, getAddress(t0.base.swapic)),
+        },
+      },
+    } as unknown as Route;
+    return { route, recipient, token };
+  }
+  const check = (r: ReturnType<typeof icpPlanRoute>) => {
+    try {
+      verifyIcpSwap({
+        route: r.route, fromLedger: CKUSDC, amountIn: 1_000_000n, ledgerFee: 10_000n, recipientEvm: r.recipient, toToken: r.token,
+        toChainId: 42161, canisterId: CANISTER_ID, guard: ctx(), nowNs: NOW_NS,
+      });
+      return 'passed';
+    } catch (e) {
+      return (e as { rule?: string }).rule ?? String(e);
+    }
+  };
+
+  it('takes a plan into a swap on arrival, showing its last swap\'s fallback, the deposit\'s F', () => {
+    expect(check(icpPlanRoute())).toBe('passed');
+  });
+  it('takes a plan straight to the recipient in USDC, showing no fallback', () => {
+    expect(check(icpPlanRoute({ message: '0x', recipient: lower(t0.payer) }, []))).toBe('passed');
+    expect(check(icpPlanRoute({ message: '0x', recipient: lower(t0.payer) }, [LAST_SWAP]))).toBe('fallbacks');
+  });
+  it('refuses a fallback that is not the deposit\'s own, or a way back on the pool chain', () => {
+    expect(check(icpPlanRoute({}, [{ ...LAST_SWAP, min: '2930728' }]))).toBe('fallbacks');
+    expect(check(icpPlanRoute({}, []))).toBe('fallbacks');
+    const back: Shown = { when: 'notFilled', chain: 'eip155:8453', token: t0.base.usdc, symbol: 'USDC', decimals: 6, min: '3000000' };
+    expect(check(icpPlanRoute({}, [LAST_SWAP, back]))).toBe('fallbacks');
+  });
+  it('refuses a deposit whose refund is not the canister\'s (AX5)', () => {
+    expect(check(icpPlanRoute({ depositor: lower(t0.payer) }))).toBe('refundReceiver');
   });
 });
