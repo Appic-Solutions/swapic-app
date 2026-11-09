@@ -7,8 +7,9 @@
 // deadline sits between now + 5 min 30 s and now + 1 h; no subaccount and no refund_to (the caller's default account);
 // the planned recipient, token out and chain are the screen's; plan.order is decoded, its id recomputed under the pool
 // chain's anchored Swapic, its payer the canister's EVM address, its memo empty (the canister refuses a payout order with
-// one), and every step read by readPlan as the canister will, its delivery the screen's for at least planned.minOut.
-// Tests: icp.test.ts.
+// one), and every step read by readPlan as the canister will, its delivery the screen's for at least planned.minOut; an
+// Across plan's fallbacks shown are its own (its last swap's, never a refund on the pool chain).
+// Tests: icp.test.ts, and the ICP Across plans in across.test.ts.
 import { Principal } from '@icp-sdk/core/principal';
 import { decodeAbiParameters, getAddress, hexToBytes, type Hex } from 'viem';
 import type { Route } from '@/lib/api';
@@ -16,6 +17,7 @@ import type { CkSwapTerms, IcpSwapTerms } from '@/lib/icp';
 import { ORDER_TUPLE, orderIdOf, sameAddress, sameToken, type OrderValue } from './abi';
 import type { GuardContext } from './context';
 import { GuardError, must } from './errors';
+import { checkShownFallbacks } from './evm';
 import { readPlan } from './plan';
 
 export interface IcpCheckInput {
@@ -66,10 +68,11 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   must(sameAddress(order.payer, g!.canisterEvm), 'planPayer');
   must(order.memo === '0x', 'planMemo');
   const plan = readPlan(order, { ...g!, sourceChainId: poolChain!, payer: getAddress(g!.canisterEvm!), orderDeadline: order.deadline, nowSec: Number(i.nowNs / 1_000_000_000n) });
-  // the canister's pool reads no Across plan yet (wave 2): refused here, before anything is approved
-  must(plan.rail !== 'across', 'planRail');
   const d = plan.delivery;
   must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');
+  // an Across plan (BSC design 4.5): the screen shows its last swap's fallback, the deposit's own; never one that comes back
+  // on the pool chain, since the canister refunds an unfilled deposit on ICP at once
+  checkShownFallbacks(i.route, { notFilled: null, lastSwapFails: plan.fallbacks?.lastSwapFails ?? null }, g!.config);
 
   return {
     door: 'pool',

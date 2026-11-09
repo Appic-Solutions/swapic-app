@@ -37,6 +37,10 @@ export interface ActionAmounts {
   'pool_move' : [] | [bigint],
   'release' : bigint,
   /**
+   * The canister's claim of its own deferred Across refunds, optional as the pool's.
+   */
+  'across_claim' : [] | [bigint],
+  /**
    * A controller's sweep, optional as the pool's.
    */
   'sweep' : [] | [bigint],
@@ -74,6 +78,10 @@ export interface ActionGas {
    */
   'pool_move' : [] | [bigint],
   'release' : bigint,
+  /**
+   * The canister's claim of its own deferred Across refunds, optional as the pool's.
+   */
+  'across_claim' : [] | [bigint],
   /**
    * A controller's sweep (`sweep_evm`): a native transfer or a `USDC.transfer`, optional
    * as the pool's.
@@ -1104,6 +1112,11 @@ export interface PayoutSettings {
    */
   'ck' : [] | [CkSettings],
   /**
+   * Micro USDC, the most the Across payouts in flight may hold together (signed,
+   * delivering, or owed back by Across). None: no Across payout is signed.
+   */
+  'across_in_flight_max' : [] | [bigint],
+  /**
    * Micro USDC, the least a payout's network fee may be.
    */
   'min_network_fee' : bigint,
@@ -1134,7 +1147,8 @@ export type PayoutStatus = { 'Queued' : null } |
   { 'Failed' : string } |
   {
     /**
-     * Its order ran on Base and published an Eco intent: paid once the intent's fill is read.
+     * Its order ran on Base and published an Eco intent or made an Across deposit: paid once
+     * its fill is read.
      */
     'Delivering' : null
   } |
@@ -1370,6 +1384,12 @@ export type PoolError = { 'NotDeep' : { 'have' : bigint, 'needed' : bigint } } |
   { 'ShortShares' : { 'have' : bigint, 'need' : bigint } };
 export type PoolRail = { 'Eco' : null } |
   { 'Cctp' : null } |
+  {
+    /**
+     * An Across deposit from another chain, filled to the canister on the pool chain.
+     */
+    'Across' : null
+  } |
   { 'SameChain' : null };
 export interface PoolSettings {
   /**
@@ -1467,10 +1487,10 @@ export interface Recipe {
   'data' : Uint8Array | number[],
   'target' : string,
 }
-export type Result = { 'Ok' : string } |
-  { 'Err' : SignError };
-export type Result_1 = { 'Ok' : bigint } |
+export type Result = { 'Ok' : bigint } |
   { 'Err' : string };
+export type Result_1 = { 'Ok' : string } |
+  { 'Err' : SignError };
 export type Result_10 = { 'Ok' : null } |
   { 'Err' : GuardError };
 export type Result_11 = { 'Ok' : null } |
@@ -1739,6 +1759,12 @@ export type TxPurpose = {
   } |
   {
     /**
+     * The canister's claim of its own deferred Across refunds on that chain.
+     */
+    'AcrossClaim' : bigint
+  } |
+  {
+    /**
      * The canister's standing USDC allowance to Swapic.
      */
     'PoolApprove' : null
@@ -1807,12 +1833,21 @@ export interface _SERVICE {
    */
   'books' : ActorMethod<[], Array<[bigint, BookLines]>>,
   /**
+   * Controller-only, refused while halted: claims what Across's SpokePool on the pool chain
+   * (`chain_id`) holds back for the canister (BSC design 6.2.9), once its
+   * `getRelayerRefund(USDC, canister)` reads above zero, signed with the chain's
+   * `across_claim` gas row. One claim at a time on the chain. The USDC it brings is credited
+   * as any Across refund to the canister, to the payouts Across owes back first. Answers the
+   * signed transaction's id in `signed_txs`.
+   */
+  'claim_across_refund' : ActorMethod<[bigint], Result>,
+  /**
    * Controller-only. Derives the canister's EVM address from its threshold key and caches
    * it, or answers the cached one. Deploy needs this before anything else: the Swapic
    * contracts are configured with this address and it has to be funded for gas, and neither
    * can wait for the first transaction to derive it.
    */
-  'derive_evm_address' : ActorMethod<[], Result>,
+  'derive_evm_address' : ActorMethod<[], Result_1>,
   'event_count' : ActorMethod<[], bigint>,
   /**
    * `len` is capped server-side; ask for the count first and page through. A page may be
@@ -1864,7 +1899,7 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_1
+    Result
   >,
   /**
    * Public, so it answers with the redacted view; `get_config_full` is the ops door onto
@@ -2060,7 +2095,7 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_1
+    Result
   >,
   /**
    * Watcher-only, refused while halted: for the Eco intent the order `order_id` published (a
@@ -2296,7 +2331,7 @@ export interface _SERVICE {
    * could read would tell an outsider how far the canister is from freezing. Any other caller is
    * refused. The balance saturates at `u64::MAX` (about 18 million T), far above any real one.
    */
-  'watcher_cycles_balance' : ActorMethod<[], Result_1>,
+  'watcher_cycles_balance' : ActorMethod<[], Result>,
   /**
    * Any caller (the 65-byte EIP-712 signature proves the staker; the watcher's
    * `POST /v2/withdraw` forwards here), refused while halted, while the pool is closed, and for
