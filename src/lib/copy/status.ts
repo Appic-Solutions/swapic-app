@@ -125,11 +125,16 @@ const MINTING = 'Minting ckUSDC on ICP';
 const WITHDRAWING = 'The ckETH minter is paying USDC on Ethereum';
 const WITHDRAW_TIME = 'Usually 2 to 6 minutes';
 
-export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays' | null; refund: Refund | null; token: Meta; stage?: string }): StepView[] {
+/** The steps toward the destination: a row can come with no chain of its own (a payout's on its way, or a row not recorded yet). */
+const TOWARD_DESTINATION = new Set<StepsAnswer['steps'][number]['step']>(['onItsWay', 'paidOut', 'delivered']);
+
+/** `toChain`: where the swap goes, for a row toward it that names no chain. */
+export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays' | null; refund: Refund | null; token: Meta; stage?: string; toChain?: string | null }): StepView[] {
   let prev: number | null = null;
   const refundFollows = a.steps.some((s) => s.step === 'refunded');
   return a.steps.map((s, k) => {
-    const where = s.chain ? chainName(s.chain) : '';
+    const chain = s.chain ?? (TOWARD_DESTINATION.has(s.step) ? ctx.toChain ?? null : null);
+    const where = chain ? chainName(chain) : '';
     const amount = () => {
       const m = ctx.token(s.chain, s.token);
       return s.amount && m ? `${tokenAmountText(BigInt(s.amount), m.decimals, m.symbol)} ${m.symbol}` : null;
@@ -137,9 +142,9 @@ export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays'
     const label =
       s.step === 'signed' ? (a.kind === 'withdraw' ? 'Withdrawal signed' : ctx.gasMode === 'gasless' ? 'Signed, no gas' : 'Signed')
       : s.step === 'sent' ? `Sent on ${where}`
-      : s.step === 'onItsWay' ? (ctx.stage === 'minting' && s.state === 'wait' ? MINTING : ctx.stage === 'withdrawing' && s.state === 'wait' ? WITHDRAWING : `On its way to ${where}`)
+      : s.step === 'onItsWay' ? (ctx.stage === 'minting' && s.state === 'wait' ? MINTING : ctx.stage === 'withdrawing' && s.state === 'wait' ? WITHDRAWING : where ? `On its way to ${where}` : 'On its way')
       : s.step === 'queued' ? 'Waiting in line'
-      : s.step === 'paidOut' ? `Paid out on ${where}`
+      : s.step === 'paidOut' ? (where ? `Paid out on ${where}` : 'Paid out')
       : s.step === 'staked' ? `Staked ${amount() ?? 'USDC'}`
       : s.step === 'delivered' ? (amount() ? `Delivered ${amount()}` : 'Delivered')
       : s.step === 'refunded' && s.reason === 'deliveredAsUsdc' ? (amount() ? `Delivered ${amount()} instead` : 'Delivered as USDC')

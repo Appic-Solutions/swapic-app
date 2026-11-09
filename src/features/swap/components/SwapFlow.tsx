@@ -411,9 +411,9 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
   const own = activity.own;
   // no status yet (Swapic has not recorded the order): the app's own send and a row that waits for Swapic, never empty
   const data: StatusData = status
-    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode, toWallet: rv.recipient, orderId: activity.id, token, logo, deadline: activity.deadline, own })
+    ? statusView({ status, steps, pay, get, nowSec, feeText: fee, gasText: gas, gasMode, toWallet: rv.recipient, orderId: activity.id, token, logo, deadline: activity.deadline, own, toChain: rv.to.chain })
     : {
-        phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: own ? ownSteps(own, gasMode) : [], early: !!own,
+        phase: 'progress', ending: 'pending', pay, get, refundText: null, reason: null, refund: null, steps: own ? ownSteps(own, gasMode, rv.to.chain) : [], early: !!own,
         when: own ? whenText(own.atMs, nowSec * 1000) : '', title: 'On its way', text: 'Updating live',
         ringLogo: chainLogo(rv.from.chain), to: rv.recipient, fee, gas, orderId: activity.id, totalText: 'Updating live',
       };

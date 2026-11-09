@@ -185,3 +185,54 @@ describe('statusView, before Swapic has recorded the order (the Steps panel is n
     }
   });
 });
+
+describe('statusView, a payout seen before the watcher\'s copy of the log caught up', () => {
+  const ICP = 'icp:737ba355e855bd4b61279056603e0550';
+  const BASE = 'eip155:8453';
+  const SENT_AT = 1794209568794;
+  const row = (step: string, state: string, more: object = {}) => ({ step, state, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null, ...more });
+  // what the watcher answers for payout-3 while its copy has read the pull and the sale, and not yet the payment
+  const lagging = {
+    id: 'payout-3', kind: 'swap', outcome: 'pending',
+    steps: [row('sent', 'done', { chain: ICP, atMs: SENT_AT, block: 40206977 }), row('onItsWay', 'done', { atMs: SENT_AT + 16_417 }), row('paidOut', 'wait'), row('delivered', 'todo')],
+  };
+  const caught = {
+    id: 'payout-3', kind: 'swap', outcome: 'delivered',
+    steps: [...lagging.steps.slice(0, 2), row('paidOut', 'done', { chain: BASE, atMs: SENT_AT + 48_029, tx: '0xd46e' }), row('delivered', 'done', { chain: BASE, atMs: SENT_AT + 48_029, tx: '0xd46e' })],
+  };
+  const payout = { id: 3, kind: 'icpSwap', status: 'paid', outcome: 'delivered', stage: 'delivered', terms: {}, queue: null, refund: null };
+  const view = (status: object, steps: object | undefined, own: { chain: string; tx: null; atMs: number } | null = null) => statusView({
+    status: status as never, steps: steps as never, pay: side, get: side, nowSec: Math.floor(SENT_AT / 1000) + 60,
+    feeText: '$0.05', gasText: 'None', gasMode: 'gasless', toWallet: '', orderId: 'payout-3', token, toChain: BASE, own,
+  });
+
+  it('Delivered: every step is done at once, named for where it goes, with no number yet', () => {
+    const v = view(payout, lagging);
+    expect(v.phase).toBe('delivered');
+    expect(v.steps.map((s) => [s.label, s.state])).toEqual([['Sent on ICP', 'done'], ['On its way to Base', 'done'], ['Paid out on Base', 'done'], ['Delivered', 'done']]);
+    expect(v.text).toBe('Arrived');
+    expect(v.totalText).toBe('');
+  });
+  it('then the times and the link fill in', () => {
+    const v = view(payout, caught);
+    expect(v.text).toBe('Arrived in 48 sec');
+    expect(v.steps[2]!.tx?.text).toBe('0xd46e');
+  });
+  it('still moving: the steps stay as the copy has them', () => {
+    const v = view({ ...payout, outcome: 'pending', stage: 'swapping', status: 'swapping' }, lagging);
+    expect(v.steps.map((s) => s.state)).toEqual(['done', 'done', 'wait', 'todo']);
+  });
+  it('a refund does not tick the steps it never reached', () => {
+    const v = view({ ...payout, outcome: 'refunded', stage: 'refunded', status: 'undone' }, lagging);
+    expect(v.phase).toBe('refunded');
+    expect(v.steps.map((s) => s.state)).toEqual(['done', 'done', 'wait', 'todo']);
+  });
+  it('the canister answered and the copy has no row yet: the sale as the app saw it, never an empty panel', () => {
+    const own = { chain: ICP, tx: null, atMs: SENT_AT };
+    for (const steps of [undefined, { id: 'payout-3', kind: 'swap', outcome: 'pending', steps: [] }]) {
+      const v = view({ ...payout, outcome: 'pending', stage: 'swapping', status: 'swapping' }, steps, own);
+      expect(v.early).toBe(true);
+      expect(v.steps.map((s) => [s.label, s.state])).toEqual([['Sent on ICP', 'done'], ['On its way to Base', 'wait']]);
+    }
+  });
+});

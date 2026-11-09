@@ -107,7 +107,7 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
     gcTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 20_000 : false),
+    refetchInterval: 20_000,
   });
   // from ICP: the pool takes the amount itself; the person pays two ledger fees (the approval and the pull)
   const fee = useQuery({ queryKey: ['ledger-fee', CKUSDC], queryFn: () => icpClient().ledgerFee(CKUSDC), enabled: fromIcp, staleTime: 600_000 }).data;

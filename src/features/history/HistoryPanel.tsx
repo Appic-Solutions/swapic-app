@@ -40,7 +40,7 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { or
     queryKey: ['steps', order.id],
     queryFn: () => getSteps(order.id),
     enabled: open,
-    refetchInterval: () => (open && live && typeof document !== 'undefined' && document.visibilityState === 'visible' ? 10_000 : false),
+    refetchInterval: () => (open && live ? 10_000 : false),
   }).data;
   // the steps say the order ended while the row still says in progress: the row ends at once too
   const stepsEnded = !!steps && steps.outcome !== 'pending';
@@ -53,7 +53,7 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { or
       open={open}
       onToggle={onToggle}
       onOpenScanner={onOpenScanner}
-      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage }) : undefined}
+      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
     />
   );
 }
@@ -65,7 +65,7 @@ function OrderInPlace({ raw, onBack }: { raw: ActivityRow; onBack: () => void })
   return (
     <OrderDetail
       order={orderView(raw, Math.floor(Date.now() / 1000), logo)}
-      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage }) : undefined}
+      steps={steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
       loading={false}
       onBack={onBack}
     />

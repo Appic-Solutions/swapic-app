@@ -121,3 +121,17 @@ describe('a wallet step whose transaction is mining', () => {
     expect(problems([APPROVING, WAITING_CONFIRMATION, CONFIRMING_SWAP, confirmingOn('Arbitrum')])).toEqual([]);
   });
 });
+
+describe('a step with no chain of its own', () => {
+  const steps = (step: 'onItsWay' | 'paidOut', chain: string | null) => ({ id: 'payout-3', kind: 'swap' as const, outcome: 'pending' as const, steps: [{ step, state: 'done' as const, chain, atMs: null, tx: null, block: null, amount: null, token: null, reason: null }] });
+  const label = (step: 'onItsWay' | 'paidOut', chain: string | null, toChain?: string) => stepViews(steps(step, chain), { gasMode: 'gasless', refund: null, token, toChain })[0]!.label;
+  it('takes the name of where the swap goes', () => {
+    expect(label('onItsWay', null, 'eip155:8453')).toBe('On its way to Base');
+    expect(label('paidOut', null, 'eip155:8453')).toBe('Paid out on Base');
+  });
+  it('reads whole with no chain known at all, and its own chain wins', () => {
+    expect(label('onItsWay', null)).toBe('On its way');
+    expect(label('paidOut', null)).toBe('Paid out');
+    expect(label('onItsWay', 'eip155:42161', 'eip155:8453')).toBe('On its way to Arbitrum');
+  });
+});
