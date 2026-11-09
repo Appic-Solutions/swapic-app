@@ -75,6 +75,14 @@ describe('checkWithdrawQuote', () => {
     expect(rule(() => checkWithdrawQuote(input({ ...FIXED, maxShares: '1000' })))).toBe('maxShares');
     expect(rule(() => checkWithdrawQuote(input({ ...FIXED, maxShares: '6000000000000000000' })))).toBe('maxShares');
   });
+  it('leaves room for the pool fee burned beside the withdrawal, and never believes one above a dollar', () => {
+    // $5 out with a cent of pool fee: 1% more shares than the USDC's own, past the plain rule, inside the fee's
+    const padded = { ...FIXED, maxShares: '5040000000000000000' };
+    expect(rule(() => checkWithdrawQuote(input(padded)))).toBe('maxShares');
+    const c = checkWithdrawQuote(input(padded, { poolFee: 10_000n }));
+    expect(c.poolFee).toBe(10_000n);
+    expect(rule(() => checkWithdrawQuote(input(padded, { poolFee: 1_000_001n })))).toBe('poolFee');
+  });
 });
 
 describe('normalizeSignature', () => {

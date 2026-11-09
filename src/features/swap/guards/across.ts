@@ -4,8 +4,9 @@
 // rebuilt from the envelope and recipe it carries. On a you pay gas order the canister reads nothing, so these rules are
 // the only check between the quoter and the person's money.
 // Must never happen: a deposit to another SpokePool, or whose refund and speed-ups are not the payer's (AX5); one into
-// another chain's token, or out of anything but the source's USDC (AX6); a recipient that is one of ours, or a message to
-// anything but the destination's MulticallHandler into its Runner (AX7, AM1, AM2); an arrival that is not a sealed swap
+// another chain's token, or out of anything but the source's USDC (AX6); a recipient that is one of ours (but the canister
+// on the pool chain, for a pool deposit whose order's memo carries its terms: AX7 c), or a message to anything but the
+// destination's MulticallHandler into its Runner (AX7, AM1, AM2); an arrival that is not a sealed swap
 // of this order (AM3) or not KyberSwap's (AM4); a fill window, exclusivity or quote time the SpokePool or a relayer could
 // use against the person (AX8, AX9, AX12); a deposit that promises more than a relayer fills, or lets one keep more than
 // the canister's bound (AX13, AX14).
@@ -172,7 +173,13 @@ export function acrossDelivery(d: AcrossDeposit, o: OrderValue, ctx: PlanContext
   const fill = BigInt(d.fillDeadline);
   let delivery: AcrossRead['delivery'];
   let envelope: Envelope | null = null;
-  if (d.message === '0x') {
+  // AX7 c: into the pool, to the canister on the pool's chain in its USDC, with no message and the order's memo carrying
+  // the deposit's terms (the pool check then reads the memo against the screen)
+  const intoPool = d.message === '0x' && !!ctx.canisterEvm && sameAddress(d.recipient, ctx.canisterEvm)
+    && ctx.config.poolChain === d.destination && o.memo !== '0x';
+  if (intoPool) {
+    delivery = { chainId: d.destination, recipient: d.recipient, token: dest!.usdc, minOut: d.outputAmount };
+  } else if (d.message === '0x') {
     // AX7: straight to the person
     must(!ours(d.recipient), 'recipient');
     delivery = { chainId: d.destination, recipient: d.recipient, token: dest!.usdc, minOut: d.outputAmount };

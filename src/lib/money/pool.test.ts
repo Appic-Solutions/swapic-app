@@ -28,6 +28,14 @@ describe('pool math', () => {
     const small = { shares: 595_000_000_000_000_000_000n, valueUsdc: 600_300_000n };
     expect(planIcpWithdraw(600_000_000n, small, A, S).maxShares).toBe(small.shares);
   });
+  it('lets the pool fee burn beside an ICP withdrawal, and a full exit stays every share', () => {
+    const account = { shares: 1_182_254_000_000_000_000_000n, valueUsdc: 1_192_805_102n };
+    const plain = planIcpWithdraw(600_000_000n, account, A, S);
+    const withFee = planIcpWithdraw(600_000_000n, account, A, S, 10_000n);
+    expect(withFee.maxShares).toBe(maxSharesFor(600_010_000n, A, S));
+    expect(withFee.maxShares > plain.maxShares).toBe(true);
+    expect(planIcpWithdraw(1_192_805_102n, account, A, S, 10_000n)).toEqual({ usdc: 1_192_805_102n, maxShares: account.shares, all: true });
+  });
   it('splits 25/50/75/Max and takes basis points, floored', () => {
     expect(percentOf(1_192_805_102n, 25)).toBe(298_201_275n);
     expect(percentOf(1_192_805_102n, 100)).toBe(1_192_805_102n);

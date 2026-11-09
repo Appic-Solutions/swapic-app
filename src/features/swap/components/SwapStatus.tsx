@@ -156,14 +156,17 @@ export interface SwapStatusProps {
   data: StatusData;
   /** The ring's motion: how full, how long to get there, yellow while refunding, the card it grows out of. */
   ring: Omit<LiveRingProps, 'phase' | 'logo'>;
+  /** Make another swap: a fresh Swap card. */
   onNew?: () => void;
+  /** Try again, on a swap that did not start: the same swap once more (Make another swap's when not given). */
+  onRetry?: () => void;
   onHistory?: () => void;
   /** Not a swap: the words, details, note and buttons of that flow (the stake status). */
   text?: StatusText;
 }
 
 /** After signing: where the money is (ring and stepper), what was paid and what comes, the steps, and the details. */
-export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatusProps) {
+export function SwapStatus({ data: d, ring, onNew, onRetry, onHistory, text }: SwapStatusProps) {
   const card = text ? fade : rise;
   const [copied, copy] = useCopied();
   const done = d.steps.filter((s) => s.state === 'done').length;
@@ -247,7 +250,7 @@ export function SwapStatus({ data: d, ring, onNew, onHistory, text }: SwapStatus
           >
             <HistoryIcon width={20} height={20} />History
           </button>
-          <ActionButton isDisabled={false} onClick={onNew}>{d.phase === 'stopped' ? 'Try again' : 'Make another swap'}</ActionButton>
+          <ActionButton isDisabled={false} onClick={d.phase === 'stopped' ? onRetry ?? onNew : onNew}>{d.phase === 'stopped' ? 'Try again' : 'Make another swap'}</ActionButton>
         </div>
       )}
     />

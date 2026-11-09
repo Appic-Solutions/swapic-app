@@ -36,7 +36,7 @@ import { evmStakeReview, icpStakeReview } from '../review';
 import type { StakeStart } from './StakeReview';
 import { USDC_LOGO } from '../usdc';
 import { StakeAvatar } from './parts';
-import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, POOL_PAUSED, stakeCheckOf, stakeRoom, stakeView, usdcText } from '../flows';
+import { checkStakeRoute, CKUSDC, icpMoveFee, pickStakeOption, poolFeeOf, POOL_PAUSED, stakeCheckOf, stakeRoom, stakeView, usdcText } from '../flows';
 
 const NO_ROUTE = 'No route found for this amount';
 const ICP_STAKE_OFF = 'Staking from ICP is not available right now. Try again soon.';
@@ -123,10 +123,11 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
   );
   const checked = live?.checked ?? null;
   const checkError = live?.error ?? null;
+  const poolFee = poolFeeOf(pool);
   const view = fromIcp
-    ? (amount !== null && amount > 0n && fee !== undefined && moveFee !== null && amount > moveFee
-      ? { added: amount - moveFee, addedText: formatUsd(amount - moveFee).slice(1), feeText: usdcText(2n * fee + moveFee), readyText: '5 sec' } : null)
-    : option && checked ? stakeView(option, checked) : null;
+    ? (amount !== null && amount > 0n && fee !== undefined && moveFee !== null && amount > moveFee + poolFee
+      ? { added: amount - moveFee - poolFee, addedText: formatUsd(amount - moveFee - poolFee).slice(1), feeText: usdcText(2n * fee + moveFee + poolFee), readyText: '5 sec' } : null)
+    : option && checked ? stakeView(option, checked, poolFee) : null;
   // skeletons from the moment an amount that will be quoted is typed until its quote answers (the design's loading card)
   const asks = !fromIcp && !!from && !!evm && !!pool && !closed && !smart && amount !== null && amount > 0n && !capped;
   const loading = asks && (typed !== amountText || (!!request && q.isFetching && !q.data));
@@ -159,14 +160,14 @@ export function StakePanel({ from, amountText, onAmountText, onPickFrom, onBack,
     setNote(null);
     if (fromIcp) {
       if (fee === undefined || moveFee === null || !icp) return;
-      onReview({ from, amount, owner: icp.principal, review: icpStakeReview(amount, fee, moveFee, from), apyLine });
+      onReview({ from, amount, owner: icp.principal, review: icpStakeReview(amount, fee, moveFee, from, poolFee), apyLine });
       return;
     }
     if (!q.data || !option || !evm) return;
     try {
       // checked again at the click: the anchors or the clock may have moved since the render
       const fresh = checkStakeRoute({ quote: q.data, option, from, amount, owner: evm.address, guard, nowSec: Math.floor(Date.now() / 1000) });
-      onReview({ from, amount, owner: evm.address, review: evmStakeReview({ option, checked: fresh, from, amount, native }), evm: { approval: !!fresh.approval, native }, apyLine });
+      onReview({ from, amount, owner: evm.address, review: evmStakeReview({ option, checked: fresh, from, amount, native, poolFee }), evm: { approval: !!fresh.approval, native }, apyLine });
     } catch (e) {
       setNote(e instanceof GuardError ? GUARD_MESSAGE : userMessage(e));
     }

@@ -31,10 +31,11 @@ export interface Holding { shares: bigint; valueUsdc: bigint }
 export interface IcpWithdrawPlan { usdc: bigint; maxShares: bigint; all: boolean }
 
 /** withdraw_icp's numbers: all of it (usdc = value, every share), or the amount with the quoter's 0.5% room, capped at what is owned. */
-export function planIcpWithdraw(wanted: bigint, h: Holding, totalAssets: bigint, totalShares: bigint): IcpWithdrawPlan {
+export function planIcpWithdraw(wanted: bigint, h: Holding, totalAssets: bigint, totalShares: bigint, poolFee = 0n): IcpWithdrawPlan {
   if (wanted <= 0n) throw new RangeError('nothing to withdraw');
   if (wanted >= h.valueUsdc) return { usdc: h.valueUsdc, maxShares: h.shares, all: true };
-  const most = maxSharesFor(wanted, totalAssets, totalShares);
+  // the pool fee's shares are burned beside the amount's (the canister's burn_for_withdrawal)
+  const most = maxSharesFor(wanted + poolFee, totalAssets, totalShares);
   return { usdc: wanted, maxShares: most < h.shares ? most : h.shares, all: false };
 }
 

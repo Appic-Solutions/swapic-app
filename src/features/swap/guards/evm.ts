@@ -45,7 +45,7 @@ import type { SwapicConfigView } from '@/lib/icp';
 import { decodeEnvelope, principalWord, sameEnvelope } from './envelope';
 import { GuardError, must } from './errors';
 import { decodeMemo, memoRef, type MemoTerms } from './memo';
-import { readPlan, type Plan } from './plan';
+import { readPlan, type Fallback, type Plan } from './plan';
 import { txTailAllowed } from './across';
 
 export interface EvmCheckInput {
@@ -189,8 +189,13 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
 /** The fallbacks the Review screen shows are the order's own: an Across order's each its chain, its USDC (named USDC,
  *  in the decimals the canister holds for it) and its least; any other order shows none of those two kinds. */
 export function checkFallbacks(r: Pick<Route, 'fallbacks'>, plan: Plan, config: SwapicConfigView): void {
-  const want = [['notFilled', plan.fallbacks?.notFilled ?? null], ['lastSwapFails', plan.fallbacks?.lastSwapFails ?? null]] as const;
-  for (const [when, f] of want) {
+  checkShownFallbacks(r, { notFilled: plan.fallbacks?.notFilled ?? null, lastSwapFails: plan.fallbacks?.lastSwapFails ?? null }, config);
+}
+
+/** The answer shows exactly `want` of those two kinds: each its chain, its USDC (named USDC, in the decimals the canister
+ *  holds for it) and its least, and nothing of a kind wanted none. */
+export function checkShownFallbacks(r: Pick<Route, 'fallbacks'>, want: { notFilled: Fallback | null; lastSwapFails: Fallback | null }, config: SwapicConfigView): void {
+  for (const [when, f] of [['notFilled', want.notFilled], ['lastSwapFails', want.lastSwapFails]] as const) {
     const shown = (r.fallbacks ?? []).filter((x) => x.when === when);
     if (!f) { must(shown.length === 0, 'fallbacks'); continue; }
     const s = shown[0];
