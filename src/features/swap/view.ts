@@ -59,16 +59,6 @@ export function etaText(seconds: number): string {
   return seconds < 90 ? `${seconds} sec` : `${Math.round(seconds / 60)} min`;
 }
 
-/** "You get about $X less than you pay" when the quoter flags a big impact (shown once Jeff approves SwapPriceImpactScreen). */
-function impactWarning(p: PickedOption, ctx: { from: UiToken; to: UiToken; amountIn: bigint }): string | undefined {
-  const w = p.route.warnings;
-  if (!w.includes('highPriceImpact') && !w.includes('severePriceImpact')) return undefined;
-  const usdIn = usdMicro(ctx.amountIn, ctx.from.decimals, ctx.from.priceUsd);
-  const usdOut = usdMicro(BigInt(p.route.amountOut), ctx.to.decimals, ctx.to.priceUsd);
-  if (usdIn === null || usdOut === null || usdOut >= usdIn) return undefined;
-  return `You get about ${formatUsd(usdIn - usdOut)} less than you pay`;
-}
-
 export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; amountIn: bigint; sameChainNoUsdc: boolean; native: NativeCoin }): RouteOptionView {
   const r = p.route;
   const amountOut = BigInt(r.amountOut);
@@ -89,7 +79,6 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     gaslessNote: gaslessNote(p, ctx.from, ctx.native),
     approve: approveState(p, ctx.native),
     approveBlocked: `You need a little ${ctx.native.symbol} to approve ${ctx.from.symbol} once`,
-    warning: impactWarning(p, ctx),
     viaMinter: r.routeId.split('+').includes('ckMinter'),
   };
 }
