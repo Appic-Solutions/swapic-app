@@ -78,6 +78,14 @@ export const STEP_ABI = parseAbi([
   'struct SwapDescription { address srcToken; address dstToken; address[] srcReceivers; uint256[] srcAmounts; address[] feeReceivers; uint256[] feeAmounts; address dstReceiver; uint256 amount; uint256 minReturnAmount; uint256 flags; bytes permit; }',
   'struct SwapExecution { address callTarget; address approveTarget; bytes targetData; SwapDescription desc; bytes clientData; }',
   'function swap(SwapExecution execution) payable returns (uint256, uint256)',
+  // Across's SpokePoolPeriphery (selector 0x110560ad) and MulticallHandler (BSC design 7.1, 7.3)
+  'struct AcrossFees { uint256 amount; address recipient; }',
+  'struct BaseDepositData { address inputToken; bytes32 outputToken; uint256 outputAmount; address depositor; bytes32 recipient; uint256 destinationChainId; bytes32 exclusiveRelayer; uint32 quoteTimestamp; uint32 fillDeadline; uint32 exclusivityParameter; bytes message; }',
+  'struct SwapAndDepositData { AcrossFees submissionFees; BaseDepositData depositData; address swapToken; address exchange; uint8 transferType; uint256 swapTokenAmount; uint256 minExpectedInputTokenAmount; bytes routerCalldata; bool enableProportionalAdjustment; address spokePool; uint256 nonce; }',
+  'function swapAndBridge(SwapAndDepositData swapAndDepositData) payable',
+  'struct Replacement { address token; uint256 offset; }',
+  'function makeCallWithBalance(address target, bytes callData, uint256 value, Replacement[] replacement)',
+  'function balanceOf(address owner) view returns (uint256)',
 ]);
 /** Eco Portal v2.12's Route (libraries/onchain/src/eco/mod.rs:15-46 in the services worktree). */
 export const ECO_ROUTE = parseAbiParameters(

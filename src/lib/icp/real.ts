@@ -43,13 +43,25 @@ export function realIcpClient(): IcpClient {
         c.evm_chains.map(([id, ch]) => [Number(id), {
           swapic: hex(ch.swapic), usdc: hex(ch.usdc), runner: hex(ch.runner),
           cctpReceiver: hex(ch.cctp_receiver), tokenMessenger: hex(ch.token_messenger),
+          usdcDecimals: ch.usdc_decimals[0] ?? 6,
+          across: ch.across[0] ? {
+            periphery: hex(ch.across[0].periphery), swapProxy: hex(ch.across[0].swap_proxy),
+            spokePool: hex(ch.across[0].spoke_pool), multicallHandler: hex(ch.across[0].multicall_handler),
+          } : null,
         }]),
       );
+      const fee = c.across_fee[0];
+      const integrator = c.across_integrator[0];
       return {
         poolChain: c.pool_chain[0] === undefined ? null : Number(c.pool_chain[0]),
         chains,
         cctpDomains: new Map(c.cctp_domains.map(([id, d]) => [Number(id), Number(d)])),
         ecoPortal: c.eco_portal[0] ? hex(c.eco_portal[0]) : null,
+        acrossFee: fee ? {
+          leastPpm: fee.least_ppm, mostPpm: fee.most_ppm,
+          gasAllowanceUsd6: new Map(fee.gas_allowance_usd6.map(([id, usd6]) => [Number(id), usd6])),
+        } : null,
+        acrossIntegrator: integrator && /^0x[0-9a-fA-F]{4}$/.test(integrator) ? Number.parseInt(integrator.slice(2), 16) : null,
       };
     },
     async ecoProver() {
