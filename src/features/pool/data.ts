@@ -113,11 +113,10 @@ export function activityRows(items: PoolActivityItem[], nowSec: number) {
   });
 }
 
-const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
-/** Pool numbers every 60 s while visible (spec 7, my call). */
-export const usePool = () => useQuery({ queryKey: ['pool'], queryFn: getPool, refetchInterval: () => (visible() ? 60_000 : false) });
+/** Pool numbers every 60 s while visible (spec 7, my call): react-query skips a tick while the tab is hidden. */
+export const usePool = () => useQuery({ queryKey: ['pool'], queryFn: getPool, refetchInterval: 60_000 });
 export const usePoolHistory = (tf: Timeframe) => useQuery({ queryKey: ['pool-history', RANGE[tf]], queryFn: () => getPoolHistory(RANGE[tf]), staleTime: 300_000 });
-export const usePoolActivity = () => useQuery({ queryKey: ['pool-activity'], queryFn: () => getPoolActivity(), refetchInterval: () => (visible() ? 60_000 : false) });
+export const usePoolActivity = () => useQuery({ queryKey: ['pool-activity'], queryFn: () => getPoolActivity(), refetchInterval: 60_000 });
 
 /** One account per connected wallet (contract section 2): the EVM address; the ICP principal's default account. */
 export function useMyStakes() {
@@ -125,7 +124,7 @@ export function useMyStakes() {
   const icp = useWallets((s) => s.icp);
   const owners = [...(evm ? [{ kind: 'evm' as const, owner: evm.address }] : []), ...(icp ? [{ kind: 'icp' as const, owner: icp.principal }] : [])];
   const qs = useQueries({
-    queries: owners.map((o) => ({ queryKey: ['account', o.owner], queryFn: () => getAccount(o.owner), refetchInterval: () => (visible() ? 60_000 : false) })),
+    queries: owners.map((o) => ({ queryKey: ['account', o.owner], queryFn: () => getAccount(o.owner), refetchInterval: 60_000 })),
   });
   const stakes: MyStake[] = qs.flatMap((q, k) => (q.data ? [{
     kind: owners[k]!.kind, owner: owners[k]!.owner, shares: BigInt(q.data.shares), valueUsdc: BigInt(q.data.valueUsdc),

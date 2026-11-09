@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { problems } from '../../../scripts/check-copy.mjs';
-import { APPROVING, CONFIRMING_SWAP, WAITING_CONFIRMATION, confirmingOn, endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepViews, tokenAmountText, tookText, type EndInput } from './status';
+import { APPROVING, CONFIRMING_SWAP, WAITING_CONFIRMATION, confirmingOn, endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepsOfDelivered, stepViews, tokenAmountText, tookText, type EndInput } from './status';
 
 const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const META: Record<string, { symbol: string; decimals: number }> = {
@@ -119,5 +119,37 @@ describe('a wallet step whose transaction is mining', () => {
   it('says the network is awaited, in one place for the swap and the stake, and passes the copy rules', () => {
     expect([APPROVING, WAITING_CONFIRMATION, CONFIRMING_SWAP, confirmingOn('Arbitrum')]).toEqual(['Approving, waiting for the network', 'Waiting for confirmation', 'Confirming your swap', 'Confirming on Arbitrum']);
     expect(problems([APPROVING, WAITING_CONFIRMATION, CONFIRMING_SWAP, confirmingOn('Arbitrum')])).toEqual([]);
+  });
+});
+
+describe('a step with no chain of its own', () => {
+  const steps = (step: 'onItsWay' | 'paidOut', chain: string | null) => ({ id: 'payout-3', kind: 'swap' as const, outcome: 'pending' as const, steps: [{ step, state: 'done' as const, chain, atMs: null, tx: null, block: null, amount: null, token: null, reason: null }] });
+  const label = (step: 'onItsWay' | 'paidOut', chain: string | null, toChain?: string) => stepViews(steps(step, chain), { gasMode: 'gasless', refund: null, token, toChain })[0]!.label;
+  it('takes the name of where the swap goes', () => {
+    expect(label('onItsWay', null, 'eip155:8453')).toBe('On its way to Base');
+    expect(label('paidOut', null, 'eip155:8453')).toBe('Paid out on Base');
+  });
+  it('a sent row with no chain reads whole too', () => {
+    const row = { id: 'x', kind: 'swap' as const, outcome: 'pending' as const, steps: [{ step: 'sent' as const, state: 'wait' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null }] };
+    expect(stepViews(row, { gasMode: 'gasless', refund: null, token })[0]!.label).toBe('Sent');
+  });
+  it('reads whole with no chain known at all, and its own chain wins', () => {
+    expect(label('onItsWay', null)).toBe('On its way');
+    expect(label('paidOut', null)).toBe('Paid out');
+    expect(label('onItsWay', 'eip155:42161', 'eip155:8453')).toBe('On its way to Arbitrum');
+  });
+});
+
+describe('stepsOfDelivered', () => {
+  const answer = { id: 'payout-3', kind: 'swap' as const, outcome: 'pending' as const, steps: [
+    { step: 'sent' as const, state: 'done' as const, chain: null, atMs: 1, tx: null, block: null, amount: null, token: null, reason: null },
+    { step: 'paidOut' as const, state: 'wait' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null },
+    { step: 'delivered' as const, state: 'todo' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null },
+  ] };
+  it('ticks every step of a delivered record the copy has not caught up with', () => {
+    expect(stepsOfDelivered(answer, 'delivered').steps.map((s) => s.state)).toEqual(['done', 'done', 'done']);
+  });
+  it('leaves any other record as it is, a refund included', () => {
+    for (const outcome of ['pending', 'refunded', 'failed']) expect(stepsOfDelivered(answer, outcome)).toBe(answer);
   });
 });

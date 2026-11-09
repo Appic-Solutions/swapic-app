@@ -6,6 +6,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
+import { useQuery } from '@tanstack/react-query';
 import { PanelBox } from '@/components/motion/parts';
 import { useScrollFade } from '@/components/ui/use-scroll-fade';
 import { fade, openHeight, tw, useMounted, useReducedMotion } from '@/lib/motion';
@@ -84,6 +85,24 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   // typed); the quote's state alone changes 600 ms later, and the cards left in the narrowing panel showed at its edge.
   const column = both && state !== 'none' && amount !== null && amount > 0n;
   const { balance, loading: balanceLoading } = useBalance(from);
+  // what Max keeps back, read ahead so the click fills the amount at once: the ledger's fee, which hardly ever changes (the
+  // swap reads it again before its approve), or the gas price
+  const ledgerFee = useQuery({
+    queryKey: ['ledger-fee', from?.address],
+    queryFn: () => icpClient().ledgerFee(from!.address),
+    enabled: from?.chain_type === 'ICP' && !!icp,
+    staleTime: 600_000,
+    refetchInterval: 600_000,
+  }).data;
+  const paysGas = !!from && from.chain_type === 'EVM' && (from.address === ZERO || isGasUsdc(from.chain, from.address));
+  const gasPrice = useQuery({
+    queryKey: ['max-fee-per-gas', from?.chainId, signer?.address],
+    // a read that fails keeps the last good price: the fallback is for a click with none at all
+    queryFn: () => signer!.maxFeePerGas(from!.chainId),
+    enabled: paysGas && !!signer,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  }).data;
   const overBalance = amount !== null && balance !== undefined && amount > balance;
   const fromWallet = from ? (from.chain_type === 'ICP' ? !!icp : !!evm) : false;
   const usd = from && amount !== null ? usdMicro(amount, from.decimals, from.priceUsd) : null;
@@ -175,18 +194,18 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
 
   const onMax = async () => {
     if (!from || balance === undefined) return;
+    const feePerGas = async () => gasPrice ?? (signer ? signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS);
     let max = balance;
     if (from.chain_type === 'ICP') {
-      max = maxIcp(balance, await icpClient().ledgerFee(from.address));
+      max = maxIcp(balance, ledgerFee ?? await icpClient().ledgerFee(from.address));
     } else if (from.address === ZERO) {
-      const feePerGas = signer ? await signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS;
-      max = maxNative(balance, nativeReserve(feePerGas));
+      max = maxNative(balance, nativeReserve(await feePerGas()));
     } else if (isGasUsdc(from.chain, from.address)) {
       // Arc: the USDC token is the gas money too
-      const feePerGas = signer ? await signer.maxFeePerGas(from.chainId).catch(() => FALLBACK_FEE_PER_GAS) : FALLBACK_FEE_PER_GAS;
-      max = maxNative(balance, usdcGasReserve(nativeReserve(feePerGas)));
+      max = maxNative(balance, usdcGasReserve(nativeReserve(await feePerGas())));
     }
-    f.set({ amountText: formatUnits(max, from.decimals).replace(/,/g, '') });
+    const amountText = formatUnits(max, from.decimals).replace(/,/g, '');
+    f.set({ amountText, maxText: amountText });
   };
   const onButton = () => {
     if (button.text === 'Connect wallet') {

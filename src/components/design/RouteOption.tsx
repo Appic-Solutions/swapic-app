@@ -1,6 +1,6 @@
 // Route option card, the layout Jeff picked 2026-11-05 (sample 4 on the canvas): tags and timer, the amount large with its
 // dollar value and the time, gas in its own box, and the details opening under it.
-// 1. Every route shows Swapic as the provider; a big price impact shows a yellow warning under the amount.
+// 1. Every route shows Swapic as the provider.
 // 2. A gasless card reads 0 gas fees in a green box, unless the wallet must approve Permit2 first (Jeff 2026-11-06): then it
 //    says so, or, with none of the coin to pay for that approve, that it cannot go on. The fee row shows on a You pay gas card and on Review swap (Jeff
 //    2026-11-05: the home page promises the total fee before you sign), never on a gasless card in the Swap list.
@@ -43,8 +43,6 @@ export interface RouteOptionView {
   gasText: string;
   /** The ck minter's slow path, the fallback when Swapic's pool cannot cover the swap: its own name and the ICP logo. */
   viaMinter?: boolean;
-  /** Yellow warning under the amount, e.g. when the price impact is big. */
-  warning?: string;
   /** The green box's line on a gasless card: "Just sign, no ETH needed", or the wallet has none of the coin. */
   gaslessNote?: string;
   /** The wallet must approve first: it can ('once'), or it holds no coin to pay with ('noCoin'). */
@@ -203,12 +201,6 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
         </AnimatePresence>
       ) : (
         hero
-      )}
-      {o.warning && (
-        <p className="flex w-full items-center gap-x-1.5 text-xs font-normal text-warn">
-          <WarningIcon width={16} height={16} className="shrink-0" />
-          {o.warning}
-        </p>
       )}
       {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
       {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}

@@ -32,7 +32,6 @@ import { scannerTiles } from './stats';
 import { Tiles } from './Tiles';
 
 const MAX_CHIPS = 20;
-const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
 
 /** Chips from the link's `q` (comma separated wallets); anything else in it is dropped. */
 export function chipsOf(q: string | null): Chip[] {
@@ -93,7 +92,7 @@ export function ScannerPanel({ initialQ, onOpen, onLink }: { initialQ: string | 
   const [error, setError] = React.useState<string | null>(null);
   const searching = chips.length > 0;
 
-  const stats = useQuery({ queryKey: ['scanner-stats'], queryFn: getScannerStats, refetchInterval: () => (visible() ? 10_000 : false) });
+  const stats = useQuery({ queryKey: ['scanner-stats'], queryFn: getScannerStats, refetchInterval: 10_000 });
   // the feed (240 a minute bucket) and the wallets' rows (20 a minute, shared with History): the newest page every period,
   // older pages once, as the list nears its end
   const feed = useLiveList({

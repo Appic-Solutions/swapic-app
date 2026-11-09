@@ -109,7 +109,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
     gcTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: () => (typeof document !== 'undefined' && document.visibilityState === 'visible' ? 30_000 : false),
+    refetchInterval: 30_000,
   });
   const state = useQuery({ queryKey: ['pool-state'], queryFn: () => icpClient().poolState(), staleTime: 30_000 });
   // an ICP stake pays ckUSDC less the payout's ledger fee (the canister takes every ledger fee out of the amount)
