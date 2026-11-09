@@ -3,6 +3,7 @@ import type { RouteOptionView } from '@/components/design/RouteOption';
 import type { UiToken } from '@/components/ui/token-types';
 import { tokenAmountText } from '@/lib/copy/format';
 import { dollarsToMicro, formatAmount, formatUsd, parseDecimal, usdMicro } from '@/lib/money';
+import { gasIsUsdc } from '@/lib/chains';
 import { shownMinOf, type PickedOption } from './options';
 
 export interface NativeCoin {
@@ -17,7 +18,9 @@ export interface NativeCoin {
  *  needs none; any other wallet reads "Just sign". Only EVM sources: an ICP wallet pays no gas coin anyway. */
 export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin): string | undefined {
   if (p.mode === 'userPays' || from.chain_type !== 'EVM' || !native.symbol) return undefined;
-  return native.held === false ? `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway` : `Just sign, no ${native.symbol} needed`;
+  if (native.held === false) return `You have no ${native.symbol} on ${from.chainName}. Gasless works anyway`;
+  // Arc pays its gas in USDC: "no USDC needed" would read wrong beside a USDC swap
+  return gasIsUsdc(from.chain) ? 'Just sign, no gas to pay' : `Just sign, no ${native.symbol} needed`;
 }
 
 /** A gasless card whose wallet must approve Permit2 first (Jeff 2026-11-06): 'once' when it can pay that gas, 'noCoin' when

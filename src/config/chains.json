@@ -9,5 +9,7 @@
   { "id": "eip155:143", "name": "Monad", "logo": "/images/logo/chains-logos/monad.svg", "explorer": "https://monadscan.com", "rpcHosts": ["https://rpc.monad.xyz", "https://rpc1.monad.xyz"] },
   { "id": "eip155:999", "name": "HyperEVM", "logo": "/images/logo/chains-logos/hyperevm.svg", "explorer": "https://hyperevmscan.io", "rpcHosts": ["https://rpc.hyperliquid.xyz"] },
   { "id": "eip155:480", "name": "World Chain", "logo": "/images/logo/chains-logos/worldchain.svg", "explorer": "https://worldscan.org", "rpcHosts": ["https://worldchain-mainnet.g.alchemy.com"] },
-  { "id": "eip155:9745", "name": "Plasma", "logo": "/images/logo/chains-logos/plasma.svg", "explorer": "https://plasmascan.to", "rpcHosts": ["https://rpc.plasma.to"] }
+  { "id": "eip155:9745", "name": "Plasma", "logo": "/images/logo/chains-logos/plasma.svg", "explorer": "https://plasmascan.to", "rpcHosts": ["https://rpc.plasma.to"] },
+  { "id": "eip155:43114", "name": "Avalanche", "logo": "/images/logo/chains-logos/avalanche.png", "explorer": "https://snowtrace.io", "rpcHosts": [] },
+  { "id": "eip155:5042", "name": "Arc", "logo": "/images/logo/chains-logos/arc.png", "explorer": "https://explorer.arc.io", "rpcHosts": ["https://rpc.mainnet.arc.io"] }
 ]

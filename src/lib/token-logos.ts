@@ -26,6 +26,9 @@ const NATIVE_LOGOS: Record<string, string> = {
   'eip155:143': `${T}/mon.svg`,
   'eip155:999': `${CHAIN}/hyperevm.svg`,
   'eip155:9745': `${T}/xpl.svg`,
+  'eip155:43114': `${CHAIN}/avalanche.png`,
+  // Arc's coin is its USDC
+  'eip155:5042': `${T}/usdc.png`,
 };
 
 /** The other listed ICP tokens: most ledgers' own logos are too heavy for the quoter's list or missing, so one small image

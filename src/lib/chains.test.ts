@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CHAINS, chainPlace, payoutPlace } from './chains';
+import { CHAINS, chainPlace, gasIsUsdc, isGasUsdc, payoutPlace } from './chains';
 import { chainLogo, chainName, txLink } from './explorer';
 import { APPKIT_NETWORKS, networks } from './wallets/networks';
 
@@ -25,5 +25,11 @@ describe('the one chain table', () => {
   });
   it('has a logo file for every chain', () => {
     expect(CHAINS.filter((c) => !existsSync(`public${c.logo}`)).map((c) => c.name)).toEqual([]);
+  });
+  it('knows Arc pays its gas in its USDC, and no other chain does', () => {
+    expect(gasIsUsdc('eip155:5042')).toBe(true);
+    expect(isGasUsdc('eip155:5042', '0x3600000000000000000000000000000000000000')).toBe(true);
+    expect(isGasUsdc('eip155:5042', '0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1')).toBe(false);
+    expect(CHAINS.filter((c) => gasIsUsdc(c.id)).map((c) => c.name)).toEqual(['Arc']);
   });
 });

@@ -430,5 +430,18 @@
     {"address": "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb", "symbol": "USDT0"},
     {"address": "0xc4374775489cb9c56003bf2c9b12495fc64f0771", "symbol": "syrupUSDT"},
     {"address": "0x6100e367285b01f48d07953803a2d8dca5d19873", "symbol": "WXPL"}
+  ],
+  "eip155:43114": [
+    {"address": "0xb97ef9ef8734c71904d8002f8b6bc66dd9c48a6e", "symbol": "USDC"},
+    {"address": "0x9702230a8ea53601f5cd2dc00fdbc13d4df4a8c7", "symbol": "USDt"},
+    {"address": "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7", "symbol": "WAVAX"},
+    {"address": "0x152b9d0fdc40c096757f570a51e494bd4b943e50", "symbol": "BTC.b"},
+    {"address": "0x49d5c2bdffac6ce2bfdb6640f4f80f226bc10bab", "symbol": "WETH.e"}
+  ],
+  "eip155:5042": [
+    {"address": "0x3600000000000000000000000000000000000000", "symbol": "USDC"},
+    {"address": "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1", "symbol": "EURC"},
+    {"address": "0x128cc466b61f542da60c70e3aa11c10e19b84edb", "symbol": "WETH"},
+    {"address": "0x171a4217b86a807a64eb94757db6849fb4bdbaa0", "symbol": "cirBTC"}
   ]
 }
