@@ -67,8 +67,8 @@ test.describe('Pool', () => {
     for (const [path, ready] of [['/pool/stake?amount=100', 'Review stake'], ['/pool/withdraw?amount=100', 'Review withdrawal']]) {
       await open(page, path!, 'pool');
       await expect(button(page, ready!)).toBeVisible();
-      // the panel shows early with its loading parts: max comes once the balance or the stake has answered
-      await expect(page.getByText('max', { exact: true })).toBeVisible();
+      // the panel shows early with its loading parts: Max comes once the balance or the stake has answered
+      await expect(page.getByText('Max', { exact: true }).first()).toBeVisible();
       await expect.poll(async () => {
         const l = await page.getByTestId('col-left').boundingBox();
         const r = await page.getByTestId('col-right').boundingBox();

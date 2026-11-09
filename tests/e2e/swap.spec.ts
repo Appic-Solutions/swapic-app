@@ -165,9 +165,9 @@ test.describe('Swap', () => {
     // the route column says the cap too, never "No routes found"
     await expect(page.getByText('Swaps are limited to $100 for now', { exact: true })).toBeVisible();
     await expect(page.getByText('No routes found')).toHaveCount(0);
-    // the message sits under the dollar line, never on it (Jeff's screenshot, 2026-10-31)
+    // the note takes the dollar line's place under the amount, below the label row that holds the wallet balance
+    // (250 USDC in the fake wallet), never on it (Jeff's screenshot, 2026-10-31)
     const line = await page.getByText('Swaps are limited to $100 for now. Try a smaller amount.').boundingBox();
-    // the dollar line's row also holds the wallet balance (250 USDC in the fake wallet)
     const row = await page.getByText('250', { exact: true }).filter({ visible: true }).first().boundingBox();
     expect(line!.y).toBeGreaterThanOrEqual(row!.y + row!.height);
   });
