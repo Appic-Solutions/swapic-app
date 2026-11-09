@@ -146,7 +146,7 @@ export function stepViews(a: StepsAnswer, ctx: { gasMode: 'gasless' | 'userPays'
     };
     const label =
       s.step === 'signed' ? (a.kind === 'withdraw' ? 'Withdrawal signed' : ctx.gasMode === 'gasless' ? 'Signed, no gas' : 'Signed')
-      : s.step === 'sent' ? `Sent on ${where}`
+      : s.step === 'sent' ? (where ? `Sent on ${where}` : 'Sent')
       : s.step === 'onItsWay' ? (ctx.stage === 'minting' && s.state === 'wait' ? MINTING : ctx.stage === 'withdrawing' && s.state === 'wait' ? WITHDRAWING : where ? `On its way to ${where}` : 'On its way')
       : s.step === 'queued' ? 'Waiting in line'
       : s.step === 'paidOut' ? (where ? `Paid out on ${where}` : 'Paid out')

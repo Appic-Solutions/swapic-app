@@ -82,8 +82,8 @@ export function statusView(i: {
   const unseen = neverStarted(s, i.steps, i.deadline ?? null, i.nowSec);
   // never ran: the steps it reached (signed, for a gasless order), then its end, as the watcher's failed answer has them
   const answer = unseen ? { ...(i.steps ?? { id: i.orderId, kind: 'swap' as const }), outcome: 'failed' as const, steps: [...(i.steps?.steps ?? []).filter((r) => r.state === 'done'), NEVER_RAN] } : i.steps;
-  // delivered, and the steps have not caught up yet: every step was done, its time and link still to come
-  const behind = s.outcome === 'delivered' && answer?.outcome === 'pending';
+  // ended, and the steps have not caught up yet: a delivered swap did every step, its time and link still to come
+  const behind = s.outcome !== 'pending' && answer?.outcome === 'pending';
   const seen = answer && stepsOfDelivered(answer, s.outcome);
   const tracked = seen ? stepViews(seen, { gasMode, refund, token: i.token, stage: s.stage, toChain: i.toChain }) : [];
   const rows = answer?.steps ?? [];
@@ -96,7 +96,10 @@ export function statusView(i: {
   // still moving and not recorded yet: the app's own send, never an empty panel (once queued or later only a payout, whose
   // status is the canister's own and comes before the watcher's copy has its row)
   const early = phase === 'progress' && tracked.length === 0 && (notPickedUp(s.stage) || i.orderId.startsWith('payout-')) && !!i.own;
-  const steps = early ? ownSteps(i.own!, gasMode, i.toChain) : tracked;
+  // delivered before the watcher's copy has any row of a payout: the same steps, all done, never an empty panel
+  const ownDelivered = phase === 'delivered' && tracked.length === 0 && i.orderId.startsWith('payout-') && !!i.own;
+  const steps = early ? ownSteps(i.own!, gasMode, i.toChain)
+    : ownDelivered ? ownSteps(i.own!, gasMode, i.toChain).map((step): StepView => ({ ...step, state: 'done' })) : tracked;
   const reason = endSentence(ending, { reasonCode: word, refund, toSymbol: i.get.symbol, gasMode, paySymbol: i.pay.symbol, sourceTx: 'srcTx' in s && !!s.srcTx });
   // how long it took, from the chain (tookS, services d5e49ff); before chain times, from the steps' own times
   const chainTook = 'tookS' in s && typeof s.tookS === 'number' ? s.tookS : null;

@@ -1,12 +1,12 @@
 // The one view model of an activity row (contract 5.7): History, the Scanner and the pool activity draw it. Every text comes
 // from the data through @/lib/money and @/lib/copy; a number that cannot be scaled is never printed.
-import type { ActivityRow, Side } from '@/lib/api';
+import type { ActivityRow, Side, StepsAnswer } from '@/lib/api';
 import type { SideView } from '@/components/orders/types';
 import { SWAPIC_LOGO } from '@/components/design/swapic-logo';
 import { chainLogo, chainName } from '@/lib/explorer';
 import { formatUsd } from '@/lib/money';
 import { clockText, dayText, short, tokenAmountText, tookText } from '@/lib/copy/format';
-import { endingOf, endSentence, endTitle, neverRan, pillOf, refundLine, stageText, type Ending, type Pill } from '@/lib/copy/status';
+import { endingOf, endSentence, endTitle, neverRan, pillOf, refundLine, stageText, stepsOfDelivered, stepViews, type Ending, type Pill } from '@/lib/copy/status';
 
 export type LogoFor = (chain: string | null, token: string | null, symbol: string | null) => string;
 const STABLE = new Set(['USDC', 'USDT', 'ckUSDC', 'ckUSDT']);
@@ -130,3 +130,8 @@ export const tokenMetaOf = (r: ActivityRow) => (chain: string | null, token: str
   }
   return null;
 };
+
+/** A row's steps as its page shows them. `outcome`: the best known end, the status where it is ahead of the row; a delivered
+ *  record's steps read done though the tracking's copy has not caught up (stepsOfDelivered). */
+export const rowSteps = (raw: ActivityRow, steps: StepsAnswer, outcome: string = raw.outcome) =>
+  stepViews(stepsOfDelivered(steps, outcome), { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain });

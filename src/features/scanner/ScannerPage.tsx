@@ -10,8 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BoxHeader from '@/components/ui/box-header';
 import { MorphFrame, PanelBox } from '@/components/motion/parts';
 import { searchScanner, type ActivityRow, type SearchAnswer } from '@/lib/api';
-import { stepsOfDelivered, stepViews } from '@/lib/copy/status';
-import { orderView, tokenMetaOf } from '@/features/activity/rows';
+import { orderView, rowSteps } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
 import { NotFound } from './NotFound';
@@ -32,9 +31,15 @@ const orderKey = (id: string) => ['scanner-order', id] as const;
 function OrderPage({ id, onBack }: { id: string; onBack: () => void }) {
   const qc = useQueryClient();
   const logo = useLogoFor();
-  // the row: an id lookup (contract 5.13), asked again once the order ends (its status comes from useActivity)
-  const row = useQuery({ queryKey: orderKey(id), queryFn: () => searchScanner(id), staleTime: Infinity });
-  const { steps, done } = useActivity(id);
+  const { status, steps, done } = useActivity(id);
+  // the row: an id lookup (contract 5.13), asked again once the order ends (its status comes from useActivity), until it has
+  // caught up: the status reads the canister, and the row is the watcher's copy of its log, seconds behind
+  const row = useQuery({
+    queryKey: orderKey(id),
+    queryFn: () => searchScanner(id),
+    staleTime: Infinity,
+    refetchInterval: (q) => (done && q.state.data?.items[0]?.outcome === 'pending' ? 5_000 : false),
+  });
   const wasDone = React.useRef(false);
   React.useEffect(() => {
     if (done && !wasDone.current && row.data && row.data.items[0]?.outcome === 'pending') void qc.invalidateQueries({ queryKey: orderKey(id) });
@@ -55,7 +60,7 @@ function OrderPage({ id, onBack }: { id: string; onBack: () => void }) {
   return (
     <OrderDetail
       order={view}
-      steps={raw && steps ? stepViews(stepsOfDelivered(steps, raw.outcome), { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
+      steps={raw && steps ? rowSteps(raw, steps, status?.outcome) : undefined}
       loading={row.isLoading}
       onBack={onBack}
     />

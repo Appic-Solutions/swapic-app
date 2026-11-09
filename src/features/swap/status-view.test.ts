@@ -227,6 +227,18 @@ describe('statusView, a payout seen before the watcher\'s copy of the log caught
     expect(v.phase).toBe('refunded');
     expect(v.steps.map((s) => s.state)).toEqual(['done', 'done', 'wait', 'todo']);
   });
+  it('a refund shows no partial time as its total while the steps catch up', () => {
+    const v = view({ ...payout, outcome: 'refunded', stage: 'refunded', status: 'undone' }, lagging);
+    expect(v.totalText).toBe('');
+  });
+  it('delivered with no row in the copy at all: the sale as the app saw it, all done, never an empty panel', () => {
+    const own = { chain: ICP, tx: null, atMs: SENT_AT };
+    for (const steps of [undefined, { id: 'payout-3', kind: 'swap', outcome: 'pending', steps: [] }]) {
+      const v = view(payout, steps, own);
+      expect(v.phase).toBe('delivered');
+      expect(v.steps.map((s) => [s.label, s.state])).toEqual([['Sent on ICP', 'done'], ['On its way to Base', 'done']]);
+    }
+  });
   it('the canister answered and the copy has no row yet: the sale as the app saw it, never an empty panel', () => {
     const own = { chain: ICP, tx: null, atMs: SENT_AT };
     for (const steps of [undefined, { id: 'payout-3', kind: 'swap', outcome: 'pending', steps: [] }]) {

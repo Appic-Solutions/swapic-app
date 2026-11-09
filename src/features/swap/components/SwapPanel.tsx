@@ -87,14 +87,21 @@ export function SwapPanel({ onPick, onReview, linking }: { onPick: (side: 'from'
   const { balance, loading: balanceLoading } = useBalance(from);
   // what Max keeps back, read ahead so the click fills the amount at once: the ledger's fee, which hardly ever changes (the
   // swap reads it again before its approve), or the gas price
-  const ledgerFee = useQuery({ queryKey: ['ledger-fee', from?.address], queryFn: () => icpClient().ledgerFee(from!.address), enabled: from?.chain_type === 'ICP', staleTime: 600_000 }).data;
+  const ledgerFee = useQuery({
+    queryKey: ['ledger-fee', from?.address],
+    queryFn: () => icpClient().ledgerFee(from!.address),
+    enabled: from?.chain_type === 'ICP' && !!icp,
+    staleTime: 600_000,
+    refetchInterval: 600_000,
+  }).data;
   const paysGas = !!from && from.chain_type === 'EVM' && (from.address === ZERO || isGasUsdc(from.chain, from.address));
   const gasPrice = useQuery({
     queryKey: ['max-fee-per-gas', from?.chainId, signer?.address],
-    queryFn: () => signer!.maxFeePerGas(from!.chainId).catch(() => FALLBACK_FEE_PER_GAS),
+    // a read that fails keeps the last good price: the fallback is for a click with none at all
+    queryFn: () => signer!.maxFeePerGas(from!.chainId),
     enabled: paysGas && !!signer,
-    staleTime: 15_000,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   }).data;
   const overBalance = amount !== null && balance !== undefined && amount > balance;
   const fromWallet = from ? (from.chain_type === 'ICP' ? !!icp : !!evm) : false;

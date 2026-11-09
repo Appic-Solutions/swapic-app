@@ -26,12 +26,14 @@ export function useActivity(id: string | null) {
   });
   const done = !!status.data && status.data.outcome !== 'pending';
   // the status ended: the steps read the watcher's copy of the canister's log, moments behind, so what they still lack comes
-  // within seconds, at the first minute's pace however old the swap is
+  // within seconds: the first minute's pace again from that moment, then the slow one, however long the copy takes
+  const endedAt = useRef<number | null>(null);
+  if (done && endedAt.current === null) endedAt.current = Date.now();
   const steps = useQuery({
     queryKey: ['steps', id],
     queryFn: () => getSteps(id!),
     enabled: !!id,
-    refetchInterval: (q) => pollEvery(q.state.data, done ? 0 : Date.now() - since.current),
+    refetchInterval: (q) => pollEvery(q.state.data, Date.now() - (endedAt.current ?? since.current)),
     retry: 3,
   });
   return { status: status.data, steps: steps.data, done };

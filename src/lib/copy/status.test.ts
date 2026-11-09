@@ -129,6 +129,10 @@ describe('a step with no chain of its own', () => {
     expect(label('onItsWay', null, 'eip155:8453')).toBe('On its way to Base');
     expect(label('paidOut', null, 'eip155:8453')).toBe('Paid out on Base');
   });
+  it('a sent row with no chain reads whole too', () => {
+    const row = { id: 'x', kind: 'swap' as const, outcome: 'pending' as const, steps: [{ step: 'sent' as const, state: 'wait' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null }] };
+    expect(stepViews(row, { gasMode: 'gasless', refund: null, token })[0]!.label).toBe('Sent');
+  });
   it('reads whole with no chain known at all, and its own chain wins', () => {
     expect(label('onItsWay', null)).toBe('On its way');
     expect(label('paidOut', null)).toBe('Paid out');

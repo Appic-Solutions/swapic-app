@@ -26,9 +26,8 @@ import { FIT_HISTORY } from '@/features/activity/fit';
 import { useNearEnd } from '@/features/activity/live-list';
 import { patchFromSteps } from '@/features/activity/end-watch';
 import { getSteps, type ActivityRow } from '@/lib/api';
-import { stepsOfDelivered, stepViews } from '@/lib/copy/status';
 import { useWalletMenu } from '@/lib/wallets/menu';
-import { tokenMetaOf, type OrderView } from '@/features/activity/rows';
+import { rowSteps, type OrderView } from '@/features/activity/rows';
 import { counts as countRows, filterRows, useHistory, type Filter } from './data';
 import { Empty } from './Empty';
 import { Filters } from './Filters';
@@ -54,7 +53,7 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { or
       open={open}
       onToggle={onToggle}
       onOpenScanner={onOpenScanner}
-      steps={steps ? stepViews(stepsOfDelivered(steps, raw.outcome), { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
+      steps={steps ? rowSteps(raw, steps) : undefined}
     />
   );
 }
@@ -62,11 +61,11 @@ function HistoryRow({ order, raw, open, onToggle, onOpenScanner, onEnded }: { or
 /** The Scanner's order page for a History row, in the History panel (its timeline from the order's steps). */
 function OrderInPlace({ raw, onBack }: { raw: ActivityRow; onBack: () => void }) {
   const logo = useLogoFor();
-  const { steps } = useActivity(raw.id);
+  const { status, steps } = useActivity(raw.id);
   return (
     <OrderDetail
       order={orderView(raw, Math.floor(Date.now() / 1000), logo)}
-      steps={steps ? stepViews(stepsOfDelivered(steps, raw.outcome), { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
+      steps={steps ? rowSteps(raw, steps, status?.outcome) : undefined}
       loading={false}
       onBack={onBack}
     />
