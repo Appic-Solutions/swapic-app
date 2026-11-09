@@ -29,6 +29,8 @@ export interface StakeReview {
   added: bigint;
   /** Swapic's move fee in it: from ICP, the move_fee stake_icp sends. */
   moveFee: bigint;
+  /** What stays in the pool for its stakers, off what is added (poolFeeOf). */
+  poolFee: bigint;
   payText: string;
   addedText: string;
   feeText: string;
@@ -52,10 +54,11 @@ export function evmStakeSteps(checked: CheckedEvmRoute, option: PickedOption, fr
 }
 
 /** Review stake from an EVM chain, from the checked route. */
-export function evmStakeReview(i: { option: PickedOption; checked: CheckedEvmRoute; from: UiToken; amount: bigint; native: NativeCoin }): StakeReview {
-  const v = stakeView(i.option, i.checked);
+export function evmStakeReview(i: { option: PickedOption; checked: CheckedEvmRoute; from: UiToken; amount: bigint; native: NativeCoin; poolFee?: bigint }): StakeReview {
+  const poolFee = i.poolFee ?? 0n;
+  const v = stakeView(i.option, i.checked, poolFee);
   return {
-    kind: 'evm', added: v.shownAdded, moveFee: v.moveFee,
+    kind: 'evm', added: v.shownAdded, moveFee: v.moveFee, poolFee,
     payText: `${tokenAmountText(i.amount, i.from.decimals, i.from.symbol)} ${i.from.symbol}`,
     addedText: v.addedText,
     feeText: v.feeText,
@@ -69,13 +72,14 @@ export function evmStakeReview(i: { option: PickedOption; checked: CheckedEvmRou
 
 /** Review stake from ICP: the pool takes the amount and mints shares on it less the move fee; the wallet also pays two
  *  ledger fees (the approval and the pull). */
-export function icpStakeReview(amount: bigint, ledgerFee: bigint, moveFee: bigint, from: UiToken): StakeReview {
-  const added = amount > moveFee ? amount - moveFee : 0n;
+export function icpStakeReview(amount: bigint, ledgerFee: bigint, moveFee: bigint, from: UiToken, poolFee = 0n): StakeReview {
+  const taken = moveFee + poolFee;
+  const added = amount > taken ? amount - taken : 0n;
   return {
-    kind: 'icp', added, moveFee,
+    kind: 'icp', added, moveFee, poolFee,
     payText: `${tokenAmountText(amount, from.decimals, from.symbol)} ${from.symbol}`,
     addedText: formatUsd(added).slice(1),
-    feeText: usdcText(2n * ledgerFee + moveFee),
+    feeText: usdcText(2n * ledgerFee + taken),
     readyText: '5 sec',
     withdrawText: 'Anytime on ICP',
     steps: [
@@ -93,6 +97,8 @@ export interface WithdrawReview {
   minOut: bigint;
   /** Swapic's move fee in it: on ICP, the move_fee withdraw_icp sends. */
   moveFee: bigint;
+  /** What stays in the pool for its stakers, burned beside the withdrawal (poolFeeOf). */
+  poolFee: bigint;
   withdrawText: string;
   /** "You get at least" over a checked record's floor (EVM); "You get" over ICP's amount less the ledger fee. */
   getLabel: string;
@@ -113,11 +119,11 @@ export function evmWithdrawReview(c: CheckedWithdraw, nowSec: number): WithdrawR
     ? c.queueEtaAt === null ? 'In line' : `In line, about ${minutes(c.queueEtaAt, nowSec)} min`
     : c.etaSeconds < 90 ? 'Right away' : `About ${Math.round(c.etaSeconds / 60)} min`;
   return {
-    kind: 'evm', minOut: c.minOut, moveFee: BigInt(c.record.moveFee),
+    kind: 'evm', minOut: c.minOut, moveFee: BigInt(c.record.moveFee), poolFee: c.poolFee,
     withdrawText: `${tokenAmountText(usdc, 6, 'USDC')} USDC`,
     getLabel: 'You get at least',
     getText: `${tokenAmountText(c.minOut, 6, 'USDC')} USDC`,
-    feeText: usdcText(c.feeUsdc),
+    feeText: usdcText(c.feeUsdc + c.poolFee),
     arrives,
     queuedText: c.queued
       ? c.queueEtaAt === null ? 'Your withdrawal waits in line and pays out by itself.' : `Your withdrawal waits in line and pays out in about ${minutes(c.queueEtaAt, nowSec)} min.`
@@ -127,15 +133,15 @@ export function evmWithdrawReview(c: CheckedWithdraw, nowSec: number): WithdrawR
 }
 
 /** Review withdrawal of a stake made from ICP: ckUSDC on ICP less the move fee and the payout's ledger fee. */
-export function icpWithdrawReview(amount: bigint, ledgerFee: bigint, moveFee: bigint): WithdrawReview {
+export function icpWithdrawReview(amount: bigint, ledgerFee: bigint, moveFee: bigint, poolFee = 0n): WithdrawReview {
   const fee = ledgerFee + moveFee;
   const receive = amount > fee ? amount - fee : 0n;
   return {
-    kind: 'icp', minOut: receive, moveFee,
+    kind: 'icp', minOut: receive, moveFee, poolFee,
     withdrawText: `${tokenAmountText(amount, 6, 'USDC')} USDC`,
     getLabel: 'You get',
     getText: `~${tokenAmountText(receive, 6, 'USDC')} ckUSDC`,
-    feeText: usdcText(fee),
+    feeText: usdcText(fee + poolFee),
     arrives: 'Right away',
     queuedText: null,
     steps: [{ label: 'Confirm withdrawal', sub: 'No gas' }],

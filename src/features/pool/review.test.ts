@@ -103,6 +103,12 @@ describe('Review stake from ICP', () => {
     expect(r.feeText).toBe('1.42 USDC');
   });
   it('asks twice: approve the ckUSDC, then confirm', () => expect(r.steps.map((s) => s.label)).toEqual(['Approve ckUSDC', 'Confirm stake']));
+  it('with a pool fee: the cent stays in the pool, off what is added and in the one fee line', () => {
+    const f = icpStakeReview(100_000_000n, 10_000n, 1_400_000n, CKUSDC_TOKEN, 10_000n);
+    expect(f.added).toBe(100_000_000n - 1_400_000n - 10_000n);
+    expect(f.poolFee).toBe(10_000n);
+    expect(f.feeText).toBe(icpStakeReview(100_000_000n, 10_000n, 1_410_000n, CKUSDC_TOKEN).feeText);
+  });
 });
 
 describe('Review withdrawal to an EVM chain, on the record the real check accepts', () => {

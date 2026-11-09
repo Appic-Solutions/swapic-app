@@ -35,7 +35,7 @@ import { useWalletMenu } from '@/lib/wallets/menu';
 import { GuardError, GUARD_MESSAGE } from '@/features/swap/guards/errors';
 import { useGuardContext } from '@/features/swap/quote';
 import { usePool, type MyStake } from '../data';
-import { CKUSDC, icpMoveFee, POOL_PAUSED, usdcText } from '../flows';
+import { CKUSDC, icpMoveFee, POOL_PAUSED, poolFeeOf, usdcText } from '../flows';
 import { evmWithdrawReview, icpWithdrawReview } from '../review';
 import type { WithdrawStart } from './WithdrawReview';
 import { USDC_LOGO } from '../usdc';
@@ -127,6 +127,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
         answer: q.data, staker: evm!.address, usdc: BigInt(request.usdc), dstChainId: chainNumber(request.dstChain), dstUsdc,
         poolChain: cfg.poolChain, swapic: cfg.poolChain === null ? undefined : cfg.chains.get(cfg.poolChain)?.swapic,
         totalAssets: state.data.totalAssets, totalShares: state.data.totalShares, nowSec: Math.floor(Date.now() / 1000), used: usedNonces.has,
+        poolFee: poolFeeOf(pool),
       });
     } catch (e) {
       checkError = e instanceof GuardError ? GUARD_MESSAGE : userMessage(e);
@@ -155,7 +156,7 @@ export function WithdrawPanel({ stake, stakeKnown, named, to, amountText, onAmou
     if (!ready || !to || amount === null || !stake) return;
     if (fromIcp) {
       if (fee === undefined || moveFee === null) return;
-      onReview({ stake, to, amount, review: icpWithdrawReview(amount, fee, moveFee) });
+      onReview({ stake, to, amount, review: icpWithdrawReview(amount, fee, moveFee, poolFeeOf(pool)) });
       return;
     }
     if (!checked) return;

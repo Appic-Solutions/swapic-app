@@ -86,12 +86,12 @@ export function WithdrawReview({ start, onBack, onStarted }: { start: WithdrawSt
     const onStep = (i: number, st: 'wait' | 'done' | 'fail') => setStates((s) => (s ?? review.steps.map(() => 'todo' as const)).map((x, j) => (j === i ? st : x)));
     if (icp) {
       if (!caller) { setBusy(false); return; }
-      after(await executeWithdrawIcp({ wanted: start.amount, moveFee: review.moveFee, caller, onStep }, icpClient()));
+      after(await executeWithdrawIcp({ wanted: start.amount, moveFee: review.moveFee, poolFee: review.poolFee, caller, onStep }, icpClient()));
       return;
     }
     if (!signer) { setBusy(false); return; }
     after(await executeWithdrawEvm(
-      { usdc: start.amount, dstChain: start.to.chain, evm: signer, onStep, shownMinOut: review.minOut },
+      { usdc: start.amount, dstChain: start.to.chain, evm: signer, onStep, shownMinOut: review.minOut, poolFee: review.poolFee },
       { icp: icpClient(), postWithdrawQuote, postWithdraw, nowMs: () => Date.now(), used: usedNonces },
     ));
   };

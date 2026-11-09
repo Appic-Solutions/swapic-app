@@ -107,7 +107,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
       setStates(undefined);
       try {
         const checked = checkStakeRoute({ quote: out.quote as unknown as StakeQuote, option: out.option, from: start.from, amount: start.amount, owner: start.owner as `0x${string}`, guard, nowSec: Math.floor(Date.now() / 1000) });
-        const next = evmStakeReview({ option: out.option, checked, from: start.from, amount: start.amount, native: start.evm.native });
+        const next = evmStakeReview({ option: out.option, checked, from: start.from, amount: start.amount, native: start.evm.native, poolFee: review.poolFee });
         setWasAdded(review.addedText);
         setReview(next);
         setApproval(!!checked.approval);
@@ -150,7 +150,7 @@ export function StakeReview({ start, onBack, onStarted }: { start: StakeStart; o
     if (!signer) { setBusy(false); return; }
     after(await executeStakeEvm(
       {
-        from: start.from, amount: start.amount, evm: signer, shownAdded: review.added, shownApproval: approval, onStep,
+        from: start.from, amount: start.amount, evm: signer, shownAdded: review.added, shownApproval: approval, poolFee: review.poolFee, onStep,
         onApproval: (_, on) => setMining(on === 'network' ? 'approve' : null),
         onSent: () => setMining('stake'),
       },

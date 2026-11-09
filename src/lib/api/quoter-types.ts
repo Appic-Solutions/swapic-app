@@ -200,6 +200,9 @@ export interface PoolAnswer {
    *  (api/pool.rs MoveFeesAnswer): what an ICP stake (`icpToBase`) and an ICP withdrawal (`baseToIcp`) pay Swapic as their
    *  `move_fee`. Null while the quoter has no price or gas reading: the app then offers neither. */
   moveFees?: { baseToIcp: string; icpToBase: string } | null;
+  /** What every use of the pool leaves in it on top of its other fees, micro USDC (api/pool.rs pool_fee): off what a stake
+   *  adds, burned beside a withdrawal, in a swap's premium. Absent from a quoter before it: zero. */
+  poolFee?: string;
 }
 /** contract 5.2. `points[].sharePrice` is null while no shares exist (before the first stake; staging answers so, recorded
  *  in tests/fixtures/real/staging/pool-history-30d.json). */

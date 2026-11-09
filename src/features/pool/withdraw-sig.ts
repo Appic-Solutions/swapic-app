@@ -49,16 +49,21 @@ export function withdrawalTypedData(r: WithdrawalJson, chainId: number, swapic: 
   };
 }
 
+/** The canister's ceiling on the pool fee (types MAX_POOL_FEE): a quoter asking more is not believed. */
+export const MAX_POOL_FEE = 1_000_000n;
+
 export interface WithdrawCheckInput {
   answer: WithdrawQuoteAnswer; staker: Hex; usdc: bigint; dstChainId: number;
   /** the destination chain's USDC from get_config (`cfg.chains.get(dstChainId)?.usdc`), never from /v2/chains (plan check C4) */
   dstUsdc: Hex | undefined;
   poolChain: number | null; swapic: Hex | undefined; totalAssets: bigint; totalShares: bigint;
   nowSec: number; used: (nonce: string) => boolean;
+  /** The pool fee whose shares are burned beside the withdrawal's (poolFeeOf): within the canister's dollar ceiling. */
+  poolFee?: bigint;
 }
 export interface CheckedWithdraw {
   record: WithdrawalJson; candid: EvmWithdrawal; typedData: SignableTypedData; digest: Hex;
-  minOut: bigint; expectedOut: bigint; feeUsdc: bigint; etaSeconds: number;
+  minOut: bigint; expectedOut: bigint; feeUsdc: bigint; poolFee: bigint; etaSeconds: number;
   queued: boolean; queueEtaAt: number | null;
 }
 
@@ -81,7 +86,9 @@ export function checkWithdrawQuote(i: WithdrawCheckInput): CheckedWithdraw {
   must(deadlineS >= BigInt(i.nowSec + MIN_AHEAD_S) && deadlineS <= BigInt(i.nowSec + 86_400), 'deadline');
   must(/^\d{1,20}$/.test(r.nonce) && BigInt(r.nonce) > 0n && BigInt(r.nonce) <= U64_MAX && !i.used(r.nonce), 'nonce');
   const burn = sharesToBurn(i.usdc, i.totalAssets, i.totalShares);
-  const most = maxSharesFor(i.usdc, i.totalAssets, i.totalShares);
+  const poolFee = i.poolFee ?? 0n;
+  must(poolFee >= 0n && poolFee <= MAX_POOL_FEE, 'poolFee');
+  const most = maxSharesFor(i.usdc + poolFee, i.totalAssets, i.totalShares);
   const maxShares = BigInt(r.maxShares);
   must(maxShares >= burn && maxShares <= (most * 101n) / 100n, 'maxShares');
 
@@ -90,7 +97,7 @@ export function checkWithdrawQuote(i: WithdrawCheckInput): CheckedWithdraw {
   must(digest === a.digest.toLowerCase(), 'digest');
 
   return {
-    record: r, typedData, digest, minOut, expectedOut: BigInt(a.payout.expectedOut), feeUsdc: fee, etaSeconds: a.etaSeconds,
+    record: r, typedData, digest, minOut, expectedOut: BigInt(a.payout.expectedOut), feeUsdc: fee, poolFee, etaSeconds: a.etaSeconds,
     queued: !!a.queue, queueEtaAt: a.queue?.etaAt ?? null,
     candid: {
       staker: r.staker, usdc: i.usdc, max_shares: maxShares, move_fee: BigInt(r.moveFee), network_fee: BigInt(r.networkFee),
