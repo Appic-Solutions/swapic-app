@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { problems } from '../../../scripts/check-copy.mjs';
-import { APPROVING, CONFIRMING_SWAP, WAITING_CONFIRMATION, confirmingOn, endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepViews, tokenAmountText, tookText, type EndInput } from './status';
+import { APPROVING, CONFIRMING_SWAP, WAITING_CONFIRMATION, confirmingOn, endingOf, endSentence, endTitle, pillOf, refundLine, short, stageText, stepsOfDelivered, stepViews, tokenAmountText, tookText, type EndInput } from './status';
 
 const contract = (f: string) => JSON.parse(readFileSync(`tests/fixtures/contract/${f}`, 'utf8'));
 const META: Record<string, { symbol: string; decimals: number }> = {
@@ -133,5 +133,19 @@ describe('a step with no chain of its own', () => {
     expect(label('onItsWay', null)).toBe('On its way');
     expect(label('paidOut', null)).toBe('Paid out');
     expect(label('onItsWay', 'eip155:42161', 'eip155:8453')).toBe('On its way to Arbitrum');
+  });
+});
+
+describe('stepsOfDelivered', () => {
+  const answer = { id: 'payout-3', kind: 'swap' as const, outcome: 'pending' as const, steps: [
+    { step: 'sent' as const, state: 'done' as const, chain: null, atMs: 1, tx: null, block: null, amount: null, token: null, reason: null },
+    { step: 'paidOut' as const, state: 'wait' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null },
+    { step: 'delivered' as const, state: 'todo' as const, chain: null, atMs: null, tx: null, block: null, amount: null, token: null, reason: null },
+  ] };
+  it('ticks every step of a delivered record the copy has not caught up with', () => {
+    expect(stepsOfDelivered(answer, 'delivered').steps.map((s) => s.state)).toEqual(['done', 'done', 'done']);
+  });
+  it('leaves any other record as it is, a refund included', () => {
+    for (const outcome of ['pending', 'refunded', 'failed']) expect(stepsOfDelivered(answer, outcome)).toBe(answer);
   });
 });

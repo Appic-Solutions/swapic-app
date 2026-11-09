@@ -18,7 +18,7 @@ import { ICP_CHAIN } from '@/config';
 import { chainLogo, chainName } from '@/lib/explorer';
 import { formatUsd } from '@/lib/money';
 import { short, tokenAmountText } from '@/lib/copy/format';
-import { clockText, dayText, endingOf, endSentence, endTitle, etaLeftText, neverRan, refundLine, stepViews, tookText, type Ending } from '@/lib/copy/status';
+import { clockText, dayText, endingOf, endSentence, endTitle, etaLeftText, neverRan, refundLine, stepsOfDelivered, stepViews, tookText, type Ending } from '@/lib/copy/status';
 
 type Meta = (chain: string | null, token: string | null) => { symbol: string; decimals: number } | null;
 /** The ring and the pill: moving, delivered (as USDC too), refunded, held by the canister for a check, or never ran. */
@@ -84,7 +84,7 @@ export function statusView(i: {
   const answer = unseen ? { ...(i.steps ?? { id: i.orderId, kind: 'swap' as const }), outcome: 'failed' as const, steps: [...(i.steps?.steps ?? []).filter((r) => r.state === 'done'), NEVER_RAN] } : i.steps;
   // delivered, and the steps have not caught up yet: every step was done, its time and link still to come
   const behind = s.outcome === 'delivered' && answer?.outcome === 'pending';
-  const seen = behind ? { ...answer, steps: answer.steps.map((r): StepRow => ({ ...r, state: 'done' })) } : answer;
+  const seen = answer && stepsOfDelivered(answer, s.outcome);
   const tracked = seen ? stepViews(seen, { gasMode, refund, token: i.token, stage: s.stage, toChain: i.toChain }) : [];
   const rows = answer?.steps ?? [];
   const current = rows.findIndex((r) => r.state === 'wait');

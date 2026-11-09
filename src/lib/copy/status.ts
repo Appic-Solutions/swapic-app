@@ -125,6 +125,11 @@ const MINTING = 'Minting ckUSDC on ICP';
 const WITHDRAWING = 'The ckETH minter is paying USDC on Ethereum';
 const WITHDRAW_TIME = 'Usually 2 to 6 minutes';
 
+/** The steps of a record that ended delivered: every one was done, though the tracking's copy has not read them all yet (their
+ *  times and links fill in when it has). Any other record's steps as they are. */
+export const stepsOfDelivered = <T extends StepsAnswer>(a: T, outcome: string): T =>
+  outcome === 'delivered' && a.outcome === 'pending' ? { ...a, steps: a.steps.map((r) => ({ ...r, state: 'done' as const })) } : a;
+
 /** The steps toward the destination: a row can come with no chain of its own (a payout's on its way, or a row not recorded yet). */
 const TOWARD_DESTINATION = new Set<StepsAnswer['steps'][number]['step']>(['onItsWay', 'paidOut', 'delivered']);
 

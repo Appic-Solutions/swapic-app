@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import BoxHeader from '@/components/ui/box-header';
 import { MorphFrame, PanelBox } from '@/components/motion/parts';
 import { searchScanner, type ActivityRow, type SearchAnswer } from '@/lib/api';
-import { stepViews } from '@/lib/copy/status';
+import { stepsOfDelivered, stepViews } from '@/lib/copy/status';
 import { orderView, tokenMetaOf } from '@/features/activity/rows';
 import { useLogoFor } from '@/features/activity/logos';
 import { useActivity } from '@/features/activity/track';
@@ -55,7 +55,7 @@ function OrderPage({ id, onBack }: { id: string; onBack: () => void }) {
   return (
     <OrderDetail
       order={view}
-      steps={raw && steps ? stepViews(steps, { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
+      steps={raw && steps ? stepViews(stepsOfDelivered(steps, raw.outcome), { gasMode: raw.gasMode, refund: raw.refund, token: tokenMetaOf(raw), stage: raw.stage, toChain: raw.to.chain }) : undefined}
       loading={row.isLoading}
       onBack={onBack}
     />
