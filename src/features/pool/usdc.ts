@@ -3,6 +3,7 @@ import * as React from 'react';
 import { config } from '@/config';
 import type { UiToken } from '@/components/ui/token-types';
 import { chainLogo, chainName, chainNumber } from '@/lib/explorer';
+import { BSC_CHAIN } from '@/lib/chains';
 import { useGuardContext } from '@/features/swap/quote';
 import { useChains } from '@/features/swap/tokens';
 import { CKUSDC } from './flows';
@@ -15,7 +16,8 @@ export function useUsdcTokens(): UiToken[] {
   const { chains } = useChains();
   const guard = useGuardContext();
   return React.useMemo(() => chains.flatMap((c) => {
-    if (c.chainId === config.icpChain) return [];
+    // the pool takes no BNB Chain USDC (BSC design N5): its money travels by Across, not into the pool
+    if (c.chainId === config.icpChain || c.chainId === BSC_CHAIN) return [];
     const usdc = guard?.config.chains.get(chainNumber(c.chainId))?.usdc;
     if (!usdc) return [];
     const address = usdc.toLowerCase();

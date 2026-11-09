@@ -14,7 +14,16 @@ export interface IcpCaller { agent: Agent; principal: Principal }
 /** One chain's contracts as get_config names them (can.did EvmChainConfig): the only anchors plan 2's check trusts. */
 export interface ChainView {
   swapic: `0x${string}`; usdc: `0x${string}`; runner: `0x${string}`; cctpReceiver: `0x${string}`; tokenMessenger: `0x${string}`;
+  /** The decimals of `usdc` (usdc_decimals): 6 when absent; BNB Chain's (Binance's) USDC has 18. */
+  usdcDecimals?: number;
+  /** Across's contracts here (across); absent, no Across step from or to this chain is read. */
+  across?: AcrossPins | null;
 }
+/** Across's contracts on one chain, as the canister pins them. */
+export interface AcrossPins { periphery: `0x${string}`; swapProxy: `0x${string}`; spokePool: `0x${string}`; multicallHandler: `0x${string}` }
+/** AX13 and AX14's bounds (across_fee): the least and the most of a deposit a relayer keeps, in millionths, and per
+ *  destination chain an allowance for the arrival's gas, in micro USD. */
+export interface AcrossFee { leastPpm: number; mostPpm: number; gasAllowanceUsd6: Map<number, bigint> }
 export interface SwapicConfigView {
   poolChain: number | null;
   chains: Map<number, ChainView>;
@@ -22,6 +31,10 @@ export interface SwapicConfigView {
   cctpDomains: Map<number, number>;
   /** Eco's Portal, the same on every chain (get_config eco_portal). */
   ecoPortal: `0x${string}` | null;
+  /** Across's fee bounds; absent, no order with an Across step is read. */
+  acrossFee?: AcrossFee | null;
+  /** The 2 bytes Across credits Swapic's deposits to (across_integrator); absent, no transaction carries them. */
+  acrossIntegrator?: number | null;
 }
 
 export interface IcpClient {

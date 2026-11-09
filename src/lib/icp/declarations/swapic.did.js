@@ -1,4 +1,15 @@
 export const idlFactory = ({ IDL }) => {
+  const AcrossFeeConfig = IDL.Record({
+    'least_ppm' : IDL.Nat32,
+    'most_ppm' : IDL.Nat32,
+    'gas_allowance_usd6' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat64)),
+  });
+  const AcrossPinsConfig = IDL.Record({
+    'swap_proxy' : IDL.Text,
+    'periphery' : IDL.Text,
+    'spoke_pool' : IDL.Text,
+    'multicall_handler' : IDL.Text,
+  });
   const ActionAmounts = IDL.Record({
     'relay_local' : IDL.Nat,
     'complete_ck' : IDL.Nat,
@@ -12,6 +23,7 @@ export const idlFactory = ({ IDL }) => {
     'pool_ck_deposit' : IDL.Opt(IDL.Nat),
     'pool_approve' : IDL.Opt(IDL.Nat),
     'eco_rescue' : IDL.Opt(IDL.Nat),
+    'relay_across' : IDL.Opt(IDL.Nat),
     'pool_payout' : IDL.Opt(IDL.Nat),
     'relay_eco' : IDL.Nat,
     'pool_move_finish' : IDL.Opt(IDL.Nat),
@@ -29,16 +41,19 @@ export const idlFactory = ({ IDL }) => {
     'pool_ck_deposit' : IDL.Opt(IDL.Nat64),
     'pool_approve' : IDL.Opt(IDL.Nat64),
     'eco_rescue' : IDL.Opt(IDL.Nat64),
+    'relay_across' : IDL.Opt(IDL.Nat64),
     'pool_payout' : IDL.Opt(IDL.Nat64),
     'relay_eco' : IDL.Nat64,
     'pool_move_finish' : IDL.Opt(IDL.Nat64),
   });
   const EvmChainConfig = IDL.Record({
+    'across' : IDL.Opt(AcrossPinsConfig),
     'cctp_receiver' : IDL.Text,
     'token_messenger' : IDL.Text,
     'runner' : IDL.Text,
     'usdc' : IDL.Text,
     'usdc_domain_version' : IDL.Opt(IDL.Text),
+    'usdc_decimals' : IDL.Opt(IDL.Nat8),
     'min_network_fee' : ActionAmounts,
     'usdc_domain_name' : IDL.Opt(IDL.Text),
     'gas_budget_wei' : ActionAmounts,
@@ -48,6 +63,7 @@ export const idlFactory = ({ IDL }) => {
     'message_transmitter' : IDL.Text,
   });
   const Config = IDL.Record({
+    'across_integrator' : IDL.Opt(IDL.Text),
     'confirmations' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat64)),
     'batch_window_ms' : IDL.Nat64,
     'ecdsa_key_name' : IDL.Text,
@@ -56,7 +72,9 @@ export const idlFactory = ({ IDL }) => {
     'books_check_interval_s' : IDL.Nat64,
     'simulate_before_sign' : IDL.Bool,
     'backstop_interval_s' : IDL.Nat64,
+    'across_fee' : IDL.Opt(AcrossFeeConfig),
     'eco_enabled' : IDL.Bool,
+    'private_send_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'finalized_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'cctp_domains' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'cctp_min_fees' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
@@ -463,6 +481,19 @@ export const idlFactory = ({ IDL }) => {
     'closed_reason' : IDL.Opt(IDL.Text),
   });
   const Result_5 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : PoolError });
+  const PullToCheck = IDL.Record({
+    'why' : IDL.Text,
+    'at_ns' : IDL.Nat64,
+    'from' : IcpAccount,
+    'memo' : IDL.Vec(IDL.Nat8),
+    'what' : IDL.Text,
+    'ledger' : IDL.Principal,
+    'amount' : IDL.Nat,
+  });
+  const Result_6 = IDL.Variant({
+    'Ok' : IDL.Vec(PullToCheck),
+    'Err' : IDL.Text,
+  });
   const MoveStatus = IDL.Variant({
     'Routed' : IDL.Null,
     'Arrived' : IDL.Null,
@@ -498,7 +529,7 @@ export const idlFactory = ({ IDL }) => {
     'target_icp_bps' : IDL.Nat16,
     'max_proposal_fee_bps' : IDL.Nat16,
   });
-  const Result_6 = IDL.Variant({ 'Ok' : PayPayoutOk, 'Err' : IDL.Text });
+  const Result_7 = IDL.Variant({ 'Ok' : PayPayoutOk, 'Err' : IDL.Text });
   const CkResolution = IDL.Variant({
     'Delivered' : IDL.Record({ 'tx_hash' : IDL.Vec(IDL.Nat8) }),
     'Retry' : IDL.Null,
@@ -535,6 +566,11 @@ export const idlFactory = ({ IDL }) => {
       'current' : IDL.Text,
     }),
     'EmptyEcdsaKeyName' : IDL.Null,
+    'NotAnIntegratorId' : IDL.Null,
+    'AcrossFeeOutOfRange' : IDL.Record({
+      'least_ppm' : IDL.Nat32,
+      'most_ppm' : IDL.Nat32,
+    }),
     'BlockTimeOutOfRange' : IDL.Record({
       'chain_id' : IDL.Nat64,
       'block_time_ms' : IDL.Nat64,
@@ -543,6 +579,10 @@ export const idlFactory = ({ IDL }) => {
       'cap' : IDL.Nat32,
       'field' : IDL.Text,
       'ceiling' : IDL.Nat32,
+    }),
+    'UsdcDecimalsOutOfRange' : IDL.Record({
+      'decimals' : IDL.Nat8,
+      'chain_id' : IDL.Nat64,
     }),
     'NotDomainText' : IDL.Record({
       'field' : IDL.Text,
@@ -621,22 +661,22 @@ export const idlFactory = ({ IDL }) => {
     'Guard' : GuardError,
     'Append' : AppendError,
   });
-  const Result_7 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : SetConfigError });
+  const Result_8 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : SetConfigError });
   const FlowCallError = IDL.Variant({
     'Invalid' : IDL.Text,
     'Guard' : GuardError,
     'Refused' : IDL.Text,
     'Unavailable' : IDL.Text,
   });
-  const Result_8 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : FlowCallError });
-  const Result_9 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : GuardError });
-  const Result_10 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
+  const Result_9 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : FlowCallError });
+  const Result_10 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : GuardError });
+  const Result_11 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text });
   const SetRolesError = IDL.Variant({
     'Guard' : GuardError,
     'AnonymousRole' : Role,
     'Append' : AppendError,
   });
-  const Result_11 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : SetRolesError });
+  const Result_12 = IDL.Variant({ 'Ok' : IDL.Null, 'Err' : SetRolesError });
   const SetSanctionedError = IDL.Variant({
     'TextTooLong' : IDL.Record({
       'len' : IDL.Nat64,
@@ -646,7 +686,7 @@ export const idlFactory = ({ IDL }) => {
     'Guard' : GuardError,
     'SetFull' : IDL.Record({ 'capacity' : IDL.Nat64 }),
   });
-  const Result_12 = IDL.Variant({
+  const Result_13 = IDL.Variant({
     'Ok' : IDL.Nat64,
     'Err' : SetSanctionedError,
   });
@@ -665,7 +705,7 @@ export const idlFactory = ({ IDL }) => {
     'move_fee' : IDL.Nat,
   });
   const StakeIcpOk = IDL.Record({ 'shares' : IDL.Nat });
-  const Result_13 = IDL.Variant({ 'Ok' : StakeIcpOk, 'Err' : PoolError });
+  const Result_14 = IDL.Variant({ 'Ok' : StakeIcpOk, 'Err' : PoolError });
   const PayoutPlan = IDL.Record({
     'order' : IDL.Vec(IDL.Nat8),
     'gas_limit' : IDL.Nat64,
@@ -683,7 +723,7 @@ export const idlFactory = ({ IDL }) => {
     'id' : IDL.Nat64,
     'status' : PayoutStatus,
   });
-  const Result_14 = IDL.Variant({ 'Ok' : SwapFromIcpOk, 'Err' : PoolError });
+  const Result_15 = IDL.Variant({ 'Ok' : SwapFromIcpOk, 'Err' : PoolError });
   const CkSwapTerms = IDL.Record({
     'token_in' : IDL.Principal,
     'dst_chain' : IDL.Nat64,
@@ -717,7 +757,7 @@ export const idlFactory = ({ IDL }) => {
     'Ledger' : IDL.Text,
     'Unavailable' : IDL.Text,
   });
-  const Result_15 = IDL.Variant({ 'Ok' : SweepEvmOk, 'Err' : SweepError });
+  const Result_16 = IDL.Variant({ 'Ok' : SweepEvmOk, 'Err' : SweepError });
   const IcpSweepAsset = IDL.Variant({
     'Icp' : IDL.Null,
     'CkUsdcFees' : IDL.Null,
@@ -729,7 +769,7 @@ export const idlFactory = ({ IDL }) => {
     'amount' : IDL.Nat,
   });
   const SweepIcpOk = IDL.Record({ 'id' : IDL.Nat64, 'block' : IDL.Nat });
-  const Result_16 = IDL.Variant({ 'Ok' : SweepIcpOk, 'Err' : SweepError });
+  const Result_17 = IDL.Variant({ 'Ok' : SweepIcpOk, 'Err' : SweepError });
   const EvmWithdrawal = IDL.Record({
     'staker' : IDL.Text,
     'max_shares' : IDL.Nat,
@@ -740,7 +780,7 @@ export const idlFactory = ({ IDL }) => {
     'move_fee' : IDL.Nat,
   });
   const WithdrawEvmOk = IDL.Record({ 'id' : IDL.Nat64, 'burned' : IDL.Nat });
-  const Result_17 = IDL.Variant({ 'Ok' : WithdrawEvmOk, 'Err' : PoolError });
+  const Result_18 = IDL.Variant({ 'Ok' : WithdrawEvmOk, 'Err' : PoolError });
   const WithdrawIcpArgs = IDL.Record({
     'to' : IcpAccount,
     'max_shares' : IDL.Nat,
@@ -751,7 +791,7 @@ export const idlFactory = ({ IDL }) => {
     'move_fee' : IDL.Nat,
   });
   const WithdrawIcpOk = IDL.Record({ 'paid' : IDL.Nat, 'burned' : IDL.Nat });
-  const Result_18 = IDL.Variant({ 'Ok' : WithdrawIcpOk, 'Err' : PoolError });
+  const Result_19 = IDL.Variant({ 'Ok' : WithdrawIcpOk, 'Err' : PoolError });
   return IDL.Service({
     'books' : IDL.Func(
         [],
@@ -829,6 +869,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_5],
         [],
       ),
+    'pulls_to_check' : IDL.Func([], [Result_6], ['query']),
     'rebalance_moves' : IDL.Func([], [IDL.Vec(MoveView)], ['query']),
     'rebalance_settings' : IDL.Func([], [RebalanceSettings], ['query']),
     'rebalance_stuck' : IDL.Func([], [IDL.Vec(MoveView)], ['query']),
@@ -843,7 +884,7 @@ export const idlFactory = ({ IDL }) => {
         [Result_1],
         [],
       ),
-    'rescue_eco_intent' : IDL.Func([IDL.Vec(IDL.Nat8)], [Result_6], []),
+    'rescue_eco_intent' : IDL.Func([IDL.Vec(IDL.Nat8)], [Result_7], []),
     'resolve_ck_withdrawal' : IDL.Func(
         [IDL.Nat64, CkResolution],
         [Result_5],
@@ -866,22 +907,22 @@ export const idlFactory = ({ IDL }) => {
         [Result_5],
         [],
       ),
-    'set_config' : IDL.Func([Config], [Result_7], []),
-    'set_flow_settings' : IDL.Func([FlowSettings], [Result_8], []),
-    'set_halted' : IDL.Func([IDL.Bool], [Result_9], []),
+    'set_config' : IDL.Func([Config], [Result_8], []),
+    'set_flow_settings' : IDL.Func([FlowSettings], [Result_9], []),
+    'set_halted' : IDL.Func([IDL.Bool], [Result_10], []),
     'set_icp_routes' : IDL.Func(
         [IDL.Opt(IDL.Principal), IDL.Vec(IcpRoute)],
         [Result_5],
         [],
       ),
     'set_payout_settings' : IDL.Func([PayoutSettings], [Result_5], []),
-    'set_pool_paused' : IDL.Func([IDL.Bool], [Result_10], []),
+    'set_pool_paused' : IDL.Func([IDL.Bool], [Result_11], []),
     'set_pool_settings' : IDL.Func([PoolSettings], [Result_5], []),
     'set_rebalance_settings' : IDL.Func([RebalanceSettings], [Result_5], []),
-    'set_roles' : IDL.Func([IDL.Principal, IDL.Principal], [Result_11], []),
+    'set_roles' : IDL.Func([IDL.Principal, IDL.Principal], [Result_12], []),
     'set_sanctioned' : IDL.Func(
         [IDL.Vec(IDL.Text), IDL.Vec(IDL.Text)],
-        [Result_12],
+        [Result_13],
         [],
       ),
     'signed_txs' : IDL.Func(
@@ -889,21 +930,33 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(SignedTx)],
         ['query'],
       ),
-    'stake_icp' : IDL.Func([StakeIcpArgs], [Result_13], []),
-    'swap_from_icp' : IDL.Func([IcpSwapTerms], [Result_14], []),
-    'swap_from_icp_ck' : IDL.Func([CkSwapTerms], [Result_14], []),
-    'sweep_evm' : IDL.Func([SweepEvmArgs], [Result_15], []),
-    'sweep_icp' : IDL.Func([SweepIcpArgs], [Result_16], []),
+    'stake_icp' : IDL.Func([StakeIcpArgs], [Result_14], []),
+    'swap_from_icp' : IDL.Func([IcpSwapTerms], [Result_15], []),
+    'swap_from_icp_ck' : IDL.Func([CkSwapTerms], [Result_15], []),
+    'sweep_evm' : IDL.Func([SweepEvmArgs], [Result_16], []),
+    'sweep_icp' : IDL.Func([SweepIcpArgs], [Result_17], []),
     'version' : IDL.Func([], [IDL.Text], ['query']),
+    'watcher_cycles_balance' : IDL.Func([], [Result_1], ['query']),
     'withdraw_evm' : IDL.Func(
         [EvmWithdrawal, IDL.Vec(IDL.Nat8)],
-        [Result_17],
+        [Result_18],
         [],
       ),
-    'withdraw_icp' : IDL.Func([WithdrawIcpArgs], [Result_18], []),
+    'withdraw_icp' : IDL.Func([WithdrawIcpArgs], [Result_19], []),
   });
 };
 export const init = ({ IDL }) => {
+  const AcrossFeeConfig = IDL.Record({
+    'least_ppm' : IDL.Nat32,
+    'most_ppm' : IDL.Nat32,
+    'gas_allowance_usd6' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat64)),
+  });
+  const AcrossPinsConfig = IDL.Record({
+    'swap_proxy' : IDL.Text,
+    'periphery' : IDL.Text,
+    'spoke_pool' : IDL.Text,
+    'multicall_handler' : IDL.Text,
+  });
   const ActionAmounts = IDL.Record({
     'relay_local' : IDL.Nat,
     'complete_ck' : IDL.Nat,
@@ -917,6 +970,7 @@ export const init = ({ IDL }) => {
     'pool_ck_deposit' : IDL.Opt(IDL.Nat),
     'pool_approve' : IDL.Opt(IDL.Nat),
     'eco_rescue' : IDL.Opt(IDL.Nat),
+    'relay_across' : IDL.Opt(IDL.Nat),
     'pool_payout' : IDL.Opt(IDL.Nat),
     'relay_eco' : IDL.Nat,
     'pool_move_finish' : IDL.Opt(IDL.Nat),
@@ -934,16 +988,19 @@ export const init = ({ IDL }) => {
     'pool_ck_deposit' : IDL.Opt(IDL.Nat64),
     'pool_approve' : IDL.Opt(IDL.Nat64),
     'eco_rescue' : IDL.Opt(IDL.Nat64),
+    'relay_across' : IDL.Opt(IDL.Nat64),
     'pool_payout' : IDL.Opt(IDL.Nat64),
     'relay_eco' : IDL.Nat64,
     'pool_move_finish' : IDL.Opt(IDL.Nat64),
   });
   const EvmChainConfig = IDL.Record({
+    'across' : IDL.Opt(AcrossPinsConfig),
     'cctp_receiver' : IDL.Text,
     'token_messenger' : IDL.Text,
     'runner' : IDL.Text,
     'usdc' : IDL.Text,
     'usdc_domain_version' : IDL.Opt(IDL.Text),
+    'usdc_decimals' : IDL.Opt(IDL.Nat8),
     'min_network_fee' : ActionAmounts,
     'usdc_domain_name' : IDL.Opt(IDL.Text),
     'gas_budget_wei' : ActionAmounts,
@@ -953,6 +1010,7 @@ export const init = ({ IDL }) => {
     'message_transmitter' : IDL.Text,
   });
   const Config = IDL.Record({
+    'across_integrator' : IDL.Opt(IDL.Text),
     'confirmations' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat64)),
     'batch_window_ms' : IDL.Nat64,
     'ecdsa_key_name' : IDL.Text,
@@ -961,7 +1019,9 @@ export const init = ({ IDL }) => {
     'books_check_interval_s' : IDL.Nat64,
     'simulate_before_sign' : IDL.Bool,
     'backstop_interval_s' : IDL.Nat64,
+    'across_fee' : IDL.Opt(AcrossFeeConfig),
     'eco_enabled' : IDL.Bool,
+    'private_send_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'finalized_chains' : IDL.Opt(IDL.Vec(IDL.Nat64)),
     'cctp_domains' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),
     'cctp_min_fees' : IDL.Vec(IDL.Tuple(IDL.Nat64, IDL.Nat32)),

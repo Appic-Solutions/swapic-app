@@ -35,16 +35,18 @@
 // payer); what is signed is the rebuilt one; each path's approval is checked by its own rule and only the chosen path's is
 // returned; run(order) stays checked in `tx`, and the order checked comes back for the calldata (execute.ts encodes it).
 // A stake and a native input never take this path. Tests: the Permit2 tests in evm.test.ts, one per tampered field.
-import { decodeAbiParameters, decodeFunctionData, getAddress, maxUint256, type Hex } from 'viem';
+import { decodeAbiParameters, decodeFunctionData, encodeFunctionData, getAddress, maxUint256, size, type Hex } from 'viem';
 import type { ApprovalRequest, Authorization, Door, Quote, Route, TypedDataJson } from '@/lib/api';
 import type { SignableTypedData } from '@/lib/wallets';
 import { chainNumber } from '@/lib/explorer';
 import { ORDER_TUPLE, PERMIT2, SWAPIC_RUN_ABI, isNative, orderIdOf, orderValue, sameAddress, sameToken, type OrderValue } from './abi';
 import type { GuardContext } from './context';
+import type { SwapicConfigView } from '@/lib/icp';
 import { decodeEnvelope, principalWord, sameEnvelope } from './envelope';
 import { GuardError, must } from './errors';
 import { decodeMemo, memoRef, type MemoTerms } from './memo';
 import { readPlan, type Plan } from './plan';
+import { txTailAllowed } from './across';
 
 export interface EvmCheckInput {
   quote: Quote; route: Route; mode: 'gasless' | 'userPays';
@@ -102,6 +104,7 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
   const plan = readPlan(o, { ...g, sourceChainId: chainId, payer: getAddress(i.payer), orderDeadline: o.deadline, nowSec: i.nowSec });
   const minOut = BigInt(r.amountOutMin);
   const terms = checkDelivery(i, r, o, plan, minOut, g);
+  checkFallbacks(r, plan, g.config);
 
   if (i.mode === 'gasless') {
     must(!!r.sign && !r.tx, 'gaslessShape');
@@ -109,7 +112,7 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
   }
   must(!!r.tx && !r.sign, 'userPaysShape');
   // both ways are checked whichever one runs; only the chosen one's approval goes on
-  const tx = checkTx(i, r, id, chainId, swapic);
+  const tx = checkTx(i, r, id, chainId, swapic, plan, g);
   const exact = swapicApproval(i, r, swapic);
   const viaPermit2 = r.permit2Pay && !i.stakeOwner && !isNative(i.fromToken) ? checkPermit2Pay(i, r.permit2Pay, o, id, chainId, swapic) : null;
   return { chainId, orderId: id, amountIn: i.amountIn, minOut, plan, deadline: o.deadline, terms, approval: viaPermit2 ? viaPermit2.approval : exact, sign: null, tx, permit2Pay: viaPermit2 && viaPermit2.pay };
@@ -181,6 +184,20 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
   must(sameToken(d!.token, i.toToken), 'tokenOut');
   must(d!.minOut >= minOut, 'minOut');
   return null;
+}
+
+/** The fallbacks the Review screen shows are the order's own: an Across order's each its chain, its USDC (named USDC,
+ *  in the decimals the canister holds for it) and its least; any other order shows none of those two kinds. */
+export function checkFallbacks(r: Pick<Route, 'fallbacks'>, plan: Plan, config: SwapicConfigView): void {
+  const want = [['notFilled', plan.fallbacks?.notFilled ?? null], ['lastSwapFails', plan.fallbacks?.lastSwapFails ?? null]] as const;
+  for (const [when, f] of want) {
+    const shown = (r.fallbacks ?? []).filter((x) => x.when === when);
+    if (!f) { must(shown.length === 0, 'fallbacks'); continue; }
+    const s = shown[0];
+    const decimals = config.chains.get(f.chainId)?.usdcDecimals ?? 6;
+    must(shown.length === 1 && !!s && s.chain === `eip155:${f.chainId}` && sameAddress(s.token, f.token) && s.min === f.min.toString()
+      && s.symbol === 'USDC' && s.decimals === decimals, 'fallbacks');
+  }
 }
 
 const str = (v: unknown) => (typeof v === 'number' || typeof v === 'bigint' ? v.toString() : String(v));
@@ -311,7 +328,7 @@ function swapicApproval(i: EvmCheckInput, r: Route, swapic: Hex) {
   return { token: getAddress(a.token), spender: swapic, amount: i.amountIn, resetFirst: false };
 }
 
-function checkTx(i: EvmCheckInput, r: Route, id: Hex, chainId: number, swapic: Hex) {
+function checkTx(i: EvmCheckInput, r: Route, id: Hex, chainId: number, swapic: Hex, plan: Plan, g: GuardContext) {
   const t = r.tx!;
   must(sameAddress(t.to, swapic), 'txTo');
   must(t.chainId === i.quote.fromChain, 'txChain');
@@ -323,5 +340,10 @@ function checkTx(i: EvmCheckInput, r: Route, id: Hex, chainId: number, swapic: H
     throw new GuardError('txNotRun');
   }
   must(orderIdOf(decoded, chainId, swapic) === id, 'txOrder');
+  if (plan.rail === 'across') {
+    // run(order), then nothing or exactly Across's integrator suffix (design 7.6): no other bytes ride along
+    const length = size(encodeFunctionData({ abi: SWAPIC_RUN_ABI, functionName: 'run', args: [decoded as never] }));
+    must(txTailAllowed(t.data as Hex, length, g.config.acrossIntegrator), 'txData');
+  }
   return { to: swapic, data: t.data as Hex, value: BigInt(t.value) };
 }

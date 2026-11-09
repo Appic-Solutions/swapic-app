@@ -1,3 +1,18 @@
+// AX13 and AX14's bounds: the least and the most a relayer keeps, in millionths of what is
+// deposited (`least_ppm < most_ppm <= 100,000`), and per destination chain an allowance for
+// the arrival's gas, in micro USD.
+type AcrossFeeConfig = record {
+  least_ppm : nat32;
+  most_ppm : nat32;
+  gas_allowance_usd6 : vec record { nat64; nat64 };
+};
+// Across's contracts on one chain, EVM addresses.
+type AcrossPinsConfig = record {
+  swap_proxy : text;
+  periphery : text;
+  spoke_pool : text;
+  multicall_handler : text;
+};
 // One amount per action the canister signs.
 type ActionAmounts = record {
   relay_local : nat;
@@ -15,6 +30,8 @@ type ActionAmounts = record {
   pool_approve : opt nat;
   // Eco's `cancelAndProve` of an unfilled intent, optional as the pool's.
   eco_rescue : opt nat;
+  // The relay of an order that deposits on Across, optional as the pool's.
+  relay_across : opt nat;
   // The pool's rows, optional: an absent one refuses its action.
   pool_payout : opt nat;
   relay_eco : nat;
@@ -40,6 +57,8 @@ type ActionGas = record {
   pool_approve : opt nat64;
   // Eco's `cancelAndProve` of an unfilled intent, optional as the pool's.
   eco_rescue : opt nat64;
+  // The relay of an order that deposits on Across, optional as the pool's.
+  relay_across : opt nat64;
   // The pool's rows, optional: an absent one refuses its action.
   pool_payout : opt nat64;
   relay_eco : nat64;
@@ -131,6 +150,9 @@ type CkSwapTerms = record {
 // Every knob the canister reads at runtime. The rpc urls, the chain table and the key name
 // are what a deploy fills in.
 type Config = record {
+  // The 2 bytes Across credits Swapic's deposits to, as `0x` and 4 hex digits; appended to
+  // the data of every transaction the canister signs with an Across step. Absent: nothing.
+  across_integrator : opt text;
   confirmations : vec record { nat64; nat64 };
   // How long the outbox holds signed transactions back to send them together.
   batch_window_ms : nat64;
@@ -148,11 +170,18 @@ type Config = record {
   // How often the engine's backstop drives while a payout, an ICP op or a move is open,
   // at most 60. Nothing drives on it while no work is open.
   backstop_interval_s : nat64;
+  // AX13 and AX14's bounds on an Across deposit. Absent: no order with an Across step is
+  // relayed.
+  across_fee : opt AcrossFeeConfig;
   // Whether the Eco rail may be used. False until its route is designed.
   eco_enabled : bool;
+  // The chains whose signed transactions the canister never broadcasts itself: the watcher
+  // sends them through its private node. Absent or empty: every chain as today.
+  private_send_chains : opt vec nat64;
   // The chains whose transactions are final at the chain's own finalized block (the
   // `finalized` tag) instead of a block count; their depths decide nothing. Only Polygon
-  // (137) may be named (`NotFinalizable`). Absent or empty: block counts everywhere.
+  // (137) and BNB Chain (56) may be named (`NotFinalizable`). Absent or empty: block counts
+  // everywhere.
   finalized_chains : opt vec nat64;
   // CCTP's domain id per chain: Circle's own numbering, never a chain id.
   cctp_domains : vec record { nat64; nat32 };
@@ -183,9 +212,15 @@ type ConfigError = variant {
   // the Swapic contracts on every chain name that address.
   EcdsaKeyNameFixed : record { requested : text; current : text };
   EmptyEcdsaKeyName;
+  // `across_integrator` is not `0x` and 4 hex digits.
+  NotAnIntegratorId;
+  // `across_fee`: `least_ppm` is not under `most_ppm`, or `most_ppm` is above 100,000.
+  AcrossFeeOutOfRange : record { least_ppm : nat32; most_ppm : nat32 };
   // `evm_chains[chain_id].block_time_ms` is outside 100 to 60,000.
   BlockTimeOutOfRange : record { chain_id : nat64; block_time_ms : nat64 };
   CapOutOfRange : record { cap : nat32; field : text; ceiling : nat32 };
+  // `evm_chains[chain_id].usdc_decimals` is outside 6 to 18.
+  UsdcDecimalsOutOfRange : record { decimals : nat8; chain_id : nat64 };
   // The text in `field` at `chain_id` is not an EIP-712 domain name or version: 1 to 32
   // printable ASCII characters.
   NotDomainText : record { field : text; chain_id : nat64 };
@@ -391,6 +426,8 @@ type EvmAddressError = variant {
 // block time, and per action the gas limit, the gas budget and the least fee. Addresses
 // are EVM addresses.
 type EvmChainConfig = record {
+  // Across's contracts here. Absent: no Across step from, to or on this chain is relayed.
+  across : opt AcrossPinsConfig;
   // The mint recipient and destination caller of every Swap and CkDeposit arriving here.
   cctp_receiver : text;
   // CCTP v2's `TokenMessengerV2`.
@@ -401,6 +438,8 @@ type EvmChainConfig = record {
   // USDC's EIP-712 domain version on this chain, as its contract answers `version()`.
   // None: "2". 1 to 32 printable ASCII characters.
   usdc_domain_version : opt text;
+  // The decimals of `usdc`, 6 to 18. Absent: 6. BNB Chain's (Binance's) USDC: 18.
+  usdc_decimals : opt nat8;
   // The least fee step, in USDC units, each action needs.
   min_network_fee : ActionAmounts;
   // USDC's EIP-712 domain name on this chain, as its contract answers `name()`: what a
@@ -827,6 +866,19 @@ type PoolStateView = record {
   total_assets : nat;
   closed_reason : opt text;
 };
+// A pull a door made before writing anything whose outcome nobody could tell (audit C15):
+// nothing is written of it, so a human checks `ledger` for a transfer from `from` with this
+// memo and gives back what moved. The watcher alerts each once.
+type PullToCheck = record {
+  why : text;
+  at_ns : nat64;
+  from : IcpAccount;
+  memo : blob;
+  // The door, and whether its pull or its give-back ended unclear.
+  what : text;
+  ledger : principal;
+  amount : nat;
+};
 type RebalanceSettings = record {
   max_move : nat;
   standard_when_idle : bool;
@@ -843,23 +895,24 @@ type RebalanceSettings = record {
 type Recipe = record { scaler : opt text; data : blob; target : text };
 type Result = variant { Ok : text; Err : SignError };
 type Result_1 = variant { Ok : nat64; Err : text };
-type Result_10 = variant { Ok; Err : text };
-type Result_11 = variant { Ok; Err : SetRolesError };
-type Result_12 = variant { Ok : nat64; Err : SetSanctionedError };
-type Result_13 = variant { Ok : StakeIcpOk; Err : PoolError };
-type Result_14 = variant { Ok : SwapFromIcpOk; Err : PoolError };
-type Result_15 = variant { Ok : SweepEvmOk; Err : SweepError };
-type Result_16 = variant { Ok : SweepIcpOk; Err : SweepError };
-type Result_17 = variant { Ok : WithdrawEvmOk; Err : PoolError };
-type Result_18 = variant { Ok : WithdrawIcpOk; Err : PoolError };
+type Result_10 = variant { Ok; Err : GuardError };
+type Result_11 = variant { Ok; Err : text };
+type Result_12 = variant { Ok; Err : SetRolesError };
+type Result_13 = variant { Ok : nat64; Err : SetSanctionedError };
+type Result_14 = variant { Ok : StakeIcpOk; Err : PoolError };
+type Result_15 = variant { Ok : SwapFromIcpOk; Err : PoolError };
+type Result_16 = variant { Ok : SweepEvmOk; Err : SweepError };
+type Result_17 = variant { Ok : SweepIcpOk; Err : SweepError };
+type Result_18 = variant { Ok : WithdrawEvmOk; Err : PoolError };
+type Result_19 = variant { Ok : WithdrawIcpOk; Err : PoolError };
 type Result_2 = variant { Ok : Config; Err : GuardError };
 type Result_3 = variant { Ok : PoolArrivalOutcome; Err : PoolError };
 type Result_4 = variant { Ok : PayPayoutOk; Err : PoolError };
 type Result_5 = variant { Ok; Err : PoolError };
-type Result_6 = variant { Ok : PayPayoutOk; Err : text };
-type Result_7 = variant { Ok; Err : SetConfigError };
-type Result_8 = variant { Ok; Err : FlowCallError };
-type Result_9 = variant { Ok; Err : GuardError };
+type Result_6 = variant { Ok : vec PullToCheck; Err : text };
+type Result_7 = variant { Ok : PayPayoutOk; Err : text };
+type Result_8 = variant { Ok; Err : SetConfigError };
+type Result_9 = variant { Ok; Err : FlowCallError };
 // A service role the canister hands out.
 type Role = variant { Quoter; Watcher };
 // Why `set_config` wrote nothing.
@@ -1033,7 +1086,8 @@ service : (InitArg) -> {
   // can wait for the first transaction to derive it.
   derive_evm_address : () -> (Result);
   event_count : () -> (nat64) query;
-  // `len` is capped server-side; ask for the count first and page through.
+  // `len` is capped server-side; ask for the count first and page through. A page may be
+  // shorter than asked (its size): read on until a page comes back empty.
   events_page : (nat64, nat64) -> (vec Event) query;
   // The EVM address this canister signs from, in its EIP-55 checksum, or nothing before it
   // has been derived. World-readable: it is the canister the Swapic contracts on every chain
@@ -1107,9 +1161,11 @@ service : (InitArg) -> {
   // the transfer at most once, and only when it brings at least the memo's `min_usdc`:
   // `Credited` (the payout follows on the canister's timer), or `Unattributed` with why,
   // held for a controller. `BadArrival` when no transfer carries the memo's ref. The
-  // canister trusts only the chain and the hash. A caller other than the watcher is held to
-  // 10 reports a minute in total and 3 an hour per `base_tx`, refused `Unavailable` before
-  // any outcall.
+  // canister trusts only the chain and the hash. A caller other than the watcher and the
+  // controllers is held to 2 reports a minute and 20 an hour in total and 3 an hour per
+  // `base_tx`, refused `Unavailable` before any outcall; a report bringing the terms of a
+  // transfer the canister already awaits is held only to its own 3 an hour per `base_tx`. While
+  // the pool is closed a report with terms answers `Closed`, with nothing read or recorded.
   note_pool_arrival : (PoolArrival) -> (Result_3);
   // Watcher-only, refused while halted and while the pool is closed: the order the quoter
   // built for waiting payout `id` at its exact amount (`abi.encode` of an Order, its memo
@@ -1163,6 +1219,10 @@ service : (InitArg) -> {
   // untrusted input, every rule of the spec's section 3.4; taken only within the move's window
   // and when cheaper than any taken before: the cheapest at the window's end wins.
   propose_rebalance : (nat64, blob, nat64) -> (Result_5);
+  // The doors' pulls whose outcome nobody could tell, oldest first, for the watcher's alert and
+  // a controller's check (audit C15: nothing is written of a pull before its money is in). Any
+  // other caller is refused.
+  pulls_to_check : () -> (Result_6) query;
   // The open and in-flight moves, in id order.
   rebalance_moves : () -> (vec MoveView) query;
   // The rebalancing's knobs; the defaults while none are set.
@@ -1193,7 +1253,7 @@ service : (InitArg) -> {
   // fee (the `eco_rescue` gas row bounds both); Eco refunds the reward's creator on the source
   // by itself. One rescue per order: a second call answers the first one's id. Every rescue
   // is logged.
-  rescue_eco_intent : (blob) -> (Result_6);
+  rescue_eco_intent : (blob) -> (Result_7);
   // Controller-only, refused while halted. A withdrawal through the ck minter that the canister
   // stopped, or that the minter leaves open: `Retry` reads a stopped one again, `Delivered`
   // closes one found paid on Ethereum, `Reimbursed` starts the way back for one whose ckUSDC is
@@ -1254,15 +1314,15 @@ service : (InitArg) -> {
   // Controller-only, and it takes the whole record, so editing one knob is a
   // read-modify-write: read with `get_config_full`, never with the redacted `get_config`,
   // or the write puts "***" into `rpc_urls` and is refused.
-  set_config : (Config) -> (Result_7);
+  set_config : (Config) -> (Result_8);
   // Controller-only. The ck canisters, the relay window and the rebalancing's addresses.
-  set_flow_settings : (FlowSettings) -> (Result_8);
+  set_flow_settings : (FlowSettings) -> (Result_9);
   // Controller-only, both ways: `true` is an emergency stop, `false` lifts it.
   // 
   // Lifting the halt wakes the outbox and the engine's backstop: neither re-arms itself on a
   // halted canister, so this is what puts them back when a queued transaction, an allocation
   // waiting for its cancel or an open payout was held back by the halt.
-  set_halted : (bool) -> (Result_9);
+  set_halted : (bool) -> (Result_10);
   // Controller-only, refused while halted. Sets the ICP routes (interface section 3c): the
   // ICP/ckUSDC pool, and each listed token's route, directly through its ckUSDC pool or
   // through ICP. Reads the ICP ledger off the ICP/ckUSDC pool and every route ledger's fee.
@@ -1276,7 +1336,7 @@ service : (InitArg) -> {
   // Controller-only. Pauses the pool (`true`), or reopens it (`false`), which also clears a
   // shortfall the last balance check latched, once someone has looked at it. Recorded in
   // the log on the pool chain's books; the pool's guard reads it.
-  set_pool_paused : (bool) -> (Result_10);
+  set_pool_paused : (bool) -> (Result_11);
   // Controller-only, refused while halted. Sets the pool's knobs after reading the ckUSDC
   // ledger's fee and every listed token's (`icrc1_fee`), which the ICP fees' floor at an
   // arrival reads.
@@ -1285,7 +1345,7 @@ service : (InitArg) -> {
   set_rebalance_settings : (RebalanceSettings) -> (Result_5);
   // Controller-only, and it sets both roles at once: a deploy hands out the pair, and
   // there is no path that leaves one of them stale.
-  set_roles : (principal, principal) -> (Result_11);
+  set_roles : (principal, principal) -> (Result_12);
   // The watcher's, or a controller's. Adds `add` to the sanctions set and then removes
   // `remove` from it, and answers how many addresses the set holds after. An EVM address is
   // held by its bytes, so any spelling of it is the same entry; other text is held exactly.
@@ -1295,22 +1355,22 @@ service : (InitArg) -> {
   // The set is bounded, and a call that would take it past the bound is refused whole, with
   // nothing of it written. Every text is held to the 256-byte cap and a longer one is refused
   // by its position, also with nothing written.
-  set_sanctioned : (vec text, vec text) -> (Result_12);
+  set_sanctioned : (vec text, vec text) -> (Result_13);
   // Every transaction the canister signed after `after_id`, oldest first, at most `limit`
   // of them (capped). The watcher broadcasts them; the canister's own broadcast is the
   // backup.
   signed_txs : (nat64, nat64) -> (vec SignedTx) query;
-  // Any caller, refused while halted, while the pool is closed, for a sanctioned party, and past
-  // five calls a minute or thirty an hour (this door and `swap_from_icp` together).
+  // Any caller but the anonymous one, refused while halted, while the pool is closed, and for
+  // a sanctioned party; the pull comes before anything is written (audit C15).
   // Stakes `amount` of the caller's own ckUSDC (from `from_subaccount`), pulled with
   // `icrc2_transfer_from` on the caller's approval of the canister (its main account; the
   // approval covers `amount` and the ledger's fee), for `owner`, within the TVL cap: books
   // `move_fee` to Swapic's ICP fee line and mints shares on the rest at the pool's price
-  // before it. A pull whose answer was lost answers `Unavailable`, and the canister asks
-  // again with the same pull.
-  stake_icp : (StakeIcpArgs) -> (Result_13);
-  // Any caller, refused while halted, while the pool is closed, for a sanctioned party, and
-  // past five calls a minute or thirty an hour (this door and `stake_icp` together): an
+  // before it. A pull whose outcome is unclear answers `Unavailable` with nothing written, and
+  // is kept in `pulls_to_check` for a human to check and give back.
+  stake_icp : (StakeIcpArgs) -> (Result_14);
+  // Any caller but the anonymous one, refused while halted, while the pool is closed, and for a
+  // sanctioned party; the pull comes before anything is written (audit C15): an
   // ICP user swaps `amount_in` of ckUSDC or a listed ICP token (pulled with
   // `icrc2_transfer_from` on the caller's approval of the canister) to any token on an EVM
   // chain, with the quoter's payout plan (the order for the payout it expects, its gas) and
@@ -1320,10 +1380,10 @@ service : (InitArg) -> {
   // to `refund_to`); the payout from the Base pocket is the ckUSDC less the pool's premium on
   // it and the flat network fee, paid with an order built at that exact amount. Answers the
   // payout's id and where it stands; a pull the ledger refused answers its refusal.
-  swap_from_icp : (IcpSwapTerms) -> (Result_14);
+  swap_from_icp : (IcpSwapTerms) -> (Result_15);
   // Any caller but the anonymous one, refused while halted, while the pool is closed, while the
-  // route's switch is off, short of ckETH, for a sanctioned party, and past five calls a minute
-  // or thirty an hour for that caller (this door, `swap_from_icp` and `stake_icp` together): an
+  // route's switch is off, short of ckETH, and for a sanctioned party; the pull comes before
+  // anything is written (audit C15): an
   // ICP user swaps `amount_in` of ckUSDC or a listed ICP token to USDC on Ethereum through the
   // ck minter, when the pool cannot carry it. The minter pays the recipient directly.
   // `network_fee` is at least the route's floor (`payout_settings`), no premium is taken, and
@@ -1331,7 +1391,7 @@ service : (InitArg) -> {
   // sale, or it is refunded. The recipient gets what the sale made less those, at least
   // `min_out`, or a refund on ICP, all or nothing; a refund after the minter burned keeps the
   // network fee. Answers like `swap_from_icp`, and `payout(id)` tells where it stands.
-  swap_from_icp_ck : (CkSwapTerms) -> (Result_14);
+  swap_from_icp_ck : (CkSwapTerms) -> (Result_15);
   // Controller-only, refused while halted. Sends `amount` of the canister's own `asset` on
   // `chain_id` to `to`, signed from the canister's address with the chain's `sweep` gas row
   // at a gas price the canister reads itself:
@@ -1345,7 +1405,7 @@ service : (InitArg) -> {
   // 
   // Refused for the canister's own address, the zero address and a sanctioned one. Answers
   // the sweep's id and its transaction's id in `signed_txs`.
-  sweep_evm : (SweepEvmArgs) -> (Result_15);
+  sweep_evm : (SweepEvmArgs) -> (Result_16);
   // Controller-only, refused while halted. Sends `amount` of the canister's own `asset` on
   // ICP to `to`, the ledger's fee paid on top from the same account:
   // 
@@ -1358,15 +1418,19 @@ service : (InitArg) -> {
   // The amount leaves the books before the transfer is asked and comes back if the ledger
   // refuses it. Refused for the canister's own account. Answers the sweep's id and the
   // ledger block of its transfer.
-  sweep_icp : (SweepIcpArgs) -> (Result_16);
+  sweep_icp : (SweepIcpArgs) -> (Result_17);
   version : () -> (text) query;
+  // The canister's cycles balance, for the watcher's low cycles alert alone: a balance anyone
+  // could read would tell an outsider how far the canister is from freezing. Any other caller is
+  // refused. The balance saturates at `u64::MAX` (about 18 million T), far above any real one.
+  watcher_cycles_balance : () -> (Result_1) query;
   // Any caller (the 65-byte EIP-712 signature proves the staker; the watcher's
   // `POST /v2/withdraw` forwards here), refused while halted, while the pool is closed, and for
   // a sanctioned party. Burns the shares `usdc` is worth (rounded up, at most `max_shares` and
   // the staker's own), books the move fee and the network fee to Swapic's Base fee line, and
   // opens a payout of the rest from the Base pocket, waiting for its order or queued while the
   // pocket is short. One nonce per staker, once. Answers the payout's id and the shares burned.
-  withdraw_evm : (EvmWithdrawal, blob) -> (Result_17);
+  withdraw_evm : (EvmWithdrawal, blob) -> (Result_18);
   // The ICP owner of the shares (the caller, at its subaccount `from`), refused while halted,
   // while the pool is closed, and for a sanctioned party. Burns the shares `usdc` is worth
   // (rounded up, at most `max_shares`), books `move_fee` to Swapic's ICP fee line, and pays
@@ -1374,5 +1438,5 @@ service : (InitArg) -> {
   // least `min_out`; below it, all of it as ckUSDC), every ledger fee out of it. Refused when
   // the ICP pocket's free ckUSDC is short. A payout that does not finish in this call
   // answers `Unavailable` with the shares burned, and the canister's timer finishes it.
-  withdraw_icp : (WithdrawIcpArgs) -> (Result_18);
+  withdraw_icp : (WithdrawIcpArgs) -> (Result_19);
 }

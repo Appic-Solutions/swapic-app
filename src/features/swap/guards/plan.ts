@@ -7,19 +7,25 @@ import type { GuardContext } from './context';
 import type { ChainView } from '@/lib/icp';
 import { decodeEnvelope, type Envelope } from './envelope';
 import { GuardError, must } from './errors';
+import { acrossDelivery, readAcrossStep, type AcrossDeposit } from './across';
 
 export interface PlanContext extends GuardContext { sourceChainId: number; payer: Hex; orderDeadline: bigint; nowSec: number }
 export interface Delivery { chainId: number; recipient: Hex; token: Hex; minOut: bigint }
 /** A deposit into the ck minter's helper: the account its step names, and the least its Runner hands over. */
 export interface CkDeposit { principal: Hex; subaccount: Hex; min: bigint }
+/** What the person gets instead, read from the order itself (BSC design 5.2): its chain, its token and the least of it. */
+export interface Fallback { chainId: number; token: Hex; min: bigint }
 export interface Plan {
   fees: { to: Hex; amount: bigint }[];
-  /** How the money leaves the source chain: stays (local), a CCTP burn (burn), an Eco intent (fill), the ck helper (ck). */
-  rail: 'local' | 'burn' | 'fill' | 'ck';
+  /** How the money leaves the source chain: stays (local), a CCTP burn (burn), an Eco intent (fill), the ck helper (ck),
+   *  an Across deposit (across). */
+  rail: 'local' | 'burn' | 'fill' | 'ck' | 'across';
   delivery: Delivery | null;
   envelope: Envelope | null;
   /** Set on `rail: 'ck'`: nothing is delivered on any EVM chain, the minter mints to this account. */
   ck?: CkDeposit;
+  /** Set on `rail: 'across'`: what comes back if no relayer fills the deposit, and what is paid if the last swap fails. */
+  fallbacks?: { notFilled: Fallback; lastSwapFails: Fallback | null };
 }
 
 const ZERO = '0x0000000000000000000000000000000000000000';
@@ -47,6 +53,7 @@ type Read =
   | { kind: 'burn'; destination: number; envelope: Envelope; mintRecipient: Hex; caller: Hex; maxFee: bigint; min: bigint }
   | { kind: 'fill'; destination: number; token: Hex; deliver: Hex | null; envelope: Envelope | null; fee: bigint; min: bigint }
   | { kind: 'ck'; principal: Hex; subaccount: Hex; min: bigint }
+  | { kind: 'across'; deposit: AcrossDeposit }
   | { kind: 'swap' };
 
 const word = (a: string) => pad(a.toLowerCase() as Hex, { size: 32 }).toLowerCase();
@@ -71,7 +78,7 @@ const ours = (ctx: PlanContext, chainId: number) => {
  * anything left of it. Refusals: swapExecutor (another callTarget), swapSrcReceiver (no receiver, or one that is zero
  * or ours), and the rules this guard had before.
  */
-export function readKyberSwap(step: Step, source: ChainView, canisterEvm: Hex | null): void {
+export function readKyberSwap(step: Step, source: ChainView, canisterEvm: Hex | null): Hex {
   const d = decode(step.data);
   must(d.functionName === 'swap', 'unknownStep');
   must(sameAddress(step.target, KYBER_ROUTER), 'unknownStep');
@@ -84,6 +91,7 @@ export function readKyberSwap(step: Step, source: ChainView, canisterEvm: Hex | 
   must(ex.desc.srcReceivers.length > 0 && ex.desc.srcReceivers.every((r) => !refused.some((x) => sameAddress(r, x))), 'swapSrcReceiver');
   must(ex.desc.feeReceivers.length === 0 && ex.desc.permit === '0x', 'swapFees');
   must(sameAddress(ex.desc.dstReceiver, source.runner), 'swapReceiver');
+  return (ex.desc as unknown as { dstToken: Hex }).dstToken;
 }
 
 function readStep(step: Step, ctx: PlanContext): Read {
@@ -123,6 +131,10 @@ function readStep(step: Step, ctx: PlanContext): Read {
     case 'swap':
       readKyberSwap(step, source!, ctx.canisterEvm);
       return { kind: 'swap' };
+    case 'swapAndBridge':
+      // a deposit only through the source's own periphery, as the canister pins it
+      must(!!source!.across, 'unknownStep');
+      return { kind: 'across', deposit: readAcrossStep(step, source!.across!) };
     default:
       throw new GuardError('unknownStep');
   }
@@ -211,9 +223,20 @@ export function readPlan(o: OrderValue, ctx: PlanContext): Plan {
   const burns = reads.filter((r): r is Extract<Read, { kind: 'burn' }> => r.kind === 'burn');
   const intents = reads.filter((r): r is Extract<Read, { kind: 'fill' }> => r.kind === 'fill');
   const cks = reads.filter((r): r is Extract<Read, { kind: 'ck' }> => r.kind === 'ck');
-  must(burns.length + intents.length + cks.length <= 1, 'twoRails');
+  const deposits = reads.filter((r): r is Extract<Read, { kind: 'across' }> => r.kind === 'across');
+  must(burns.length + intents.length + cks.length + deposits.length <= 1, 'twoRails');
   const payout: Delivery | null = sameAddress(o.payout.token, ZERO) ? null
     : { chainId: ctx.sourceChainId, recipient: o.payout.recipient, token: o.payout.token, minOut: o.payout.minOut };
+  if (deposits.length) {
+    // one deposit, the last step, nothing paid out on the source (AX10, AX11): the relayer pays the destination
+    must(reads[reads.length - 1]!.kind === 'across', 'acrossLast');
+    must(!payout, 'acrossPayout');
+    const read = acrossDelivery(deposits[0]!.deposit, o, ctx, (step, chain) => readKyberSwap(step, chain, ctx.canisterEvm));
+    return {
+      fees, rail: 'across', delivery: read.delivery, envelope: read.envelope,
+      fallbacks: { notFilled: read.notFilled, lastSwapFails: read.lastSwapFails },
+    };
+  }
   if (cks.length) {
     // all of it into the helper, last: nothing is paid beside it, and nothing runs after it
     must(!payout && reads[reads.length - 1]!.kind === 'ck', 'twoRails');

@@ -66,6 +66,8 @@ export function verifyIcpSwap(i: IcpCheckInput): CheckedIcpSwap {
   must(sameAddress(order.payer, g!.canisterEvm), 'planPayer');
   must(order.memo === '0x', 'planMemo');
   const plan = readPlan(order, { ...g!, sourceChainId: poolChain!, payer: getAddress(g!.canisterEvm!), orderDeadline: order.deadline, nowSec: Number(i.nowNs / 1_000_000_000n) });
+  // the canister's pool reads no Across plan yet (wave 2): refused here, before anything is approved
+  must(plan.rail !== 'across', 'planRail');
   const d = plan.delivery;
   must(!!d && d.chainId === i.toChainId && sameAddress(d.recipient, i.recipientEvm) && sameToken(d.token, i.toToken) && d.minOut >= minOut, 'planPayout');
 

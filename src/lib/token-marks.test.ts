@@ -38,9 +38,9 @@ describe('token marks', () => {
     expect(markOf(t(USDC, 'USDC'))).toBe('verified');
     expect(markOf(t('0x9a4fe21c07b3d6a5e81f0c2d94b7a3e6f15c8d2b', 'USDC'))).toBe('fake');
   });
-  it('lists every address once, in lower case, under one of the twelve chains (Avalanche and Arc since 2026-11-09)', () => {
+  it('lists every address once, in lower case, under one of the thirteen chains (Avalanche and Arc since 2026-11-09, BNB Chain after)', () => {
     const lists = Object.entries(TOKEN_LISTS);
-    expect(lists).toHaveLength(12);
+    expect(lists).toHaveLength(13);
     expect(lists.map(([chain]) => chain)).toEqual(expect.arrayContaining(['eip155:43114', 'eip155:5042']));
     for (const [chain, tokens] of lists) {
       expect(chain).toMatch(/^eip155:\d+$/);

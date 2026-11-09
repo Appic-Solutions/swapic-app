@@ -27,6 +27,7 @@ const NATIVE_LOGOS: Record<string, string> = {
   'eip155:999': `${CHAIN}/hyperevm.svg`,
   'eip155:9745': `${T}/xpl.svg`,
   'eip155:43114': `${CHAIN}/avalanche.png`,
+  'eip155:56': `${CHAIN}/bsc.png`,
   // Arc's coin is its USDC
   'eip155:5042': `${T}/usdc.png`,
 };
