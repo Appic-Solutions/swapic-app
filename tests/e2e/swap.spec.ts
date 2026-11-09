@@ -308,6 +308,10 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await expect(page.getByText("Swap didn't start", { exact: true })).toBeVisible();
     await expect(page.getByText("Swapic couldn't send the swap to the network in time. Nothing left the wallet and no fee was charged.")).toBeVisible();
     await expect(button(page, 'Try again')).toBeVisible();
+    // Try again: the same swap once more, its tokens and amount kept
+    await button(page, 'Try again').click();
+    await expect(amountField(page)).toHaveValue('5');
+    await expect(page.getByText('WBTC', { exact: true }).first()).toBeVisible();
   });
   test('reduce motion: exactly one view after each change', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -328,6 +332,10 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await button(page, 'Make another swap').click();
     await expect(swapTitle).toHaveCount(1);
     await expect(statusTitle).toHaveCount(0);
+    // a fresh Swap card (Jeff 2026-11-09): no tokens, no amount, and the address bar names none
+    await expect(amountField(page)).toHaveCount(0);
+    await expect(page.getByText('WBTC', { exact: true })).toHaveCount(0);
+    await expect.poll(() => new URL(page.url()).search).toBe('');
   });
 });
 

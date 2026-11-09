@@ -311,14 +311,18 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
   };
 
   // Back to the Swap panel in place. After a swap (fresh) the tokens and amount stay and the first route is picked.
-  const toSwap = (fresh: boolean) => {
+  // back: Review swap's Back, the form as it was. retry: Try again after a swap that did not start, the same tokens and
+  // amount. new: Make another swap, the Swap card as a fresh page opens it (Jeff 2026-11-09), so the address bar empties too.
+  const toSwap = (to: 'back' | 'retry' | 'new') => {
     setStates(undefined);
     setConfirming(false);
     setApproving(false);
     setCancelled(false);
     setNote(null);
     setResume(null);
-    if (fresh) { f.set({ tag: 'Gasless' }); setActivity(null); setGlide(false); }
+    if (to === 'new') f.reset();
+    else if (to === 'retry') f.set({ tag: 'Gasless' });
+    if (to !== 'back') { setActivity(null); setGlide(false); }
     setView('swap');
   };
 
@@ -366,13 +370,13 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
             note={note ? (
               <Note tone={note.tone} icon={note.tone === 'blue' || note.clock ? <ClockIcon width={16} height={16} /> : <WarningIcon />}>{note.text}</Note>
             ) : undefined}
-            onBack={() => toSwap(false)}
+            onBack={() => toSwap('back')}
             timer={holding ? undefined : <CountdownLabel startedAt={rvAt} fetching={updating} />}
             marks={reviewMarks(rv.from, rv.to)}
             onSign={() => void sign()}
           />
         ) : v.startsWith('status') && rv && activity ? (
-          <StatusView rv={rv} activity={activity} logo={logo} routeRef={glide ? routeRef : undefined} onNew={() => toSwap(true)} onHistory={() => router.push('/history')} />
+          <StatusView rv={rv} activity={activity} logo={logo} routeRef={glide ? routeRef : undefined} onNew={() => toSwap('new')} onRetry={() => toSwap('retry')} onHistory={() => router.push('/history')} />
         ) : null
       }
     </MorphFrame>
@@ -380,9 +384,9 @@ export function SwapFlow({ view, setView, onPick, linking }: { view: FlowView; s
 }
 
 /** Your swap, from the real tracking. */
-function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
+function StatusView({ rv, activity, logo, routeRef, onNew, onRetry, onHistory }: {
   rv: Review; activity: Activity; logo: ReturnType<typeof useLogoFor>;
-  routeRef?: React.RefObject<HTMLDivElement | null>; onNew: () => void; onHistory: () => void;
+  routeRef?: React.RefObject<HTMLDivElement | null>; onNew: () => void; onRetry: () => void; onHistory: () => void;
 }) {
   const { status, steps } = useActivity(activity.id);
   const nowSec = Math.floor(Date.now() / 1000);
@@ -424,6 +428,6 @@ function StatusView({ rv, activity, logo, routeRef, onNew, onHistory }: {
   // the app's own steps are not Swapic's: the ring waits at its start until the real ones come
   const progress = etaAt ? RING_MOVING : data.steps.length && !data.early ? 0.25 + ((RING_MOVING - 0.25) * done) / data.steps.length : 0.25;
   const refunding = data.steps.some((s) => s.state === 'fail') || status?.stage === 'refunding';
-  return <SwapStatus data={data} ring={{ progress, fillFor, refunding, from: routeRef }} onNew={onNew} onHistory={onHistory} />;
+  return <SwapStatus data={data} ring={{ progress, fillFor, refunding, from: routeRef }} onNew={onNew} onRetry={onRetry} onHistory={onHistory} />;
 }
 
