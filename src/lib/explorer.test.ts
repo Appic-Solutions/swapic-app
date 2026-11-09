@@ -11,6 +11,10 @@ describe('explorer', () => {
     expect(chainName('eip155:42161')).toBe('Arbitrum');
     expect(txLink('eip155:137', '0xab')).toBe('https://polygonscan.com/tx/0xab');
     expect(isKnownChain('eip155:10')).toBe(true);
-    expect(isKnownChain('eip155:56')).toBe(false);
+    // BNB Chain since its row (release step R12); a chain with no row stays unknown
+    expect(isKnownChain('eip155:56')).toBe(true);
+    expect(chainName('eip155:56')).toBe('BNB Chain');
+    expect(txLink('eip155:56', '0xab')).toBe('https://bscscan.com/tx/0xab');
+    expect(isKnownChain('eip155:4663')).toBe(false);
   });
 });

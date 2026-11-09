@@ -181,7 +181,7 @@ describe('refundRows (Jeff\'s short rows, 2026-11-09)', () => {
       { when: 'lastSwapFails', ...usdc('eip155:56', '997100000000000000000', 18) },
     ]), q, from);
     expect(rows).toEqual([
-      { k: 'If the last swap fails', text: 'All as USDC on eip155:56, at least 997.10' },
+      { k: 'If the last swap fails', text: 'All as USDC on BNB Chain, at least 997.10' },
       { k: "If it can't be delivered", text: 'Back as USDC on Arbitrum, at least 1,000.00' },
     ]);
   });

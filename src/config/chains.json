@@ -11,5 +11,6 @@
   { "id": "eip155:480", "name": "World Chain", "logo": "/images/logo/chains-logos/worldchain.svg", "explorer": "https://worldscan.org", "rpcHosts": ["https://worldchain-mainnet.g.alchemy.com"] },
   { "id": "eip155:9745", "name": "Plasma", "logo": "/images/logo/chains-logos/plasma.svg", "explorer": "https://plasmascan.to", "rpcHosts": ["https://rpc.plasma.to"] },
   { "id": "eip155:43114", "name": "Avalanche", "logo": "/images/logo/chains-logos/avalanche.png", "explorer": "https://snowtrace.io", "rpcHosts": [] },
-  { "id": "eip155:5042", "name": "Arc", "logo": "/images/logo/chains-logos/arc.png", "explorer": "https://explorer.arc.io", "rpcHosts": ["https://rpc.mainnet.arc.io"] }
+  { "id": "eip155:5042", "name": "Arc", "logo": "/images/logo/chains-logos/arc.png", "explorer": "https://explorer.arc.io", "rpcHosts": ["https://rpc.mainnet.arc.io"] },
+  { "id": "eip155:56", "name": "BNB Chain", "logo": "/images/logo/chains-logos/bsc.png", "explorer": "https://bscscan.com", "rpcHosts": [] }
 ]
