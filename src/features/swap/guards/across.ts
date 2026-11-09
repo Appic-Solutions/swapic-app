@@ -203,6 +203,8 @@ export function acrossDelivery(d: AcrossDeposit, o: OrderValue, ctx: PlanContext
   const million = 1_000_000n;
   const paid = usd6(d.outputAmount, dest!.usdcDecimals ?? 6) * million;
   const put = usd6(d.minExpected, source.usdcDecimals ?? 6);
+  // never nothing, which a small deposit's gas allowance alone would let through
+  must(paid > 0n, 'acrossFee');
   must(paid <= put * (million - BigInt(fee!.leastPpm)), 'acrossFee');
   const allowance = fee!.gasAllowanceUsd6.get(d.destination) ?? 0n;
   const floor = put * (million - BigInt(fee!.mostPpm)) - allowance * million;

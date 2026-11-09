@@ -41,6 +41,7 @@ import type { SignableTypedData } from '@/lib/wallets';
 import { chainNumber } from '@/lib/explorer';
 import { ORDER_TUPLE, PERMIT2, SWAPIC_RUN_ABI, isNative, orderIdOf, orderValue, sameAddress, sameToken, type OrderValue } from './abi';
 import type { GuardContext } from './context';
+import type { SwapicConfigView } from '@/lib/icp';
 import { decodeEnvelope, principalWord, sameEnvelope } from './envelope';
 import { GuardError, must } from './errors';
 import { decodeMemo, memoRef, type MemoTerms } from './memo';
@@ -103,7 +104,7 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
   const plan = readPlan(o, { ...g, sourceChainId: chainId, payer: getAddress(i.payer), orderDeadline: o.deadline, nowSec: i.nowSec });
   const minOut = BigInt(r.amountOutMin);
   const terms = checkDelivery(i, r, o, plan, minOut, g);
-  checkFallbacks(r, plan);
+  checkFallbacks(r, plan, g.config);
 
   if (i.mode === 'gasless') {
     must(!!r.sign && !r.tx, 'gaslessShape');
@@ -185,14 +186,17 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
   return null;
 }
 
-/** An Across order's fallbacks, as the Review screen shows them, are the order's own: each its chain, token and least. */
-export function checkFallbacks(r: Pick<Route, 'fallbacks'>, plan: Plan): void {
-  if (!plan.fallbacks) return;
-  const want = [['notFilled', plan.fallbacks.notFilled], ['lastSwapFails', plan.fallbacks.lastSwapFails]] as const;
+/** The fallbacks the Review screen shows are the order's own: an Across order's each its chain, its USDC (named USDC,
+ *  in the decimals the canister holds for it) and its least; any other order shows none of those two kinds. */
+export function checkFallbacks(r: Pick<Route, 'fallbacks'>, plan: Plan, config: SwapicConfigView): void {
+  const want = [['notFilled', plan.fallbacks?.notFilled ?? null], ['lastSwapFails', plan.fallbacks?.lastSwapFails ?? null]] as const;
   for (const [when, f] of want) {
     const shown = (r.fallbacks ?? []).filter((x) => x.when === when);
     if (!f) { must(shown.length === 0, 'fallbacks'); continue; }
-    must(shown.length === 1 && shown[0]!.chain === `eip155:${f.chainId}` && sameAddress(shown[0]!.token, f.token) && shown[0]!.min === f.min.toString(), 'fallbacks');
+    const s = shown[0];
+    const decimals = config.chains.get(f.chainId)?.usdcDecimals ?? 6;
+    must(shown.length === 1 && !!s && s.chain === `eip155:${f.chainId}` && sameAddress(s.token, f.token) && s.min === f.min.toString()
+      && s.symbol === 'USDC' && s.decimals === decimals, 'fallbacks');
   }
 }
 

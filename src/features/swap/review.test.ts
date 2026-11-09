@@ -195,4 +195,9 @@ describe('refundRows (Jeff\'s short rows, 2026-11-09)', () => {
     // a CCTP route's notSwapped entry changes nothing yet
     expect(refundRows(route([{ when: 'notSwapped', ...usdc('eip155:137', '1') }]), q, from)).toEqual([{ k: "If it can't finish", text: 'Refunded as USDC' }]);
   });
+  it('shows an ICP route today\'s row whatever it names, and never breaks on an amount that is no number', () => {
+    const icp = { ...from, chain_type: 'ICP' as const };
+    expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:42161', '1000000000') }]), q, icp)).toEqual([{ k: "If it can't finish", text: 'Refunded as ckUSDC' }]);
+    expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:42161', 'lots') }]), q, from)).toEqual([{ k: "If it can't finish", text: 'Refunded as USDC' }]);
+  });
 });

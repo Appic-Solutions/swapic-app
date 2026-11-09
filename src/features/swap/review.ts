@@ -1,7 +1,7 @@
 // The review page's texts (plan 2 Task 9): exactly the amounts the checks bind, from the picked option, formatted by
 // @/lib/money and @/lib/copy (no Number on an amount).
 import type { Quote, Route } from '@/lib/api';
-import { chainRow } from '@/lib/chains';
+import { BSC_CHAIN, chainRow } from '@/lib/chains';
 import type { UiToken } from '@/components/ui/token-types';
 import { tokenAmountText } from '@/lib/copy/format';
 import { formatUsd, usdMicro } from '@/lib/money';
@@ -23,23 +23,28 @@ export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined)
   return { kind: minOutOf(fresh) >= shownMin ? 'quiet' : 'newPrice', option: fresh };
 }
 
-const BSC = 'eip155:56';
-
 /**
  * The "If it can't finish" rows (Jeff's short rows, 2026-11-09): an Across route names what comes back and where, at
  * least the order's own minimums (the check refuses a route whose answer says otherwise); a swap on BNB Chain alone
  * reverts and keeps the person's token; every other route keeps today's row.
  */
 export function refundRows(route: Route, quote: Quote, from: UiToken): { k: string; text: string }[] {
-  const all = route.fallbacks ?? [];
+  const plain = [{ k: "If it can't finish", text: `Refunded as ${from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC'}` }];
+  // an ICP route's fallbacks are no Across order's: today's row
+  const all = from.chain_type === 'ICP' ? [] : route.fallbacks ?? [];
   const notFilled = all.find((f) => f.when === 'notFilled');
   const lastSwap = all.find((f) => f.when === 'lastSwapFails');
   const place = (f: NonNullable<typeof notFilled>) =>
     `${f.symbol} on ${chainRow(f.chain)?.name ?? f.chain}, at least ${tokenAmountText(BigInt(f.min), f.decimals, f.symbol)}`;
-  if (notFilled && lastSwap) return [{ k: 'If the last swap fails', text: `All as ${place(lastSwap)}` }, { k: "If it can't be delivered", text: `Back as ${place(notFilled)}` }];
-  if (notFilled) return [{ k: "If it can't finish", text: `Back to you as ${place(notFilled)}` }];
-  if (quote.fromChain === BSC && quote.toChain === BSC) return [{ k: "If it can't finish", text: `Nothing happens, you keep your ${from.symbol}` }];
-  return [{ k: "If it can't finish", text: `Refunded as ${from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC'}` }];
+  try {
+    if (notFilled && lastSwap) return [{ k: 'If the last swap fails', text: `All as ${place(lastSwap)}` }, { k: "If it can't be delivered", text: `Back as ${place(notFilled)}` }];
+    if (notFilled) return [{ k: "If it can't finish", text: `Back to you as ${place(notFilled)}` }];
+  } catch {
+    // an amount that is no number: the check refuses the route before anything is signed
+    return plain;
+  }
+  if (quote.fromChain === BSC_CHAIN && quote.toChain === BSC_CHAIN) return [{ k: "If it can't finish", text: `Nothing happens, you keep your ${from.symbol}` }];
+  return plain;
 }
 
 /** The same wallet steps, in the same places: the list's states are read by position, so any other list starts over. */
@@ -74,7 +79,6 @@ export function reviewData(i: {
     option,
     steps,
     recipient: i.recipient,
-    refundAs: i.from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC',
     refundRows: refundRows(i.option.route, i.quote, i.from),
     blocked,
     pending: !!i.pending,

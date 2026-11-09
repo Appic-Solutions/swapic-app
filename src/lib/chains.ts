@@ -12,6 +12,8 @@ export const CHAIN_IDS: readonly string[] = CHAINS.map((c) => c.id);
 export const POOL_CHAIN = 'eip155:8453';
 /** Stake From's chain when the wallet's own chain holds no USDC the pool takes (stake-from.ts). */
 export const DEFAULT_FROM_CHAIN = 'eip155:42161';
+/** BNB Chain: no CCTP, its money moves by Across alone, so it stays out of the pool. */
+export const BSC_CHAIN = 'eip155:56';
 
 export const chainRow = (caip2: string): ChainRow | undefined => CHAINS.find((c) => c.id === caip2);
 

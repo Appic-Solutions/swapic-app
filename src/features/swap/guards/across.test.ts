@@ -135,6 +135,11 @@ describe('Across, read as the canister reads it', () => {
     // 3 USDC less 0.3 % and the $0.10 gas allowance: 2.891
     expect(refusal(withDeposit({ outputAmount: 2_890_999n }))).toBe('acrossFee');
     expect(refusal(withDeposit({ outputAmount: 2_891_000n }))).toBe('read');
+    // an allowance above the whole floor still leaves no deposit promising nothing
+    const roomy = ctx((c) => { c.acrossFee!.gasAllowanceUsd6.set(42161, 10_000_000n); });
+    const direct = { message: '0x' as Hex, recipient: lower(t0.payer) };
+    expect(refusal(withDeposit({ ...direct, outputAmount: 0n }), roomy)).toBe('acrossFee');
+    expect(refusal(withDeposit({ ...direct, outputAmount: 1n }), roomy)).toBe('read');
   });
 
   it('refuses a deposit that is not the last step, or one paid out beside (AX10, AX11)', () => {
@@ -157,7 +162,7 @@ describe('Across, read as the canister reads it', () => {
 
 describe('the fallbacks a Review screen shows', () => {
   const plan = readPlan(ORDER, ctx());
-  const answer = (edit: (f: { when: string; chain: string; token: string; min: string }[]) => void = () => {}) => {
+  const answer = (edit: (f: { when: string; chain: string; token: string; symbol: string; decimals: number; min: string }[]) => void = () => {}) => {
     const fallbacks = [
       { when: 'notFilled', chain: 'eip155:8453', token: t0.base.usdc, symbol: 'USDC', decimals: 6, min: '3000000' },
       { when: 'lastSwapFails', chain: 'eip155:42161', token: t0.arbitrum.usdc, symbol: 'USDC', decimals: 6, min: '2930727' },
@@ -165,7 +170,7 @@ describe('the fallbacks a Review screen shows', () => {
     edit(fallbacks);
     return { fallbacks } as never;
   };
-  const rule = (r: never) => { try { checkFallbacks(r, plan); return 'ok'; } catch (e) { return (e as { rule?: string }).rule; } };
+  const rule = (r: never, p = plan) => { try { checkFallbacks(r, p, ctx().config); return 'ok'; } catch (e) { return (e as { rule?: string }).rule; } };
   it("takes the answer's fallbacks only when each is the order's own chain, token and least", () => {
     expect(rule(answer())).toBe('ok');
     expect(rule(answer((f) => { f[0]!.min = '3000001'; }))).toBe('fallbacks');
@@ -173,5 +178,14 @@ describe('the fallbacks a Review screen shows', () => {
     expect(rule(answer((f) => { f[0]!.token = OTHER; }))).toBe('fallbacks');
     expect(rule(answer((f) => { f.pop(); }))).toBe('fallbacks');
     expect(rule({ fallbacks: undefined } as never)).toBe('fallbacks');
+    // the token is named and counted as the canister holds it, or the screen's number is off
+    expect(rule(answer((f) => { f[1]!.decimals = 18; }))).toBe('fallbacks');
+    expect(rule(answer((f) => { f[0]!.symbol = 'ETH'; }))).toBe('fallbacks');
+  });
+  it('takes none of those fallbacks on an order that is not an Across one', () => {
+    const cctp = { ...plan, rail: 'burn', fallbacks: undefined } as never;
+    expect(rule(answer(), cctp)).toBe('fallbacks');
+    expect(rule({ fallbacks: [{ when: 'notSwapped', chain: 'eip155:42161', token: t0.arbitrum.usdc, symbol: 'USDC', decimals: 6, min: '1' }] } as never, cctp)).toBe('ok');
+    expect(rule({ fallbacks: undefined } as never, cctp)).toBe('ok');
   });
 });
