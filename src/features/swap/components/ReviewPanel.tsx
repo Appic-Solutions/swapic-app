@@ -110,7 +110,7 @@ export function ReviewPanel({ data, pay, get, toToken, states, disabled, button,
               <span className="font-mono font-normal text-white">{short(recipient.address)}</span>
               <CopyButton id="to" copied={copied} onCopy={copy} text={recipient.address} />
             </InfoRow>
-            <InfoRow k="If it can't finish">Refunded as {data.refundAs}</InfoRow>
+            {data.refundRows.map((row) => <InfoRow key={row.k} k={row.k}>{row.text}</InfoRow>)}
           </div>
         </MotionCard>
       }

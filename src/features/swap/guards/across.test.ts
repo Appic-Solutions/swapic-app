@@ -8,6 +8,7 @@ import type { ChainView, SwapicConfigView } from '@/lib/icp';
 import { SWAPIC_RUN_ABI, STEP_ABI, type OrderValue } from './abi';
 import { acrossCalldata, integratorSuffix, readAcrossStep, txTailAllowed, type AcrossDeposit } from './across';
 import { readPlan, type PlanContext } from './plan';
+import { checkFallbacks } from './evm';
 
 const t0 = JSON.parse(readFileSync('tests/fixtures/real/across/t0_2026_11_08.json', 'utf8'));
 const lower = (h: string) => h.toLowerCase() as Hex;
@@ -151,5 +152,26 @@ describe('Across, read as the canister reads it', () => {
     expect(txTailAllowed(`${run}1dc0de00ac`, length, 0x00ab)).toBe(false);
     expect(txTailAllowed(`${run}1dc0de00ab`, length, null)).toBe(false);
     expect(txTailAllowed(`${run}00`, length, 0x00ab)).toBe(false);
+  });
+});
+
+describe('the fallbacks a Review screen shows', () => {
+  const plan = readPlan(ORDER, ctx());
+  const answer = (edit: (f: { when: string; chain: string; token: string; min: string }[]) => void = () => {}) => {
+    const fallbacks = [
+      { when: 'notFilled', chain: 'eip155:8453', token: t0.base.usdc, symbol: 'USDC', decimals: 6, min: '3000000' },
+      { when: 'lastSwapFails', chain: 'eip155:42161', token: t0.arbitrum.usdc, symbol: 'USDC', decimals: 6, min: '2930727' },
+    ];
+    edit(fallbacks);
+    return { fallbacks } as never;
+  };
+  const rule = (r: never) => { try { checkFallbacks(r, plan); return 'ok'; } catch (e) { return (e as { rule?: string }).rule; } };
+  it("takes the answer's fallbacks only when each is the order's own chain, token and least", () => {
+    expect(rule(answer())).toBe('ok');
+    expect(rule(answer((f) => { f[0]!.min = '3000001'; }))).toBe('fallbacks');
+    expect(rule(answer((f) => { f[1]!.chain = 'eip155:56'; }))).toBe('fallbacks');
+    expect(rule(answer((f) => { f[0]!.token = OTHER; }))).toBe('fallbacks');
+    expect(rule(answer((f) => { f.pop(); }))).toBe('fallbacks');
+    expect(rule({ fallbacks: undefined } as never)).toBe('fallbacks');
   });
 });

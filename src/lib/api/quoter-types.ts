@@ -30,7 +30,12 @@ export interface QuoteQuery {
 export interface QuoteToken { address: string; symbol: string; decimals: number; verified: boolean }
 
 /** answer/mod.rs:82-91 (never shown) */
-export type Bridge = 'eco' | 'ecoCctp' | 'cctpFast' | 'cctpStandard' | 'pool' | 'ckMinter' | 'sameChain';
+export type Bridge = 'eco' | 'ecoCctp' | 'cctpFast' | 'cctpStandard' | 'pool' | 'ckMinter' | 'sameChain' | 'across';
+/** One fallback of a route's order (BSC design 5.2): what the person gets instead, and when. The app shows it only once
+ *  its chain, token and least are the order's own (guards/evm.ts). */
+export interface FallbackJson {
+  when: 'notFilled' | 'lastSwapFails' | 'notSwapped'; chain: string; token: string; symbol: string; decimals: number; min: string;
+}
 
 /** answer/mod.rs:139-164 */
 export type Warning =
@@ -136,6 +141,7 @@ export interface Route {
   permit2Pay?: Permit2PayRequest;
   /** A gasless route whose wallet must approve Permit2 first: known before a route is named, when the ask names the payer. */
   needsApproval?: boolean;
+  fallbacks?: FallbackJson[];
 }
 /** answer/mod.rs:68-78 */
 export interface Mode { allowed: boolean; whyNot?: string; routes: Route[] }

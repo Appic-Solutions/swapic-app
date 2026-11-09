@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Quote } from '@/lib/api';
 import { cushioned, forPayer, pickOptions } from './options';
-import { minOutOf, reviewData, reviewRefresh, sameSteps } from './review';
+import { minOutOf, refundRows, reviewData, reviewRefresh, sameSteps } from './review';
 
 const q: Quote = JSON.parse(readFileSync('tests/fixtures/real/quote/arb-usdc-to-pol-wbtc.json', 'utf8'));
 const tok = (symbol: string, decimals: number, chain: string, address: string) => ({ key: '', chain, chainId: Number(chain.split(':')[1]), chainName: '', chainLogo: '', chain_type: 'EVM' as const, address, symbol, name: symbol, logo: '', decimals, priceUsd: null, verified: true });
@@ -170,3 +170,29 @@ describe('reviewRefresh (Review swap\'s 20 s refresh)', () => {
   });
 });
 
+
+describe('refundRows (Jeff\'s short rows, 2026-11-09)', () => {
+  const usdc = (chain: string, min: string, decimals = 6) => ({ chain, token: '0x1', symbol: 'USDC', decimals, min });
+  const route = (fallbacks: object[] | undefined) => ({ ...q.gasless.routes[0]!, fallbacks } as never);
+  const bscFrom = tok('BNB', 18, 'eip155:56', '0x0000000000000000000000000000000000000000');
+  it('names both ways back of a route with a last swap, at least the order\'s own minimums', () => {
+    const rows = refundRows(route([
+      { when: 'notFilled', ...usdc('eip155:42161', '1000000000') },
+      { when: 'lastSwapFails', ...usdc('eip155:56', '997100000000000000000', 18) },
+    ]), q, from);
+    expect(rows).toEqual([
+      { k: 'If the last swap fails', text: 'All as USDC on eip155:56, at least 997.10' },
+      { k: "If it can't be delivered", text: 'Back as USDC on Arbitrum, at least 1,000.00' },
+    ]);
+  });
+  it('names the one way back of a route with no last swap', () => {
+    expect(refundRows(route([{ when: 'notFilled', ...usdc('eip155:42161', '1000000000') }]), q, from))
+      .toEqual([{ k: "If it can't finish", text: 'Back to you as USDC on Arbitrum, at least 1,000.00' }]);
+  });
+  it('keeps the token of a swap on BNB Chain alone, and today\'s row everywhere else', () => {
+    const local = { ...q, fromChain: 'eip155:56', toChain: 'eip155:56' };
+    expect(refundRows(route(undefined), local, bscFrom)).toEqual([{ k: "If it can't finish", text: 'Nothing happens, you keep your BNB' }]);
+    // a CCTP route's notSwapped entry changes nothing yet
+    expect(refundRows(route([{ when: 'notSwapped', ...usdc('eip155:137', '1') }]), q, from)).toEqual([{ k: "If it can't finish", text: 'Refunded as USDC' }]);
+  });
+});

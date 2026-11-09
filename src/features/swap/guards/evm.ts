@@ -103,6 +103,7 @@ export function verifyEvmRoute(i: EvmCheckInput): CheckedEvmRoute {
   const plan = readPlan(o, { ...g, sourceChainId: chainId, payer: getAddress(i.payer), orderDeadline: o.deadline, nowSec: i.nowSec });
   const minOut = BigInt(r.amountOutMin);
   const terms = checkDelivery(i, r, o, plan, minOut, g);
+  checkFallbacks(r, plan);
 
   if (i.mode === 'gasless') {
     must(!!r.sign && !r.tx, 'gaslessShape');
@@ -182,6 +183,17 @@ function checkDelivery(i: EvmCheckInput, r: Route, o: OrderValue, plan: Plan, mi
   must(sameToken(d!.token, i.toToken), 'tokenOut');
   must(d!.minOut >= minOut, 'minOut');
   return null;
+}
+
+/** An Across order's fallbacks, as the Review screen shows them, are the order's own: each its chain, token and least. */
+export function checkFallbacks(r: Pick<Route, 'fallbacks'>, plan: Plan): void {
+  if (!plan.fallbacks) return;
+  const want = [['notFilled', plan.fallbacks.notFilled], ['lastSwapFails', plan.fallbacks.lastSwapFails]] as const;
+  for (const [when, f] of want) {
+    const shown = (r.fallbacks ?? []).filter((x) => x.when === when);
+    if (!f) { must(shown.length === 0, 'fallbacks'); continue; }
+    must(shown.length === 1 && shown[0]!.chain === `eip155:${f.chainId}` && sameAddress(shown[0]!.token, f.token) && shown[0]!.min === f.min.toString(), 'fallbacks');
+  }
 }
 
 const str = (v: unknown) => (typeof v === 'number' || typeof v === 'bigint' ? v.toString() : String(v));
