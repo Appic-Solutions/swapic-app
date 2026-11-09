@@ -77,6 +77,9 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+/** The amount a quote asks for: as typed once typing stopped (`typed`), at once when Max put it there. */
+export const askedAmount = (current: string, typed: string, maxText: string | undefined) => (maxText === current ? current : typed);
+
 /** The canister's anchors (get_config, Eco's prover, its EVM address), kept 10 minutes and used only to choose which cards
  *  to show; every signature reads them again, fresh (Task 7). */
 export function useGuardContext() {
@@ -91,7 +94,8 @@ export function useGuardContext() {
 export function useSwapQuote() {
   const f = useSwapForm();
   const w = useWallets();
-  const amountText = useDebounced(f.amountText, 600);
+  const typed = useDebounced(f.amountText, 600);
+  const amountText = askedAmount(f.amountText, typed, f.maxText);
   const query = quoteQueryOf({ ...f, amountText }, w);
   const priced = query ? priceQueryOf(query) : null;
   const q = useQuery({

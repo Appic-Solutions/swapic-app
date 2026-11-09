@@ -7,6 +7,8 @@ export interface SwapFormState {
   from: UiToken | null; to: UiToken | null; amountText: string;
   recipient: { show: boolean; address: string; error: string };
   tag: OptionTag;
+  /** The amount Max last put there: a click, no more is coming, so its quote asks at once (quote.ts askedAmount). */
+  maxText?: string;
 }
 const EMPTY: SwapFormState = { from: null, to: null, amountText: '', recipient: { show: false, address: '', error: '' }, tag: 'Gasless' };
 

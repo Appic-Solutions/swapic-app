@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UiToken } from '@/components/ui/token-types';
 import { ApiError, poolCoversOf } from '@/lib/api';
-import { icpSwapsPaused, namedQueryOf, poolRefillMinutes, priceQueryOf, quoteQueryOf, smartWalletTypesRecipient } from './quote';
+import { askedAmount, icpSwapsPaused, namedQueryOf, poolRefillMinutes, priceQueryOf, quoteQueryOf, smartWalletTypesRecipient } from './quote';
 
 const t = (chain: string, address: string, decimals: number, chain_type: 'EVM' | 'ICP'): UiToken => ({
   key: `${chain}|${address}`, chain, chainId: chain_type === 'ICP' ? 0 : 1, chainName: '', chainLogo: '', chain_type, address, symbol: 'X', name: 'X', logo: '', decimals, priceUsd: null, verified: true,
@@ -101,5 +101,14 @@ describe('a smart wallet is the recipient only on its connected chain (plan 2 Sm
     expect(quoteQueryOf({ ...form, to: ethArb }, smart)?.recipient).toBe(wallets.evm.address);
     expect(quoteQueryOf({ ...form, from: ckbtc, to: ethArb }, smart)?.recipient).toBe(wallets.evm.address);
     expect(quoteQueryOf(form, smart)?.recipient).toBe(wallets.icp.principal);
+  });
+});
+
+describe('askedAmount', () => {
+  it('asks at once what Max put there, and what was typed only once typing stopped', () => {
+    expect(askedAmount('0.852', '', '0.852')).toBe('0.852');
+    expect(askedAmount('0.85', '0.852', '0.852')).toBe('0.852');
+    expect(askedAmount('0.85', '0.85', undefined)).toBe('0.85');
+    expect(askedAmount('', '0.852', '0.852')).toBe('0.852');
   });
 });
