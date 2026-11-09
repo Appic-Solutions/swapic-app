@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 export const BANNED = [
   /\bshares?\b/i, /\bcircle\b/i, /\bcctp\b/i, /\beco\b/i, /\bck minter\b/i, /(?<!ckETH )\bminter\b/i,
   /\brebalanc/i, /\bpockets?\b/i, /\boperator\b/i, /\bkyber/i, /\bicpswap\b/i, /\bintent\b/i, /\brails?\b/i,
+  // BNB Chain's carrier is never named (BSC design L8); the bare word "across" is ordinary English
+  /\bacross protocol\b/i, /\bspoke pools?\b/i, /\brelayers?\b/i, /\bli\.?fi\b/i,
 ];
 const EM_DASH = /—/;
 const SEPARATOR = /\s-\s/;

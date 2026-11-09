@@ -443,5 +443,13 @@
     {"address": "0xbef5f6d51cb62b58e6a8f77868681825c6fe21c1", "symbol": "EURC"},
     {"address": "0x128cc466b61f542da60c70e3aa11c10e19b84edb", "symbol": "WETH"},
     {"address": "0x171a4217b86a807a64eb94757db6849fb4bdbaa0", "symbol": "cirBTC"}
+  ],
+  "eip155:56": [
+    {"address": "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", "symbol": "USDC"},
+    {"address": "0x55d398326f99059ff775485246999027b3197955", "symbol": "USDT"},
+    {"address": "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c", "symbol": "WBNB"},
+    {"address": "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", "symbol": "Cake"},
+    {"address": "0x2170ed0880ac9a755fd29b2688956bd959f933f8", "symbol": "ETH"},
+    {"address": "0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c", "symbol": "BTCB"}
   ]
 }

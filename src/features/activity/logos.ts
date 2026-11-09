@@ -5,7 +5,7 @@ import { getTokens, type TokensAnswer } from '@/lib/api';
 import type { LogoFor } from './rows';
 import { fallbackLogo, logoInList, ownLogo } from '@/lib/token-logos';
 
-const BY_SYMBOL: Record<string, string> = { USDC: '/images/tokens/usdc.png', ckUSDC: '/images/tokens/usdc.png', USDT: '/images/tokens/usdt.png', ckUSDT: '/images/tokens/usdt.png', WBTC: '/images/tokens/btc.png', ckBTC: '/images/tokens/btc.png', ETH: '/images/logo/chains-logos/ethereum.svg', ckETH: '/images/logo/chains-logos/ethereum.svg', ICP: '/images/logo/chains-logos/icp.svg' };
+const BY_SYMBOL: Record<string, string> = { USDC: '/images/tokens/usdc.png', ckUSDC: '/images/tokens/usdc.png', USDT: '/images/tokens/usdt.png', ckUSDT: '/images/tokens/usdt.png', WBTC: '/images/tokens/btc.png', ckBTC: '/images/tokens/btc.png', ETH: '/images/logo/chains-logos/ethereum.svg', ckETH: '/images/logo/chains-logos/ethereum.svg', ICP: '/images/logo/chains-logos/icp.svg', BNB: '/images/logo/chains-logos/bsc.png' };
 
 const logoKey = (chain: string, token: string) => ['token-logo', chain, token.toLowerCase()] as const;
 

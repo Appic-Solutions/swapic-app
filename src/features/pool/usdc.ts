@@ -8,6 +8,7 @@ import { useChains } from '@/features/swap/tokens';
 import { CKUSDC } from './flows';
 
 export const USDC_LOGO = '/images/tokens/usdc.png';
+const BSC = 'eip155:56';
 
 /** USDC on each EVM chain the app serves: the address is the canister's (get_config, plan check C4), never the quoter's;
  *  the chain's name and logo follow GET /v2/chains. Empty until both have answered. */
@@ -15,7 +16,8 @@ export function useUsdcTokens(): UiToken[] {
   const { chains } = useChains();
   const guard = useGuardContext();
   return React.useMemo(() => chains.flatMap((c) => {
-    if (c.chainId === config.icpChain) return [];
+    // the pool takes no BNB Chain USDC (BSC design N5): its money travels by Across, not into the pool
+    if (c.chainId === config.icpChain || c.chainId === BSC) return [];
     const usdc = guard?.config.chains.get(chainNumber(c.chainId))?.usdc;
     if (!usdc) return [];
     const address = usdc.toLowerCase();
