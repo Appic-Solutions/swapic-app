@@ -141,6 +141,8 @@ export interface Route {
   permit2Pay?: Permit2PayRequest;
   /** A gasless route whose wallet must approve Permit2 first: known before a route is named, when the ask names the payer. */
   needsApproval?: boolean;
+  /** Dollars the payer's own wallet still pays for approves before this route runs, either gas mode: known before a route is named, when the ask names the payer. */
+  approvalGasUsd?: string;
   fallbacks?: FallbackJson[];
 }
 /** answer/mod.rs:68-78 */

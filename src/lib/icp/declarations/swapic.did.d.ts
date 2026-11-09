@@ -37,6 +37,10 @@ export interface ActionAmounts {
   'pool_move' : [] | [bigint],
   'release' : bigint,
   /**
+   * The canister's claim of its own deferred Across refunds, optional as the pool's.
+   */
+  'across_claim' : [] | [bigint],
+  /**
    * A controller's sweep, optional as the pool's.
    */
   'sweep' : [] | [bigint],
@@ -74,6 +78,10 @@ export interface ActionGas {
    */
   'pool_move' : [] | [bigint],
   'release' : bigint,
+  /**
+   * The canister's claim of its own deferred Across refunds, optional as the pool's.
+   */
+  'across_claim' : [] | [bigint],
   /**
    * A controller's sweep (`sweep_evm`): a native transfer or a `USDC.transfer`, optional
    * as the pool's.
@@ -145,6 +153,25 @@ export interface ChainData {
    * The tip to pay on top of the base fee.
    */
   'priority_fee_wei_per_gas' : bigint,
+}
+/**
+ * One chain's fees, micro USD.
+ */
+export interface ChainFees {
+  /**
+   * Of every fee ever booked here, what users paid in transactions of their own. The rest
+   * of `held + swept` was read off the canister's own relays.
+   */
+  'user_paid' : bigint,
+  /**
+   * What the fee income line holds now: withdrawable.
+   */
+  'held' : bigint,
+  /**
+   * What sweeps took off the fee income line.
+   */
+  'swept' : bigint,
+  'chain_id' : bigint,
 }
 /**
  * The chain a signed transaction is for.
@@ -805,6 +832,25 @@ export interface EvmWithdrawal {
   'move_fee' : bigint,
 }
 /**
+ * Everything the canister has earned, by where it is held, micro USD.
+ */
+export interface FeesView {
+  /**
+   * The pool's fee line on Base: move fees and network fees on what the pool pays out.
+   */
+  'pool_base' : bigint,
+  /**
+   * What sweeps took off the pool's Base and ICP fee lines.
+   */
+  'pool_base_swept' : bigint,
+  'chains' : Array<ChainFees>,
+  /**
+   * The pool's fee line on ICP, in ckUSDC.
+   */
+  'pool_icp' : bigint,
+  'pool_icp_swept' : bigint,
+}
+/**
  * A fields display's message: its intent and its titled values.
  */
 export interface FieldsDisplay {
@@ -1104,6 +1150,11 @@ export interface PayoutSettings {
    */
   'ck' : [] | [CkSettings],
   /**
+   * Micro USDC, the most the Across payouts in flight may hold together (signed,
+   * delivering, or owed back by Across). None: no Across payout is signed.
+   */
+  'across_in_flight_max' : [] | [bigint],
+  /**
    * Micro USDC, the least a payout's network fee may be.
    */
   'min_network_fee' : bigint,
@@ -1134,7 +1185,8 @@ export type PayoutStatus = { 'Queued' : null } |
   { 'Failed' : string } |
   {
     /**
-     * Its order ran on Base and published an Eco intent: paid once the intent's fill is read.
+     * Its order ran on Base and published an Eco intent or made an Across deposit: paid once
+     * its fill is read.
      */
     'Delivering' : null
   } |
@@ -1370,6 +1422,12 @@ export type PoolError = { 'NotDeep' : { 'have' : bigint, 'needed' : bigint } } |
   { 'ShortShares' : { 'have' : bigint, 'need' : bigint } };
 export type PoolRail = { 'Eco' : null } |
   { 'Cctp' : null } |
+  {
+    /**
+     * An Across deposit from another chain, filled to the canister on the pool chain.
+     */
+    'Across' : null
+  } |
   { 'SameChain' : null };
 export interface PoolSettings {
   /**
@@ -1404,6 +1462,11 @@ export interface PoolSettings {
    * How often the canister reads Base itself, its backup of the reports (default 3,600).
    */
   'arrival_backup_s' : bigint,
+  /**
+   * Micro USDC, what every use of the pool leaves in it on top of its other fees: a swap
+   * through it, a stake, a withdrawal. Absent: 0.
+   */
+  'pool_fee' : [] | [bigint],
   /**
    * Micro USDC: a deposit whose one transfer is above this waits
    * `large_deposit_confirmations` blocks before it is credited. Absent: 1_000_000_000
@@ -1467,10 +1530,10 @@ export interface Recipe {
   'data' : Uint8Array | number[],
   'target' : string,
 }
-export type Result = { 'Ok' : string } |
-  { 'Err' : SignError };
-export type Result_1 = { 'Ok' : bigint } |
+export type Result = { 'Ok' : bigint } |
   { 'Err' : string };
+export type Result_1 = { 'Ok' : string } |
+  { 'Err' : SignError };
 export type Result_10 = { 'Ok' : null } |
   { 'Err' : GuardError };
 export type Result_11 = { 'Ok' : null } |
@@ -1739,6 +1802,12 @@ export type TxPurpose = {
   } |
   {
     /**
+     * The canister's claim of its own deferred Across refunds on that chain.
+     */
+    'AcrossClaim' : bigint
+  } |
+  {
+    /**
      * The canister's standing USDC allowance to Swapic.
      */
     'PoolApprove' : null
@@ -1807,12 +1876,21 @@ export interface _SERVICE {
    */
   'books' : ActorMethod<[], Array<[bigint, BookLines]>>,
   /**
+   * Controller-only, refused while halted: claims what Across's SpokePool on the pool chain
+   * (`chain_id`) holds back for the canister (BSC design 6.2.9), once its
+   * `getRelayerRefund(USDC, canister)` reads above zero, signed with the chain's
+   * `across_claim` gas row. One claim at a time on the chain. The USDC it brings is credited
+   * as any Across refund to the canister, to the payouts Across owes back first. Answers the
+   * signed transaction's id in `signed_txs`.
+   */
+  'claim_across_refund' : ActorMethod<[bigint], Result>,
+  /**
    * Controller-only. Derives the canister's EVM address from its threshold key and caches
    * it, or answers the cached one. Deploy needs this before anything else: the Swapic
    * contracts are configured with this address and it has to be funded for gas, and neither
    * can wait for the first transaction to derive it.
    */
-  'derive_evm_address' : ActorMethod<[], Result>,
+  'derive_evm_address' : ActorMethod<[], Result_1>,
   'event_count' : ActorMethod<[], bigint>,
   /**
    * `len` is capped server-side; ask for the count first and page through. A page may be
@@ -1828,6 +1906,11 @@ export interface _SERVICE {
    * is fixed for the life of the canister. `derive_evm_address` is the door that derives it.
    */
   'evm_address' : ActorMethod<[], [] | [string]>,
+  /**
+   * Every fee the canister has earned, in one read: per chain what it holds and what users paid
+   * in transactions of their own, the pool's two fee lines, and what sweeps took off each.
+   */
+  'fees' : ActorMethod<[], FeesView>,
   /**
    * Each chain that waits for its finalized block: the last finalized block a read gave, when
    * it last moved (IC time in nanoseconds, or when its clock last started), and whether it has
@@ -1864,7 +1947,7 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_1
+    Result
   >,
   /**
    * Public, so it answers with the redacted view; `get_config_full` is the ops door onto
@@ -2060,7 +2143,7 @@ export interface _SERVICE {
       bigint,
       [] | [ChainData],
     ],
-    Result_1
+    Result
   >,
   /**
    * Watcher-only, refused while halted: for the Eco intent the order `order_id` published (a
@@ -2296,7 +2379,7 @@ export interface _SERVICE {
    * could read would tell an outsider how far the canister is from freezing. Any other caller is
    * refused. The balance saturates at `u64::MAX` (about 18 million T), far above any real one.
    */
-  'watcher_cycles_balance' : ActorMethod<[], Result_1>,
+  'watcher_cycles_balance' : ActorMethod<[], Result>,
   /**
    * Any caller (the 65-byte EIP-712 signature proves the staker; the watcher's
    * `POST /v2/withdraw` forwards here), refused while halted, while the pool is closed, and for

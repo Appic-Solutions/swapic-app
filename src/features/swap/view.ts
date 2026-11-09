@@ -2,7 +2,7 @@ import type { Fees, Quote } from '@/lib/api';
 import type { RouteOptionView } from '@/components/design/RouteOption';
 import type { UiToken } from '@/components/ui/token-types';
 import { tokenAmountText } from '@/lib/copy/format';
-import { dollarsToMicro, formatAmount, formatUsd, parseDecimal, usdMicro } from '@/lib/money';
+import { dollarsToMicro, formatAmount, formatListUsd, formatUsd, parseDecimal, usdMicro } from '@/lib/money';
 import { gasIsUsdc } from '@/lib/chains';
 import { shownMinOf, type PickedOption } from './options';
 
@@ -24,7 +24,7 @@ export function gaslessNote(p: PickedOption, from: UiToken, native: NativeCoin):
 }
 
 /** A gasless card whose wallet must approve Permit2 first (Jeff 2026-11-06): 'once' when it can pay that gas, 'noCoin' when
- *  it holds none of the From chain's coin. Nothing on any other card: You pay gas shows its approve only on Review swap. */
+ *  it holds none of the From chain's coin. Nothing on any other card: You pay gas shows its approve as a row of its own. */
 export function approveState(p: PickedOption, native: NativeCoin): 'once' | 'noCoin' | undefined {
   if (p.mode !== 'gasless' || !(p.route.needsApproval || p.route.sign?.approval)) return undefined;
   return native.held === false ? 'noCoin' : 'once';
@@ -45,6 +45,25 @@ export function gasText(p: PickedOption, native: NativeCoin): string {
   if (price === 0n) return 'You pay it';
   const amount = (dollarsToMicro(usd) * 10n ** BigInt(native.decimals + 12)) / price;
   return `~ ${formatAmount(amount, native.decimals)} ${native.symbol}, you pay it`;
+}
+
+/** A card's fee rows (Jeff 2026-11-09). Network fee: all the swap costs but an approve, the fees taken out of it and the gas the
+ *  wallet pays, an estimate when any wallet gas is in it. Approval fee and Total fee: only on a You pay gas card that still owes
+ *  an approve (a gasless card says it in its box); with none, the Total fee would only repeat the Network fee. Each row is floored
+ *  to the cent as shown, and the Total fee adds the rows as shown, so the card always adds up. */
+export function feeRows(p: PickedOption, fees: bigint): { networkFeeText: string; approvalFeeText?: string; totalText?: string } {
+  const cent = 10_000n;
+  const gas = p.route.userGasUsd;
+  const network = fees + (gas ? dollarsToMicro(gas) : 0n);
+  const networkFeeText = `${gas ? '~ ' : ''}${formatListUsd(network)}`;
+  const owed = p.route.approvalGasUsd;
+  if (!owed) return { networkFeeText };
+  const approve = dollarsToMicro(owed);
+  return {
+    networkFeeText,
+    approvalFeeText: `~ ${formatListUsd(approve)}`,
+    totalText: p.mode === 'userPays' ? `~ ${formatListUsd((network / cent + approve / cent) * cent)}` : undefined,
+  };
 }
 
 /** Every fee line in micro USDC (answer/mod.rs:166-195). `platform` is in the output token on a same chain swap with no USDC side. */
@@ -73,8 +92,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     // the token's own format (stable coins with two decimals), as Review swap's "You get at least" shows it
     minOutText: `${tokenAmountText(shownMinOf(p), ctx.to.decimals, ctx.to.symbol)} ${ctx.to.symbol}`,
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
-    networkFeeText: BigInt(r.fees.network) > 0n ? formatUsd(BigInt(r.fees.network)) : undefined,
-    totalFeeText: formatUsd(fee),
+    ...feeRows(p, fee),
     gasText: gasText(p, ctx.native),
     gaslessNote: gaslessNote(p, ctx.from, ctx.native),
     approve: approveState(p, ctx.native),
