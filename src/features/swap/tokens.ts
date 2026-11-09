@@ -1,5 +1,5 @@
 'use client';
-import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
+import { skipToken, useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { Principal } from '@icp-sdk/core/principal';
 import { config } from '@/config';
 import { getBalances, getChains, getTokens, type BalancesAnswer, type ChainInfo, type TokenAnswer } from '@/lib/api';
@@ -43,11 +43,27 @@ export function useChains() {
   return { chains, isLoading: q.isLoading, settled: q.isSuccess || q.isError };
 }
 
+/** These ICP tokens with the ICP wallet's balances, one read per ledger: a row shows its balance as soon as its own answer
+ *  comes, and a slow or failed ledger holds back only itself. Every token list that shows ICP tokens reads through here. */
+function useIcpBalances(list: UiToken[]): UiToken[] {
+  const principal = useWallets((s) => s.icp?.principal);
+  const answers = useQueries({
+    queries: list.map((t) => ({
+      queryKey: ['icp-balance', t.address, principal],
+      queryFn: principal ? () => icpClient().balance(t.address, Principal.fromText(principal)) : skipToken,
+      staleTime: 10_000,
+    })),
+  });
+  return list.map((t, i) => {
+    const balance = answers[i]?.data;
+    return balance === undefined ? t : withBalance(t, balance);
+  });
+}
+
 export function useTokenList(chain: string, query: string) {
   const { chains } = useChains();
   const info = chains.find((c) => c.chainId === chain);
   const evm = useWallets((s) => s.evm);
-  const icp = useWallets((s) => s.icp);
   const isIcp = chain === config.icpChain;
   const pasted = isIcp ? isIcpPrincipal(query) : isEvmAddress(query);
   const list = useInfiniteQuery({
@@ -66,19 +82,8 @@ export function useTokenList(chain: string, query: string) {
     enabled: !isIcp && !!evm && !!info,
     staleTime: 10_000,
   });
-  const icpBalances = useQuery({
-    queryKey: ['icp-balances', chain, icp?.principal, base.map((t) => t.address).join(',')],
-    queryFn: async () => {
-      const owner = Principal.fromText(icp!.principal);
-      const out = await Promise.all(base.map(async (t) => [t.address, await icpClient().balance(t.address, owner).catch(() => undefined)] as const));
-      return new Map(out.filter(([, b]) => b !== undefined) as [string, bigint][]);
-    },
-    enabled: isIcp && !!icp && base.length > 0,
-    staleTime: 10_000,
-  });
-  const tokens = isIcp
-    ? base.map((t) => (icpBalances.data?.has(t.address) ? withBalance(t, icpBalances.data.get(t.address)!) : t))
-    : joinBalances(base, balances.data, chain);
+  const icpRows = useIcpBalances(isIcp ? base : []);
+  const tokens = isIcp ? icpRows : joinBalances(base, balances.data, chain);
   return {
     tokens, isLoading: list.isLoading || !info, settled: list.isSuccess || list.isError,
     loadMore: () => list.fetchNextPage(), hasMore: !!list.hasNextPage,
@@ -118,9 +123,9 @@ export function limiter(max: number) {
 /** "All chains" asks every chain for tokens and balances: never more than three requests at once. */
 const allChainsTurn = limiter(3);
 
-/** Every served chain's first page of tokens (only `only` when given), with the EVM wallet's balances, merged for
- *  "All chains". ICP balances are not read here. The requests take turns, three at a time (allChainsTurn); the search
- *  that names them is already debounced by the token page. */
+/** Every served chain's first page of tokens (only `only` when given), with both wallets' balances, merged for "All chains".
+ *  The quoter's requests take turns, three at a time (allChainsTurn); the ICP reads go to the ledgers, outside those turns.
+ *  The search that names them is already debounced by the token page. */
 export function useAllTokens(query: string, enabled: boolean, only?: readonly string[]) {
   const { chains } = useChains();
   const evm = useWallets((s) => s.evm);
@@ -141,8 +146,11 @@ export function useAllTokens(query: string, enabled: boolean, only?: readonly st
       staleTime: 10_000,
     })),
   });
-  const tokens = mergeAllChains(infos.map((info, i) =>
-    joinBalances((lists[i]?.data?.tokens ?? []).map((t) => toUiToken(t, info)), balances[i]?.data, info.chainId)));
+  const rows = infos.map((info, i) =>
+    joinBalances((lists[i]?.data?.tokens ?? []).map((t) => toUiToken(t, info)), balances[i]?.data, info.chainId));
+  const icpAt = infos.findIndex((info) => info.chainId === config.icpChain);
+  const icpRows = useIcpBalances(enabled ? (rows[icpAt] ?? []) : []);
+  const tokens = mergeAllChains(rows.map((list, i) => (i === icpAt ? icpRows : list)));
   return { tokens, isLoading: enabled && (infos.length === 0 || lists.every((q) => q.isLoading)) };
 }
 

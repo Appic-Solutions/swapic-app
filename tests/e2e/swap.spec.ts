@@ -63,6 +63,16 @@ test.describe('Swap', () => {
     expect(Math.abs(left!.y + left!.height - (right!.y + right!.height))).toBeLessThanOrEqual(1);
   });
 
+  test('the token page opens on All chains with the ICP wallet\'s balances beside the EVM wallet\'s', async ({ page }) => {
+    await open(page, 'default');
+    await page.getByText('From', { exact: true }).click();
+    await expect(page.locator('button[aria-label="Chain: All chains"]').filter({ visible: true })).toBeVisible();
+    // the fake ICP client answers 640_120_000 for any ledger: 6.4012 ICP (8 decimals), 640.12 ckUSDC (6 decimals)
+    await expect(page.getByText('6.4012', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('640.12', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('0.00184', { exact: true }).first()).toBeVisible();
+  });
+
   test('a bad Send To Wallet address blocks the swap', async ({ page }) => {
     await open(page, 'default');
     await pickTokens(page);
