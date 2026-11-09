@@ -16,7 +16,7 @@ test('every tab and both wallet menus load with no CSP violation and no trace he
   page.on('request', (r) => {
     if (r.url().startsWith('https://api-test.swapic.xyz') && (r.headers()['sentry-trace'] || r.headers()['baggage'])) traced.push(r.url());
   });
-  for (const path of ['/', '/pool', '/pool/stake', '/pool/withdraw', '/history', '/scanner']) {
+  for (const path of ['/', '/swap', '/bridge', '/advanced', '/auto-invest', '/pool', '/pool/stake', '/pool/withdraw', '/history', '/scanner']) {
     await page.goto(path);
     await page.waitForTimeout(3000);
   }
