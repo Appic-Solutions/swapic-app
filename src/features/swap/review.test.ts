@@ -25,7 +25,7 @@ describe('reviewData', () => {
     // the exact amount: this approve comes back on every swap, so it never says once
     expect(p.steps.map((s) => s.label)).toEqual(['Approve USDC (you pay gas)', 'Confirm swap (you pay gas)']);
     expect(p.steps[0]!.sub).toBe('Lets Swapic use 5 USDC for this swap');
-    expect(p.steps[1]!.sub).toBe('About 0.00000429 ETH');
+    expect(p.steps[1]!.sub).toBe('About 0.00000429 ETH ($0.01)');
     expect(p.button).toBe('Approve and swap');
   });
   it('a gasless route that must approve shows the step before its named quote comes, and blocks with no coin', () => {
@@ -61,7 +61,7 @@ describe('You pay gas through Permit2: the steps say what is really asked', () =
     expect(d.steps).toEqual([
       { label: 'Approve USDC (once, you pay gas)', sub: 'Lets Swapic use your USDC. Only the first time.' },
       { label: 'Sign in your wallet (no gas)', sub: 'Lets Swapic use 5 USDC for this swap' },
-      { label: 'Confirm swap (you pay gas)', sub: 'About 0.00000429 ETH' },
+      { label: 'Confirm swap (you pay gas)', sub: 'About 0.00000429 ETH ($0.01)' },
     ]);
     expect(d.button).toBe('Approve and swap');
     expect(d.blocked).toBe(false);

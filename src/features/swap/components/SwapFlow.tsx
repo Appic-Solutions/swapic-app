@@ -18,8 +18,8 @@
 // until it has come, and a route no longer offered says so and is never signed.
 // You pay gas through Permit2 (Jeff 2026-11-08). The named quote says what a token's swap asks, and only it: before it comes
 // the priced route has no permit2Pay (no approval either), so a payer who may pay that way sees the wallet list wait, with no
-// words that could turn out wrong (gasless has needsApproval for this; here nothing priced can say it, its allowance being
-// a different one), for at most REVIEW_READ_MS of a slow code read. A payer who cannot (flagged a smart wallet, code on the
+// words that could turn out wrong (gasless has needsApproval for this; here a priced route only prices an approve, approvalGasUsd,
+// and says nothing of which steps), for at most REVIEW_READ_MS of a slow code read. A payer who cannot (flagged a smart wallet, code on the
 // From chain read with the named quote, a wallet that refused) has today's steps from the start, and a code not read has
 // them as the safest for now, read again at the next refresh. A wallet that cannot sign comes back here with today's steps and
 // a note: it sees the new approve before any wallet asks for it, and is not asked to sign again on this visit.

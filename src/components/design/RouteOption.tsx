@@ -2,8 +2,8 @@
 // dollar value and the time, gas in its own box, and the details opening under it.
 // 1. Every route shows Swapic as the provider.
 // 2. A gasless card reads 0 gas fees in a green box, unless the wallet must approve Permit2 first (Jeff 2026-11-06): then it
-//    says so, or, with none of the coin to pay for that approve, that it cannot go on. The fee row shows on a You pay gas card and on Review swap (Jeff
-//    2026-11-05: the home page promises the total fee before you sign), never on a gasless card in the Swap list.
+//    says so, or, with none of the coin to pay for that approve, that it cannot go on. Every card and Review swap show the Total
+//    cost (Jeff 2026-11-09: the fees, the gas the wallet pays and an approve it still owes), so two cards can be compared.
 // 3. On the review page (review) the card is always open, has no chevron and is not clickable.
 // It shows texts the caller formats with @/lib/money (no number math here), and one pill per tag.
 // Motion (src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it glides from the Swap list to
@@ -34,9 +34,10 @@ export interface RouteOptionView {
   amountOutText: string;
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
-  /** The network fee taken from the swap, where the card shows no Fee row. */
-  networkFeeText?: string;
-  totalFeeText: string;
+  /** All of what the swap costs: the fees taken from it, the gas the wallet pays, an approve it still owes. */
+  totalCostText: string;
+  /** The approve the wallet still owes, in dollars. */
+  approveCostText?: string;
   /** The least the user receives (the route's least less the small cushion, shownMinOf) with the token's symbol: the details' first row. */
   minOutText: string;
   /** What the gas costs: the You pay gas box. */
@@ -111,13 +112,13 @@ const PayGasBox = ({ gasText }: { gasText: string }) => (
 );
 
 /** Gas on a gasless card whose wallet must approve first: the swap is free, the approve is not. */
-const ApproveBox = () => (
+const ApproveBox = ({ cost }: { cost?: string }) => (
   <div className="flex w-full items-center justify-between gap-3 whitespace-nowrap rounded-2xl bg-inset px-3 py-2.5 text-xs md:px-4 md:text-sm">
     <span className="flex items-center gap-x-1 font-normal text-secondary">
       <GasIcon width={16} height={16} />
       Approve once, then sign
     </span>
-    <span className="font-medium">You pay gas once</span>
+    <span className="font-medium">{cost ? `You pay ${cost} once` : 'You pay gas once'}</span>
   </div>
 );
 
@@ -202,13 +203,13 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
       ) : (
         hero
       )}
-      {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
+      {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox cost={o.approveCostText} /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
       {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}
       <div className={cn('w-full transform transition-[opacity,transform]', tw.panel, open ? 'translate-y-0 opacity-100' : '-mt-3 h-0 -translate-y-2 overflow-hidden opacity-0')}>
         <div className="space-y-2 border-t border-line pt-3 text-xs md:text-sm">
           <Row label="You get at least">{o.minOutText}</Row>
-          {(!o.gasless || review) && <Row label="Fee">{o.totalFeeText}</Row>}
-          {o.gasless && !review && o.networkFeeText && <Row label="Network fee">{o.networkFeeText}</Row>}
+          {!o.gasless && o.approveCostText && <Row label="Approve gas">{o.approveCostText}</Row>}
+          <Row label="Total cost">{o.totalCostText}</Row>
           <Row label="Route">
             <span className="inline-flex items-center gap-x-1">
               <span className="font-normal text-secondary">via</span> {o.viaMinter ? 'ckETH minter' : 'Swapic'}

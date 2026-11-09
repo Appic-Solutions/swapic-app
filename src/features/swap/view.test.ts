@@ -16,7 +16,7 @@ describe('routeView', () => {
     const [gasless, paid] = pickOptions(q, { indicative: false });
     const eth = { symbol: 'ETH', decimals: 18, priceUsd: '3920.10' };
     const g = routeView(gasless!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, '103750'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
-    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 sec', amountOutText: '0.00005976', totalFeeText: '$0.15', gasText: 'None, Swapic pays it' });
+    expect(g).toMatchObject({ tags: ['Gasless'], gasless: true, durationText: '15 sec', amountOutText: '0.00005976', totalCostText: '$0.15', gasText: 'None, Swapic pays it' });
     expect(g.usdOutText).toBe('$6.20');
     // the least the user receives: the quote's amountOutMin (5946 sats) less the cushion (2 sats)
     expect(g.minOutText).toBe('0.00005944 WBTC');
@@ -26,7 +26,7 @@ describe('routeView', () => {
     const p = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: eth });
     expect(p.gasless).toBe(false);
     // the design's native amount: userGasUsd 0.016821 at $3,920.10 an ETH is 0.00000429 ETH
-    expect(p.gasText).toBe('~ 0.00000429 ETH, you pay it');
+    expect(p.gasText).toBe('~ 0.00000429 ETH ($0.01), you pay it');
     expect(p.usdOutText).toBeNull();
     const noPrice = routeView(paid!, { from: tok('USDC', 6, '1'), to: tok('WBTC', 8, null), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { ...eth, priceUsd: null } });
     expect(noPrice.gasText).toBe('You pay it');
@@ -68,6 +68,30 @@ describe('routeView', () => {
       routeView(gasless!, { from: arc, to: tok('WETH', 18, '2240'), amountIn: 5_000_000n, sameChainNoUsdc: false, native: { symbol: 'USDC', decimals: 18, priceUsd: '1', held } });
     expect(onArc(true).gaslessNote).toBe('Just sign, no gas to pay');
     expect(onArc(false).gaslessNote).toBe('You have no USDC on Arc. Gasless works anyway');
+  });
+  it('the total holds the fees, the gas the wallet pays and an approve it still owes, on either card', () => {
+    const [gasless, paid] = pickOptions(q, { indicative: false });
+    const coin = { symbol: 'ETH', decimals: 18, priceUsd: '2135.86', held: true };
+    const view = (p: typeof gasless) => routeView(p!, { from: tok('XAUt', 6, '4102.19'), to: tok('ckBTC', 8, '75000'), amountIn: 1627n, sameChainNoUsdc: false, native: coin });
+    const fees = { network: '53501', bridge: '664', platform: '0', premium: '6701', icpFees: '30000' };
+    // the swap Jeff asked about: $0.09 of fees and $0.95 of gas, $1.04 in all, floored to the cent
+    const you = { ...paid!, route: { ...paid!.route, fees, userGasUsd: '0.958600' } };
+    expect(view(you)).toMatchObject({ gasless: false, totalCostText: '~ $1.04', gasText: '~ 0.0004488 ETH ($0.95), you pay it' });
+    expect(view(you).approveCostText).toBeUndefined();
+    const youOwe = { ...you, route: { ...you.route, approvalGasUsd: '0.082400' } };
+    expect(view(youOwe)).toMatchObject({ totalCostText: '~ $1.13', approveCostText: '~ $0.08' });
+    // gasless: all of it comes out of the swap, so no estimate, until the wallet owes an approve
+    const free = { ...gasless!, route: { ...gasless!.route, fees: { network: '2030000', bridge: '664', platform: '0', premium: '6701', icpFees: '30000' } } };
+    expect(view(free)).toMatchObject({ gasless: true, totalCostText: '$2.06' });
+    expect(view(free).approveCostText).toBeUndefined();
+    const freeOwe = { ...free, route: { ...free.route, needsApproval: true, approvalGasUsd: '0.082400' } };
+    expect(view(freeOwe)).toMatchObject({ approve: 'once', totalCostText: '~ $2.14', approveCostText: '~ $0.08' });
+  });
+  it('gas too small to count still says so, and a chain paid in USDC shows no dollars twice', () => {
+    const [, paid] = pickOptions(q, { indicative: false });
+    const tiny = { ...paid!, route: { ...paid!.route, userGasUsd: '0.001200' } };
+    expect(gasText(tiny, { symbol: 'ETH', decimals: 18, priceUsd: '2135.86' })).toBe('~ 0.0000005618 ETH (<$0.01), you pay it');
+    expect(gasText(tiny, { symbol: 'USDC', decimals: 18, priceUsd: '1' })).toBe('~ 0.0012 USDC, you pay it');
   });
   it('writes times the way the design does', () => {
     expect(etaText(12)).toBe('12 sec');
