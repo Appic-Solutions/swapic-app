@@ -3,14 +3,16 @@
 // is refused. Hostile bytes are made by editing the honest ones, so a check that stopped reading a field fails here.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { Hex } from 'viem';
+import { encodeFunctionData, type Hex } from 'viem';
 import type { Quote, Route, SolanaBurnPayment, SolanaOrderPayment } from '@/lib/api';
 import { encode58 } from '@/lib/solana/base58';
 import { ataOf, COMPUTE_BUDGET, shardsOf, USDC_MINT, WSOL_MINT, findProgramAddress } from '@/lib/solana/pda';
 import { decodeV0, fromBase64, toBase64 } from '@/lib/solana/tx';
 import type { SolanaAnchors } from '@/lib/icp';
 import type { GuardContext } from './context';
+import { STEP_ABI, type OrderValue } from './abi';
 import { GuardError } from './errors';
+import { readPlan } from './plan';
 import {
   canReceive, checkSolanaDelivery, readBurnArgs, readJupiterRoute, readSolanaBurn, solanaRouteOffered, verifySolanaBurn, verifySolanaOrder,
   type SolanaCheckInput,
@@ -310,3 +312,37 @@ describe('who can receive on Solana', () => {
     expect(await canReceive('not an address', read('missing'))).toBe(false);
   });
 });
+
+describe('an EVM order that burns into Solana', () => {
+  const word = (text: string) => `0x${Buffer.from(ataBytes(text)).toString('hex')}` as Hex;
+  const USDC = g.usdcEvm as Hex;
+  const order = (hook: Hex, recipient: Hex, caller: Hex, payoutToken: Hex = '0x0000000000000000000000000000000000000000'): OrderValue => ({
+    ref: g.reference, payer: '0x1111111111111111111111111111111111111111', tokenIn: USDC, amountIn: 1_000_000n, deadline: BigInt(NOW + 600), memo: '0x',
+    payout: { token: payoutToken, recipient: '0x0000000000000000000000000000000000000000', minOut: 0n },
+    steps: [{
+      target: contracts.tokenMessenger, token: USDC, min: 1_000_000n, value: 0n, writes: [{ at: 4, minus: 0n }],
+      data: encodeFunctionData({ abi: STEP_ABI, functionName: 'depositForBurnWithHook', args: [0n, 5, recipient, USDC, caller, 1_000n, 1_000, hook] }),
+    }],
+  } as unknown as OrderValue);
+  const ctx = { ...guard, sourceChainId: 8453, payer: '0x1111111111111111111111111111111111111111' as Hex, orderDeadline: BigInt(NOW + 600), nowSec: NOW };
+
+  it('reads the swap into the program, and it delivers nothing on any EVM chain', () => {
+    const plan = readPlan(order(g.swapHook, word(g.hookVault), word(g.hookAuth)), ctx);
+    expect(plan.rail).toBe('burn');
+    expect(plan.delivery).toBeNull();
+    expect(plan.solana!.mintOut).toBe(WSOL_MINT);
+    expect(plan.solana!.minOut).toBe(11_000_000n);
+  });
+
+  it('refuses a burn that also pays out, another mint recipient, or no Solana line', () => {
+    expect(() => readPlan(order(g.swapHook, word(g.hookVault), word(g.hookAuth), USDC), ctx)).toThrow(GuardError);
+    expect(() => readPlan(order(g.swapHook, word(g.user), word(g.hookAuth)), ctx)).toThrow(GuardError);
+    expect(() => readPlan(order(g.swapHook, word(g.hookVault), word(g.hookAuth)), { ...ctx, solana: null })).toThrow(GuardError);
+  });
+
+  it('refuses a hook under another order\'s ref', () => {
+    const other = { ...order(g.swapHook, word(g.hookVault), word(g.hookAuth)), ref: `0x${'11'.repeat(32)}` as Hex };
+    expect(() => readPlan(other, ctx)).toThrow(GuardError);
+  });
+});
+
