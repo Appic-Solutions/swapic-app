@@ -2,8 +2,8 @@
 // dollar value and the time, gas in its own box, and the details opening under it.
 // 1. Every route shows Swapic as the provider.
 // 2. A gasless card reads 0 gas fees in a green box, unless the wallet must approve Permit2 first (Jeff 2026-11-06): then it
-//    says so, or, with none of the coin to pay for that approve, that it cannot go on. Every card and Review swap show the Total
-//    cost (Jeff 2026-11-09: the fees, the gas the wallet pays and an approve it still owes), so two cards can be compared.
+//    says so, or, with none of the coin to pay for that approve, that it cannot go on. Every card and Review swap show the
+//    Network fee, so two cards can be compared; a You pay gas card that still owes an approve adds an Approval fee and a Total fee (Jeff 2026-11-09).
 // 3. On the review page (review) the card is always open, has no chevron and is not clickable.
 // It shows texts the caller formats with @/lib/money (no number math here), and one pill per tag.
 // Motion (src/lib/motion.ts): the card is a motion element (MotionCard), so with a layoutId it glides from the Swap list to
@@ -34,10 +34,12 @@ export interface RouteOptionView {
   amountOutText: string;
   /** Dollar value of the amount out, formatted; null when unknown. */
   usdOutText: string | null;
-  /** All of what the swap costs: the fees taken from it, the gas the wallet pays, an approve it still owes. */
-  totalCostText: string;
+  /** All the swap costs but an approve: the fees taken from it and the gas the wallet pays. */
+  networkFeeText: string;
   /** The approve the wallet still owes, in dollars. */
-  approveCostText?: string;
+  approvalFeeText?: string;
+  /** Network fee and Approval fee together, on a You pay gas card that still owes an approve. */
+  totalText?: string;
   /** The least the user receives (the route's least less the small cushion, shownMinOf) with the token's symbol: the details' first row. */
   minOutText: string;
   /** What the gas costs: the You pay gas box. */
@@ -203,13 +205,14 @@ export default function RouteOption({ isSelected, isExpanded, onSelect, onExpand
       ) : (
         hero
       )}
-      {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox cost={o.approveCostText} /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
+      {o.approve === 'noCoin' ? <NoCoinBox text={o.approveBlocked} /> : o.approve === 'once' ? <ApproveBox cost={o.approvalFeeText} /> : o.gasless ? <NoGasBox note={o.gaslessNote} /> : <PayGasBox gasText={o.gasText} />}
       {/* Not transition-all: a hidden card (the one left behind by a glide) must hide its details at once. */}
       <div className={cn('w-full transform transition-[opacity,transform]', tw.panel, open ? 'translate-y-0 opacity-100' : '-mt-3 h-0 -translate-y-2 overflow-hidden opacity-0')}>
         <div className="space-y-2 border-t border-line pt-3 text-xs md:text-sm">
           <Row label="You get at least">{o.minOutText}</Row>
-          {!o.gasless && o.approveCostText && <Row label="Approve gas">{o.approveCostText}</Row>}
-          <Row label="Total cost">{o.totalCostText}</Row>
+          <Row label="Network fee">{o.networkFeeText}</Row>
+          {!o.gasless && o.approvalFeeText && <Row label="Approval fee">{o.approvalFeeText}</Row>}
+          {o.totalText && <Row label="Total fee">{o.totalText}</Row>}
           <Row label="Route">
             <span className="inline-flex items-center gap-x-1">
               <span className="font-normal text-secondary">via</span> {o.viaMinter ? 'ckETH minter' : 'Swapic'}

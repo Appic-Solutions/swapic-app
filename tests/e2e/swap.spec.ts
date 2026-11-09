@@ -48,8 +48,8 @@ test.describe('Swap', () => {
     }
     await expect(page.getByText('via Swapic')).toHaveCount(2);
     await expect(page.getByText('You pay gas')).toHaveCount(1);
-    // both cards can be compared on their total (Jeff 2026-11-09)
-    await expect(page.getByTestId('swap-routes').getByText('Total cost', { exact: true })).toHaveCount(2);
+    // both cards can be compared on their network fee (Jeff 2026-11-09)
+    await expect(page.getByTestId('swap-routes').getByText('Network fee', { exact: true })).toHaveCount(2);
     await expect(button(page, 'Review swap')).toBeEnabled();
   });
 
@@ -243,9 +243,9 @@ test.describe('Swap, signing (the panel changes in place)', () => {
     await open(page, 'default');
     await pickTokens(page);
     await button(page, 'Review swap').click();
-    // the left side and the route card both say it; Review swap shows the total on every route, gasless too
+    // the left side and the route card both say it; Review swap shows the network fee on every route, gasless too
     await expect(page.getByText('You get at least').first()).toBeVisible();
-    await expect(page.getByTestId('col-right').getByText('Total cost', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('col-right').getByText('Network fee', { exact: true })).toBeVisible();
     await button(page, 'Sign and swap').click();
     await expect(page.getByTestId('status-ring')).toHaveAttribute('data-phase', 'delivered', { timeout: 15_000 });
     await expect(page.getByText('Delivered', { exact: true }).first()).toBeVisible();

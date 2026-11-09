@@ -43,21 +43,26 @@ export function gasText(p: PickedOption, native: NativeCoin): string {
   if (!usd || native.priceUsd === null) return 'You pay it';
   const price = parseDecimal(native.priceUsd, 18);
   if (price === 0n) return 'You pay it';
-  const micro = dollarsToMicro(usd);
-  const amount = (micro * 10n ** BigInt(native.decimals + 12)) / price;
-  // the dollars beside the coin (Jeff 2026-11-09: "$0.09" read as the gas while the gas was only in ETH); a chain that pays in USDC is in dollars already
-  const dollars = native.symbol === 'USDC' ? '' : ` (${formatListUsd(micro)})`;
-  return `~ ${formatAmount(amount, native.decimals)} ${native.symbol}${dollars}, you pay it`;
+  const amount = (dollarsToMicro(usd) * 10n ** BigInt(native.decimals + 12)) / price;
+  return `~ ${formatAmount(amount, native.decimals)} ${native.symbol}, you pay it`;
 }
 
-/** What the swap costs in all (Jeff 2026-11-09), in micro dollars: the fees taken out of it, the gas the wallet pays, and an
- *  approve it still owes. An estimate as soon as any wallet gas is in it. */
-export function totalCost(p: PickedOption, fees: bigint): { micro: bigint; estimate: boolean } {
+/** A card's fee rows (Jeff 2026-11-09). Network fee: all the swap costs but an approve, the fees taken out of it and the gas the
+ *  wallet pays, an estimate when any wallet gas is in it. Approval fee and Total fee: only on a You pay gas card that still owes
+ *  an approve (a gasless card says it in its box); with none, the Total fee would only repeat the Network fee. Each row is floored
+ *  to the cent as shown, and the Total fee adds the rows as shown, so the card always adds up. */
+export function feeRows(p: PickedOption, fees: bigint): { networkFeeText: string; approvalFeeText?: string; totalText?: string } {
+  const cent = 10_000n;
   const gas = p.route.userGasUsd;
-  const approve = p.route.approvalGasUsd;
+  const network = fees + (gas ? dollarsToMicro(gas) : 0n);
+  const networkFeeText = `${gas ? '~ ' : ''}${formatListUsd(network)}`;
+  const owed = p.route.approvalGasUsd;
+  if (!owed) return { networkFeeText };
+  const approve = dollarsToMicro(owed);
   return {
-    micro: fees + (gas ? dollarsToMicro(gas) : 0n) + (approve ? dollarsToMicro(approve) : 0n),
-    estimate: !!gas || !!approve,
+    networkFeeText,
+    approvalFeeText: `~ ${formatListUsd(approve)}`,
+    totalText: p.mode === 'userPays' ? `~ ${formatListUsd((network / cent + approve / cent) * cent)}` : undefined,
   };
 }
 
@@ -78,7 +83,6 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
   const amountOut = BigInt(r.amountOut);
   const usdOut = usdMicro(amountOut, ctx.to.decimals, ctx.to.priceUsd);
   const fee = sumFees(r.fees, ctx.sameChainNoUsdc ? { decimals: ctx.to.decimals, priceUsd: ctx.to.priceUsd } : undefined);
-  const total = totalCost(p, fee);
   return {
     key: p.key,
     tags: p.tags,
@@ -88,8 +92,7 @@ export function routeView(p: PickedOption, ctx: { from: UiToken; to: UiToken; am
     // the token's own format (stable coins with two decimals), as Review swap's "You get at least" shows it
     minOutText: `${tokenAmountText(shownMinOf(p), ctx.to.decimals, ctx.to.symbol)} ${ctx.to.symbol}`,
     usdOutText: usdOut === null ? null : formatUsd(usdOut),
-    totalCostText: `${total.estimate ? '~ ' : ''}${formatListUsd(total.micro)}`,
-    approveCostText: r.approvalGasUsd ? `~ ${formatListUsd(dollarsToMicro(r.approvalGasUsd))}` : undefined,
+    ...feeRows(p, fee),
     gasText: gasText(p, ctx.native),
     gaslessNote: gaslessNote(p, ctx.from, ctx.native),
     approve: approveState(p, ctx.native),
