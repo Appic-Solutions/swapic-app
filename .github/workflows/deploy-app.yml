@@ -1,0 +1,102 @@
+name: deploy app
+
+# The Deploy app button. It names a build CI already made (a green ci.yml run of a push to
+# main, the newest by default) and asks for it as a GitHub Deployment to "prod". The prod
+# server's deployer (swapic-deployer) sees it within two seconds: it proposed that build to the
+# app's asset canister ahead of the press, so it only commits the proposal (one call), then
+# checks the canister serves its index.html, and reports on the Deployment; this job waits for
+# that answer and shows it. No key is here: the deployer's identity, which may only prepare and
+# commit batches on the canister, never leaves the server.
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: "The commit of main to deploy (empty: the newest green build of main). An older one is a rollback."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+# one deploy at a time; a second press waits for the first
+concurrency:
+  group: deploy-app
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ASKED: ${{ inputs.commit }}
+      ARTIFACT: app-build
+      TASK: "deploy:app"
+    steps:
+      - name: The build
+        id: pick
+        run: |
+          set -euo pipefail
+          runs="repos/$REPO/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1"
+          if [[ -z "$ASKED" ]]; then
+            run=$(gh api "$runs" --jq '.workflow_runs[0] // empty')
+          else
+            [[ "$ASKED" =~ ^[0-9a-f]{7,40}$ ]] || { echo "::error::$ASKED is not a commit id"; exit 1; }
+            sha=$(gh api "repos/$REPO/commits/$ASKED" --jq .sha)
+            run=$(gh api "$runs&head_sha=$sha" --jq '.workflow_runs[0] // empty')
+          fi
+          [[ -n "$run" ]] || { echo "::error::no green ci.yml build of main for ${ASKED:-main}"; exit 1; }
+          sha=$(jq -r .head_sha <<< "$run")
+          run_id=$(jq -r .id <<< "$run")
+          # on main: main is that commit or after it
+          on_main=$(gh api "repos/$REPO/compare/main...$sha" --jq .status)
+          [[ "$on_main" == behind || "$on_main" == identical ]] || { echo "::error::$sha is not on main ($on_main)"; exit 1; }
+          artifact=$(gh api "repos/$REPO/actions/runs/$run_id/artifacts" \
+            --jq "[.artifacts[] | select(.name == \"$ARTIFACT\" and (.expired | not))][0].id // empty")
+          [[ -n "$artifact" ]] || { echo "::error::run $run_id has no $ARTIFACT artifact (expired after 30 days: run ci.yml on that commit again)"; exit 1; }
+          printf '%s\n' "sha=$sha" "run_id=$run_id" "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "Deploying ${sha:0:12} (ci.yml run $run_id, artifact $artifact)" >> "$GITHUB_STEP_SUMMARY"
+      - name: The deployment
+        id: deployment
+        env:
+          SHA: ${{ steps.pick.outputs.sha }}
+          RUN_ID: ${{ steps.pick.outputs.run_id }}
+          ARTIFACT_ID: ${{ steps.pick.outputs.artifact }}
+        run: |
+          set -euo pipefail
+          id=$(jq -n --arg ref "$SHA" --arg task "$TASK" --argjson run "$RUN_ID" --argjson artifact "$ARTIFACT_ID" \
+            --arg by "$GITHUB_ACTOR" '{ref: $ref, task: $task, environment: "prod", auto_merge: false,
+              required_contexts: [], production_environment: true, transient_environment: false,
+              description: ("asked by " + $by), payload: {run_id: $run, artifact_id: $artifact}}' \
+            | gh api "repos/$REPO/deployments" --input - --jq .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Deployment $id asked; the server's deployer takes it within seconds" >> "$GITHUB_STEP_SUMMARY"
+      - name: The server's answer
+        env:
+          ID: ${{ steps.deployment.outputs.id }}
+        run: |
+          set -euo pipefail
+          statuses="repos/$REPO/deployments/$ID/statuses?per_page=1"
+          started=$(date +%s)
+          while true; do
+            latest=$(gh api "$statuses" --jq '.[0] // {}')
+            state=$(jq -r '.state // "none"' <<< "$latest")
+            says=$(jq -r '.description // ""' <<< "$latest")
+            case $state in
+              success) echo "Deployed: $says" >> "$GITHUB_STEP_SUMMARY"; echo "$says"; exit 0 ;;
+              failure | error) echo "Not deployed: $says" >> "$GITHUB_STEP_SUMMARY"; echo "::error::$says"; exit 1 ;;
+            esac
+            elapsed=$(( $(date +%s) - started ))
+            if [[ "$state" == none && $elapsed -ge 90 ]]; then
+              # the server never took it: marked, so a deployer that comes back later leaves it
+              gh api "repos/$REPO/deployments/$ID/statuses" -f state=error \
+                -f description="no answer from the server's deployer within 90 s; not deployed" > /dev/null
+              echo "::error::the server's deployer did not take the deployment within 90 s (is swapic-deployer running?)"
+              exit 1
+            fi
+            [[ $elapsed -lt 900 ]] || { echo "::error::no answer within 15 minutes; the last: $state $says"; exit 1; }
+            sleep 5
+          done

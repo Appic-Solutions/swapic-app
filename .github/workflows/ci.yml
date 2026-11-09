@@ -1,0 +1,64 @@
+name: ci
+
+# Every pull request and every push to main: the types, the unit tests (vitest), the copy
+# check and the prod build (pnpm build:prod: the static export, its asset rules and its own
+# checks). A push to main keeps the build as the "app-build" artifact (out/, its
+# MANIFEST.sha256 and the commit): what the prod server's deployer proposes to the asset
+# canister ahead of a press, and what the Deploy app button (deploy-app.yml) makes live.
+# Nothing here holds a secret or deploys.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  app:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # every action is pinned by commit, with the tag it was read from beside it
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # pnpm as package.json's packageManager names it
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      # .npmrc: no install scripts run
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm exec vitest run
+      - run: pnpm check:copy
+      - run: pnpm build:prod
+      - name: The app build
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          rm -rf app-build
+          mkdir app-build
+          cp -R out app-build/out
+          {
+            echo "COMMIT=$GITHUB_SHA"
+            echo "RUN_ID=$GITHUB_RUN_ID"
+            echo "NODE=$(node --version)"
+            echo "BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > app-build/BUILD
+          (cd app-build && find . -type f | sed 's#^\./##' | LC_ALL=C sort | xargs -d '\n' sha256sum) > MANIFEST.sha256
+          mv MANIFEST.sha256 app-build/MANIFEST.sha256
+          echo "app build: $(wc -l < app-build/MANIFEST.sha256) files, $(du -sh app-build/out | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.event_name == 'push'
+        with:
+          name: app-build
+          path: app-build
+          retention-days: 30
+          if-no-files-found: error
+          # out/.ic-assets.json5 (the headers and the CSP) and out/.well-known
+          include-hidden-files: true
