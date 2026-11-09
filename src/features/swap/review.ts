@@ -26,17 +26,20 @@ export function reviewRefresh(shownMin: bigint, fresh: PickedOption | undefined)
 /**
  * The "If it can't finish" rows (Jeff's short rows, 2026-11-09): an Across route names what comes back and where, at
  * least the order's own minimums (the check refuses a route whose answer says otherwise); a swap on BNB Chain alone
- * reverts and keeps the person's token; every other route keeps today's row.
+ * reverts and keeps the person's token; every other route keeps today's row. An ICP sale paid out through Across names
+ * only its last swap's fallback: an unfilled deposit is refunded on ICP, as today.
  */
 export function refundRows(route: Route, quote: Quote, from: UiToken): { k: string; text: string }[] {
-  const plain = [{ k: "If it can't finish", text: `Refunded as ${from.chain_type === 'ICP' ? 'ckUSDC' : 'USDC'}` }];
-  // an ICP route's fallbacks are no Across order's: today's row
-  const all = from.chain_type === 'ICP' ? [] : route.fallbacks ?? [];
-  const notFilled = all.find((f) => f.when === 'notFilled');
+  const icp = from.chain_type === 'ICP';
+  const plain = [{ k: "If it can't finish", text: `Refunded as ${icp ? 'ckUSDC' : 'USDC'}` }];
+  const all = route.fallbacks ?? [];
+  const notFilled = icp ? undefined : all.find((f) => f.when === 'notFilled');
   const lastSwap = all.find((f) => f.when === 'lastSwapFails');
-  const place = (f: NonNullable<typeof notFilled>) =>
+  const place = (f: NonNullable<typeof lastSwap>) =>
     `${f.symbol} on ${chainRow(f.chain)?.name ?? f.chain}, at least ${tokenAmountText(BigInt(f.min), f.decimals, f.symbol)}`;
   try {
+    if (icp && lastSwap) return [{ k: 'If the last swap fails', text: `All as ${place(lastSwap)}` }, { k: "If it can't be delivered", text: 'Refunded as ckUSDC' }];
+    if (icp) return plain;
     if (notFilled && lastSwap) return [{ k: 'If the last swap fails', text: `All as ${place(lastSwap)}` }, { k: "If it can't be delivered", text: `Back as ${place(notFilled)}` }];
     if (notFilled) return [{ k: "If it can't finish", text: `Back to you as ${place(notFilled)}` }];
   } catch {
