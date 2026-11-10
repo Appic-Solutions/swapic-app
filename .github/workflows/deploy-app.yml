@@ -90,11 +90,11 @@ jobs:
               failure | error) echo "Not deployed: $says" >> "$GITHUB_STEP_SUMMARY"; echo "::error::$says"; exit 1 ;;
             esac
             elapsed=$(( $(date +%s) - started ))
-            if [[ "$state" == none && $elapsed -ge 90 ]]; then
+            if [[ "$state" == none && $elapsed -ge 360 ]]; then
               # the server never took it: marked, so a deployer that comes back later leaves it
               gh api "repos/$REPO/deployments/$ID/statuses" -f state=error \
-                -f description="no answer from the server's deployer within 90 s; not deployed" > /dev/null
-              echo "::error::the server's deployer did not take the deployment within 90 s (is swapic-deployer running?)"
+                -f description="no answer from the server's deployer within 6 minutes; not deployed" > /dev/null
+              echo "::error::the server's deployer did not take the deployment within 6 minutes (it runs one deploy at a time: is swapic-deployer running?)"
               exit 1
             fi
             [[ $elapsed -lt 900 ]] || { echo "::error::no answer within 15 minutes; the last: $state $says"; exit 1; }
