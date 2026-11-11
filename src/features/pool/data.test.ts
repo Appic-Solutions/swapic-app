@@ -24,6 +24,16 @@ describe('pool numbers', () => {
     const h = c('account-history.json');
     expect(stakeSeries([h, h], '1M').map((p) => p.value)).toEqual([1997.64, 1997.722]);
   });
+  it('ends the stake line at the value read now, not at the last hourly snapshot (a withdrawal shows within a minute)', () => {
+    const h = c('account-history.json');
+    const lastT = Math.max(...h.points.map((p: { t: number }) => p.t));
+    // the step under way: drawn at the live value
+    expect(stakeSeries([h], '1M', { valueUsdc: 778_500_000n, nowSec: lastT - 1 }).map((p) => p.value)).toEqual([998.82, 778.5]);
+    // no point for the step under way: one more point now
+    const later = lastT + h.stepSeconds + 10;
+    const drawn = stakeSeries([h], '1M', { valueUsdc: 778_500_000n, nowSec: later });
+    expect(drawn.map((p) => p.value)).toEqual([998.82, 998.861, 778.5]);
+  });
   it('words the activity rows like the design (5.4)', () => {
     const rows = activityRows(c('pool-activity.json').items, 1_793_408_340);
     expect(rows[0]).toMatchObject({ kind: 'stake', title: 'Staked 998.82 USDC', sub: 'from Arbitrum · 2 min ago', amount: '+$998.82' });

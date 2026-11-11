@@ -75,9 +75,9 @@ export function PoolChart({ stakes, nowSec }: { stakes: MyStake[]; nowSec: numbe
     series = history ? earningsSeries(history, tf) : [];
     last = history?.points.at(-1) ? BigInt(history.points.at(-1)!.earned) : null;
   } else if (has) {
-    series = stakeSeries(histories, tf);
-    const lastT = Math.max(...histories.flatMap((h) => h.points.map((p) => p.t)), 0);
-    last = histories.length ? histories.reduce((a, h) => a + BigInt(h.points.find((p) => p.t === lastT)?.valueUsdc ?? '0'), 0n) : null;
+    // the line ends at the stake as read now (every 60 s), not at the last hourly snapshot
+    series = stakeSeries(histories, tf, { valueUsdc: mine.valueUsdc, nowSec });
+    last = mine.valueUsdc;
   } else if (history) {
     // a new pool has no share price yet (null before the first stake): no line and no number, never a crash
     series = launchSeries(history, tf);
