@@ -129,12 +129,15 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
   const [stakeStarted, setStakeStarted] = React.useState<{ s: StakeStarted; review: StakeReviewData } | null>(null);
   const [withdrawStart, setWithdrawStart] = React.useState<WithdrawStart | null>(null);
   const qc = useQueryClient();
-  // leaving Your stake: the stake counts in Your stake and the chart (the account and its history read again)
+  // a stake or a withdrawal counts in Your stake and the chart at once: the account and its history read again
+  const readAgain = (owner: string) => {
+    void qc.invalidateQueries({ queryKey: ['account', owner] });
+    void qc.invalidateQueries({ queryKey: ['account-history', owner] });
+  };
+  // leaving Your stake
   const leaveStatus = (v: PoolView) => {
-    if (stakeStart) {
-      void qc.invalidateQueries({ queryKey: ['account', stakeStart.owner] });
-      void qc.invalidateQueries({ queryKey: ['account-history', stakeStart.owner] });
-    }
+    if (stakeStart) readAgain(stakeStart.owner);
+    if (withdrawStart) readAgain(withdrawStart.stake.owner);
     go(v);
   };
   const apy = pool.data ? tiles(pool.data).apy : null;
@@ -227,7 +230,7 @@ export function PoolFlow({ start }: { start: 'pool' | 'stake' | 'withdraw' }) {
             start={withdrawStart}
             onBack={() => go('withdraw')}
             // an ICP payout is paid at once: back to the pool page; an EVM one shows its steps
-            onStarted={(id) => { if (withdrawStart.review.kind === 'icp') go('pool'); else { setStatusId(id); go('status'); } }}
+            onStarted={(id) => { readAgain(withdrawStart.stake.owner); if (withdrawStart.review.kind === 'icp') go('pool'); else { setStatusId(id); go('status'); } }}
           />
         ) : null;
       case 'status':

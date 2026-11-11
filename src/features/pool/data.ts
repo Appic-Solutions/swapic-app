@@ -52,9 +52,17 @@ function label(t: number, tf: Timeframe): string {
   return d.toLocaleString('en-US', { month: 'short' });
 }
 
-export function stakeSeries(hs: AccountHistory[], tf: Timeframe) {
+/** The stake histories summed by time. With `live` (the accounts' value as read now), the step under way is drawn at it, or a
+ *  point now is added when the histories hold none for it: the histories move only at the pool's hourly snapshot, so a stake or
+ *  a withdrawal would otherwise reach the line up to an hour late (Jeff 2026-11-11). */
+export function stakeSeries(hs: AccountHistory[], tf: Timeframe, live?: { valueUsdc: bigint; nowSec: number }) {
   const by = new Map<number, bigint>();
   for (const h of hs) for (const p of h.points) by.set(p.t, (by.get(p.t) ?? 0n) + BigInt(p.valueUsdc));
+  if (live) {
+    const step = Math.max(0, ...hs.map((h) => h.stepSeconds));
+    const lastT = by.size ? Math.max(...by.keys()) : null;
+    by.set(lastT !== null && lastT > live.nowSec - step ? lastT : live.nowSec, live.valueUsdc);
+  }
   return [...by.entries()].sort(([a], [b]) => a - b).map(([t, v]) => ({ date: label(t, tf), value: dollars(v) }));
 }
 
