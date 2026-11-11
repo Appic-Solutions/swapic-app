@@ -1,6 +1,6 @@
 'use client';
 // The Scanner: moved from the design's scanner-screens.tsx ScannerPanel (the approved static look), wired to data: the
-// 24 hour tiles and the live feed every 10 s while visible, 5 s while a row is in progress (new ids slide in), search by
+// tiles since the start and the live feed every 10 s while visible, 5 s while a row is in progress (new ids slide in), search by
 // wallet (chips; their rows from ONE GET /v2/orders call for all chips, every 30 s, 10 s while a row is in progress,
 // contract 5.13 and 1.6), by order id or transaction hash (GET
 // /v2/scanner/search, one row opens its order page), and "Nothing found" without any call for a text that is none of the

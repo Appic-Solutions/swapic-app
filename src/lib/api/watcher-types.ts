@@ -61,8 +61,9 @@ export interface ScannerPage { items: ActivityRow[]; nextCursor: string | null }
 export interface ScannerStats {
   windowSeconds: number; swaps: number; swapsBefore: number; medianMs: number | null;
   delivered: number; refunded: number; failed: number; deliveredBps: number | null; volumeUsd: string; updatedAt: number;
-  /** Since the start (a watcher before them answers neither). */
+  /** Since the start (a watcher before them answers none of them). */
   swapsAll?: number; volumeUsdAll?: string;
+  medianMsAll?: number | null; deliveredAll?: number; refundedAll?: number; failedAll?: number; deliveredBpsAll?: number | null;
 }
 /** contract 5.13 */
 export interface SearchAnswer { q: string; match: 'wallet' | 'order' | 'tx' | 'none'; items: ActivityRow[]; nextCursor: string | null }
