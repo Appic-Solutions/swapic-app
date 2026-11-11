@@ -1,5 +1,5 @@
 'use client';
-// Moved from the design's home-screens.tsx (sha 04ec3f6bf50c). The number tiles read the Scanner's 24 hour numbers (contract 5.12).
+// Moved from the design's home-screens.tsx (sha 04ec3f6bf50c). The number tiles read the Scanner's numbers since the start (contract 5.12).
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { CustomCard } from '@/components/landing';
